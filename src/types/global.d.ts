@@ -11,11 +11,23 @@ declare global {
       app?: any;
       runtime?: any;
     };
+    lastMouseX?: number;
+    lastMouseY?: number;
   }
 
   interface Navigator {
     getBattery?: () => Promise<any>;
     connection?: any;
+    webdriver?: boolean;
+  }
+
+  interface ErrorConstructor {
+    captureStackTrace(targetObject: object, constructorOpt?: Function): void;
+    prepareStackTrace?: (err: Error, structuredStackTrace: any[]) => any;
+  }
+
+  interface Error {
+    stack?: string;
   }
 }
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Biometric Behavior Profiler
  * Creates unique, consistent behavioral profiles for each user/session
