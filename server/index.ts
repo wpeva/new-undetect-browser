@@ -5,19 +5,38 @@
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { Server } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import path from 'path';
 import { UndetectBrowser } from '../src/index';
 import { logger, LogLevel } from '../src/utils/logger';
 
+// Import middlewares
+import { authenticate, optionalAuth, authorize, login, register, AuthRequest } from './middleware/auth';
+import { apiLimiter, authLimiter, browserLaunchLimiter, screenshotLimiter, strictLimiter } from './middleware/rate-limit';
+
+// Import routes
+import profileRoutes from './routes/profiles';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true'; // Enable auth via environment variable
 
-// Middleware
-app.use(cors());
+// Security Middleware
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable for development, enable in production
+  crossOriginEmbedderPolicy: false,
+}));
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../web/build')));
+
+// Apply rate limiting to all API routes
+app.use('/api/', apiLimiter);
 
 // Create HTTP server and Socket.IO
 const httpServer = new Server(app);
@@ -36,15 +55,119 @@ const browserSessions = new Map<string, { browser: any; startTime: number; statu
 // API Routes
 // ============================================
 
+// ============================================
+// Authentication Routes
+// ============================================
+
+/**
+ * POST /api/auth/register
+ * Register new user
+ */
+app.post('/api/auth/register', authLimiter, async (req: Request, res: Response) => {
+  try {
+    const { username, password, email } = req.body;
+
+    if (!username || !password || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username, password, and email are required',
+      });
+    }
+
+    const result = await register(username, password, email);
+    if (!result) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username already exists',
+      });
+    }
+
+    logger.info(`User registered: ${username}`);
+
+    return res.status(201).json({
+      success: true,
+      token: result.token,
+      user: result.user,
+    });
+  } catch (error: any) {
+    logger.error('Registration failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Registration failed',
+    });
+  }
+});
+
+/**
+ * POST /api/auth/login
+ * Login user
+ */
+app.post('/api/auth/login', authLimiter, async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username and password are required',
+      });
+    }
+
+    const result = await login(username, password);
+    if (!result) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+      });
+    }
+
+    logger.info(`User logged in: ${username}`);
+
+    return res.json({
+      success: true,
+      token: result.token,
+      user: result.user,
+    });
+  } catch (error: any) {
+    logger.error('Login failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Login failed',
+    });
+  }
+});
+
+/**
+ * GET /api/auth/me
+ * Get current user info
+ */
+app.get('/api/auth/me', authenticate, (req: AuthRequest, res: Response) => {
+  return res.json({
+    success: true,
+    user: req.user,
+  });
+});
+
+// ============================================
+// Profile Routes
+// ============================================
+
+app.use('/api/profiles', ENABLE_AUTH ? authenticate : optionalAuth, profileRoutes);
+
+// ============================================
+// System Routes
+// ============================================
+
 /**
  * Health check
  */
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({
+  return res.json({
     status: 'ok',
     uptime: process.uptime(),
     timestamp: Date.now(),
     memory: process.memoryUsage(),
+    authEnabled: ENABLE_AUTH,
   });
 });
 
@@ -70,7 +193,7 @@ app.get('/api/stats', (req: Request, res: Response) => {
 /**
  * Launch new browser
  */
-app.post('/api/browser/launch', async (req: Request, res: Response) => {
+app.post('/api/browser/launch', browserLaunchLimiter, ENABLE_AUTH ? authenticate : optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { profileId, config } = req.body;
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -129,7 +252,7 @@ app.post('/api/browser/launch', async (req: Request, res: Response) => {
 /**
  * Navigate to URL
  */
-app.post('/api/browser/:sessionId/navigate', async (req: Request, res: Response) => {
+app.post('/api/browser/:sessionId/navigate', ENABLE_AUTH ? authenticate : optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { url } = req.body;
@@ -161,7 +284,7 @@ app.post('/api/browser/:sessionId/navigate', async (req: Request, res: Response)
 /**
  * Take screenshot
  */
-app.post('/api/browser/:sessionId/screenshot', async (req: Request, res: Response) => {
+app.post('/api/browser/:sessionId/screenshot', screenshotLimiter, ENABLE_AUTH ? authenticate : optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { sessionId } = req.params;
 
@@ -193,7 +316,7 @@ app.post('/api/browser/:sessionId/screenshot', async (req: Request, res: Respons
 /**
  * Get page info
  */
-app.get('/api/browser/:sessionId/info', async (req: Request, res: Response) => {
+app.get('/api/browser/:sessionId/info', ENABLE_AUTH ? authenticate : optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { sessionId } = req.params;
 
@@ -229,7 +352,7 @@ app.get('/api/browser/:sessionId/info', async (req: Request, res: Response) => {
 /**
  * Close browser session
  */
-app.post('/api/browser/:sessionId/close', async (req: Request, res: Response) => {
+app.post('/api/browser/:sessionId/close', ENABLE_AUTH ? authenticate : optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { sessionId } = req.params;
 
@@ -259,7 +382,7 @@ app.post('/api/browser/:sessionId/close', async (req: Request, res: Response) =>
 /**
  * List all active sessions
  */
-app.get('/api/browser/sessions', (req: Request, res: Response) => {
+app.get('/api/browser/sessions', ENABLE_AUTH ? authenticate : optionalAuth, (req: AuthRequest, res: Response) => {
   const sessions = Array.from(browserSessions.entries()).map(([id, session]) => ({
     id,
     status: session.status,
@@ -277,7 +400,7 @@ app.get('/api/browser/sessions', (req: Request, res: Response) => {
 /**
  * Execute script in page
  */
-app.post('/api/browser/:sessionId/execute', async (req: Request, res: Response) => {
+app.post('/api/browser/:sessionId/execute', strictLimiter, ENABLE_AUTH ? authenticate : optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { script } = req.body;

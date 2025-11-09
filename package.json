@@ -49,11 +49,15 @@
   "dependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
+    "bcrypt": "^6.0.0",
     "chrome-launcher": "^1.1.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
     "faker": "^5.5.3",
     "fingerprint-generator": "^2.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
     "playwright": "^1.40.1",
     "playwright-extra": "^4.3.6",
     "proxy-chain": "^2.4.0",
@@ -65,7 +69,9 @@
     "user-agents": "^1.1.0"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/jest": "^29.5.11",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.10.5",
     "@types/tough-cookie": "^4.0.5",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
