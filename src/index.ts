@@ -386,6 +386,8 @@ export * from './modules/webrtc-protection-v2';
 export * from './modules/hardware-spoofing';
 export * from './modules/advanced-behavioral-simulator';
 export * from './modules/biometric-profiler';
+export * from './modules/headless-detection-protection';
+export * from './modules/automation-detection-protection';
 
 // Export advanced core features
 export * from './core/advanced-browser';

@@ -4,6 +4,8 @@ import { FingerprintSpoofingModule } from '../modules/fingerprint-spoofing';
 import { BehavioralSimulationModule } from '../modules/behavioral-simulation';
 import { NetworkProtectionModule } from '../modules/network-protection';
 import { AdvancedEvasionsModule } from '../modules/advanced-evasions';
+import { HeadlessDetectionProtection } from '../modules/headless-detection-protection';
+import { AutomationDetectionProtection } from '../modules/automation-detection-protection';
 import { logger } from '../utils/logger';
 import {
   FingerprintProfile,
@@ -17,6 +19,8 @@ export interface StealthConfig {
   behavioralSimulation?: boolean;
   networkProtection?: boolean;
   advancedEvasions?: boolean;
+  headlessProtection?: boolean;
+  automationProtection?: boolean;
   customFingerprint?: FingerprintProfile;
 }
 
@@ -30,6 +34,8 @@ export class StealthEngine {
   private fingerprintSpoofer: FingerprintSpoofingModule;
   private behavioralSimulation: BehavioralSimulationModule;
   private advancedEvasions: AdvancedEvasionsModule;
+  private headlessProtection: HeadlessDetectionProtection;
+  private automationProtection: AutomationDetectionProtection;
   private networkProtection: NetworkProtectionModule | null = null;
   private fingerprint: FingerprintProfile;
   private initialized: boolean = false;
@@ -45,6 +51,8 @@ export class StealthEngine {
       behavioralSimulation: config.behavioralSimulation ?? (level !== 'basic'),
       networkProtection: config.networkProtection ?? (level !== 'basic'),
       advancedEvasions: config.advancedEvasions ?? (level === 'paranoid'),
+      headlessProtection: config.headlessProtection ?? true, // Always enable by default
+      automationProtection: config.automationProtection ?? (level !== 'basic'),
       customFingerprint: config.customFingerprint,
     };
 
@@ -57,6 +65,8 @@ export class StealthEngine {
     this.fingerprintSpoofer = new FingerprintSpoofingModule(this.fingerprint);
     this.behavioralSimulation = new BehavioralSimulationModule();
     this.advancedEvasions = new AdvancedEvasionsModule();
+    this.headlessProtection = new HeadlessDetectionProtection();
+    this.automationProtection = new AutomationDetectionProtection();
 
     logger.info(`StealthEngine initialized with level: ${this.config.level}`);
   }
@@ -92,6 +102,16 @@ export class StealthEngine {
       // Apply WebDriver evasion (always first)
       if (this.config.webdriverEvasion) {
         await this.webdriverEvasion.inject(page);
+      }
+
+      // Apply headless detection protection (early)
+      if (this.config.headlessProtection) {
+        await this.headlessProtection.inject(page);
+      }
+
+      // Apply automation detection protection (early)
+      if (this.config.automationProtection) {
+        await this.automationProtection.inject(page);
       }
 
       // Apply fingerprint spoofing
@@ -182,5 +202,19 @@ export class StealthEngine {
    */
   getAdvancedEvasions(): AdvancedEvasionsModule {
     return this.advancedEvasions;
+  }
+
+  /**
+   * Get headless protection module
+   */
+  getHeadlessProtection(): HeadlessDetectionProtection {
+    return this.headlessProtection;
+  }
+
+  /**
+   * Get automation protection module
+   */
+  getAutomationProtection(): AutomationDetectionProtection {
+    return this.automationProtection;
   }
 }
