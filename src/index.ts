@@ -388,8 +388,8 @@ export * from './modules/hardware-spoofing';
 // Export advanced core features
 export * from './core/advanced-browser';
 export * from './core/advanced-profile-manager';
-export * from './core/proxy-manager';
-export * from './core/cookie-session-manager';
+export { ProxyManager, createProxyFromString, formatProxyToString } from './core/proxy-manager';
+export { CookieSessionManager, createCookieSessionManager } from './core/cookie-session-manager';
 
 // Export types and utilities
 export * from './utils/logger';

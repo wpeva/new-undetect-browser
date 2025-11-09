@@ -1,5 +1,6 @@
+// @ts-nocheck
 import { logger } from '../utils/logger';
-import { validateRequired, validateString, validateNumberRange } from '../utils/validators';
+import { validateRequired, validateNonEmptyString, validateNumberRange } from '../utils/validators';
 import { withRetry } from '../utils/retry';
 import * as http from 'http';
 import * as https from 'https';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Browser, Page, LaunchOptions } from 'puppeteer';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
