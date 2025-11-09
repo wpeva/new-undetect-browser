@@ -380,10 +380,22 @@ export * from './modules/behavioral-simulation';
 export * from './modules/network-protection';
 export * from './modules/advanced-evasions';
 
+// Export new advanced modules
+export * from './modules/canvas-protection-v2';
+export * from './modules/webrtc-protection-v2';
+export * from './modules/hardware-spoofing';
+
+// Export advanced core features
+export * from './core/advanced-browser';
+export * from './core/advanced-profile-manager';
+export * from './core/proxy-manager';
+export * from './core/cookie-session-manager';
+
 // Export types and utilities
 export * from './utils/logger';
 export * from './utils/helpers';
 export * from './utils/fingerprint-generator';
+export * from './utils/enhanced-fingerprint-generator';
 export * from './core/stealth-engine';
 export * from './core/profile-manager';
 export * from './storage/profile-storage';
