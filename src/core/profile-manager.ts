@@ -25,7 +25,7 @@ export interface ProfileOptions {
  * Profile Manager - Creates and manages browser profiles
  */
 export class ProfileManager {
-  private storage: ProfileStorage;
+  protected storage: ProfileStorage;
   private activeProfiles: Map<string, BrowserProfile>;
 
   constructor(storageConfig?: StorageConfig) {

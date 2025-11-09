@@ -58,6 +58,7 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     ca-certificates \
+    libasound2t64 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables for Puppeteer

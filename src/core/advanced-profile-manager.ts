@@ -159,7 +159,7 @@ export class AdvancedProfileManager extends ProfileManager {
 
     // Load from storage
     const profilePath = path.join(
-      this.storage.config.dataDir,
+      this.storage.config.path || './profiles',
       'profiles',
       `${id}.json`
     );
@@ -178,7 +178,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Update profile metadata
    */
-  async updateProfile(
+  async updateProfileMetadata(
     id: string,
     updates: Partial<ProfileMetadata>
   ): Promise<AdvancedProfile> {
@@ -330,7 +330,7 @@ export class AdvancedProfileManager extends ProfileManager {
 
     // Delete from storage
     const profilePath = path.join(
-      this.storage.config.dataDir,
+      this.storage.config.path || './profiles',
       'profiles',
       `${id}.json`
     );
@@ -485,7 +485,7 @@ export class AdvancedProfileManager extends ProfileManager {
    */
   private async saveAdvancedProfile(profile: AdvancedProfile): Promise<void> {
     const profilePath = path.join(
-      this.storage.config.dataDir,
+      this.storage.config.path || './profiles',
       'profiles',
       `${profile.id}.json`
     );
@@ -498,7 +498,7 @@ export class AdvancedProfileManager extends ProfileManager {
    * Private: Load all profiles from storage
    */
   private async loadAllProfiles(): Promise<void> {
-    const profilesDir = path.join(this.storage.config.dataDir, 'profiles');
+    const profilesDir = path.join(this.storage.config.path || './profiles', 'profiles');
 
     try {
       await fs.mkdir(profilesDir, { recursive: true });

@@ -1,9 +1,12 @@
 import { logger } from './logger';
 import type { EnhancedFingerprintOptions } from '../types/advanced-types';
 
+// Re-export for convenience
+export type { EnhancedFingerprintOptions };
+
 /**
  * Enhanced fingerprint generator
- * Generates realistic, consistent fingerprints like Multilogin  
+ * Generates realistic, consistent fingerprints like Multilogin
  */
 
 // Simplified version without type conflicts

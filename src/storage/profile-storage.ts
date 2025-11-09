@@ -35,12 +35,19 @@ export interface StorageConfig {
  * Profile Storage - Manages browser profiles
  */
 export class ProfileStorage {
-  private config: StorageConfig;
+  public config: StorageConfig;
   private memoryStore: Map<string, BrowserProfile>;
 
   constructor(config: StorageConfig = { type: 'file', path: './profiles' }) {
     this.config = config;
     this.memoryStore = new Map();
+  }
+
+  /**
+   * Get the storage base path
+   */
+  getBasePath(): string | undefined {
+    return this.config.path;
   }
 
   /**

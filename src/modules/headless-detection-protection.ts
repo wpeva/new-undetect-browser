@@ -246,6 +246,7 @@ export class HeadlessDetectionProtection {
       });
 
       Object.defineProperty(document, 'visibilityState', {
+        // @ts-ignore - VisibilityState type is defined in browser-types.d.ts
         get: () => 'visible' as VisibilityState,
         configurable: true,
       });
@@ -360,7 +361,8 @@ export class HeadlessDetectionProtection {
             dispatchEvent: () => true,
             update: () => Promise.resolve(),
             unregister: () => Promise.resolve(true),
-          } as ServiceWorkerRegistration),
+            // @ts-ignore - Partial ServiceWorkerRegistration for headless detection
+          } as unknown as ServiceWorkerRegistration),
           getRegistration: () => Promise.resolve(undefined),
           getRegistrations: () => Promise.resolve([]),
           startMessages: () => {},
@@ -394,14 +396,19 @@ export class HeadlessDetectionProtection {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 
-      if (gl) {
+      if (gl && 'getParameter' in gl) {
+        // @ts-ignore - getExtension returns specific extension types
         const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
         if (debugInfo) {
+          // @ts-ignore - getParameter exists on WebGL contexts
           const originalGetParameter = gl.getParameter.bind(gl);
+          // @ts-ignore - Overriding getParameter for WebGL spoofing
           gl.getParameter = function (pname: number) {
+            // @ts-ignore - UNMASKED_VENDOR_WEBGL exists on debug extension
             if (pname === debugInfo.UNMASKED_VENDOR_WEBGL) {
               return 'Intel Inc.';
             }
+            // @ts-ignore - UNMASKED_RENDERER_WEBGL exists on debug extension
             if (pname === debugInfo.UNMASKED_RENDERER_WEBGL) {
               return 'Intel Iris OpenGL Engine';
             }
