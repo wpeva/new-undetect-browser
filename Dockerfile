@@ -21,6 +21,8 @@ COPY package*.json ./
 COPY tsconfig.json ./
 
 # Install ALL dependencies (including devDependencies for building)
+# Skip Puppeteer's Chrome download as we install Chromium separately
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN npm ci
 
 # Copy source code
