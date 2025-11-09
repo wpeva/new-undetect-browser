@@ -153,7 +153,7 @@ export class StealthEngine {
    */
   updateConfig(config: Partial<StealthConfig>): void {
     this.config = { ...this.config, ...config };
-    logger.info('StealthEngine configuration updated', this.config);
+    logger.info('StealthEngine configuration updated', this.config as unknown as Record<string, unknown>);
   }
 
   /**

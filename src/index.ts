@@ -207,7 +207,7 @@ export class UndetectBrowserInstance {
       try {
         await (page as any).emulateTimezone(this.profile.timezone);
       } catch (e) {
-        logger.warn('Failed to set timezone:', e);
+        logger.warn('Failed to set timezone:', { error: String(e) });
       }
     }
 
