@@ -6,42 +6,41 @@ describe('FingerprintSpoofingModule', () => {
   let browser: Browser;
   let page: Page;
   let fingerprint: FingerprintSpoofingModule;
-  let testProfile: FingerprintProfile;
+
+  // Create test profile
+  const testProfile: FingerprintProfile = {
+    canvas: {
+      noise: 0.001,
+      toDataURL: true,
+    },
+    webgl: {
+      vendor: 'Intel Inc.',
+      renderer: 'Intel Iris OpenGL Engine',
+      noise: 0.0001,
+    },
+    audio: {
+      noise: 0.00001,
+      frequencyVariation: 0.0001,
+    },
+    fonts: ['Arial', 'Verdana', 'Times New Roman'],
+    plugins: [] as unknown as PluginArray,
+    screen: {
+      width: 1920,
+      height: 1080,
+      colorDepth: 24,
+      pixelDepth: 24,
+    },
+    timezone: -480, // PST
+    language: 'en-US',
+    platform: 'MacIntel',
+    hardwareConcurrency: 8,
+    deviceMemory: 8,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+  };
 
   beforeAll(async () => {
-    fingerprint = new FingerprintSpoofingModule();
+    fingerprint = new FingerprintSpoofingModule(testProfile);
     browser = await puppeteer.launch({ headless: true });
-
-    // Create test profile
-    testProfile = {
-      canvas: {
-        noise: 0.001,
-        toDataURL: true,
-      },
-      webgl: {
-        vendor: 'Intel Inc.',
-        renderer: 'Intel Iris OpenGL Engine',
-        noise: 0.0001,
-      },
-      audio: {
-        noise: 0.00001,
-        frequencyVariation: 0.0001,
-      },
-      fonts: ['Arial', 'Verdana', 'Times New Roman'],
-      plugins: [] as unknown as PluginArray,
-      screen: {
-        width: 1920,
-        height: 1080,
-        colorDepth: 24,
-        pixelDepth: 24,
-      },
-      timezone: -480, // PST
-      language: 'en-US',
-      platform: 'MacIntel',
-      hardwareConcurrency: 8,
-      deviceMemory: 8,
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-    };
   });
 
   afterAll(async () => {
@@ -58,7 +57,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Canvas Fingerprinting Protection', () => {
     it('should protect toDataURL method', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const canvasData1 = await page.evaluate(() => {
         const canvas = document.createElement('canvas');
@@ -87,7 +86,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should protect toBlob method', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const hasToBlobProtection = await page.evaluate(() => {
         const canvas = document.createElement('canvas');
@@ -100,7 +99,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('WebGL Fingerprinting Protection', () => {
     it('should protect getParameter with custom vendor/renderer', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const webglInfo = await page.evaluate(() => {
         const canvas = document.createElement('canvas');
@@ -122,7 +121,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should add noise to readPixels', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const pixelData1 = await page.evaluate(() => {
         const canvas = document.createElement('canvas');
@@ -145,7 +144,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Audio Context Fingerprinting Protection', () => {
     it('should protect AudioContext oscillator', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const hasAudioProtection = await page.evaluate(() => {
         if (typeof AudioContext === 'undefined') return false;
@@ -161,7 +160,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should protect getChannelData', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const hasChannelDataProtection = await page.evaluate(() => {
         if (typeof AudioContext === 'undefined') return false;
@@ -179,7 +178,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Font Fingerprinting Protection', () => {
     it('should inject font detection protection', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const hasFontProtection = await page.evaluate(() => {
         // Font detection typically uses canvas measureText
@@ -199,7 +198,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Screen Fingerprinting Protection', () => {
     it('should protect screen properties', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const screenInfo = await page.evaluate(() => {
         return {
@@ -219,7 +218,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Battery API Protection', () => {
     it('should protect getBattery if available', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const hasBatteryProtection = await page.evaluate(() => {
         return typeof navigator.getBattery === 'function';
@@ -232,7 +231,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Media Devices Protection', () => {
     it('should protect enumerateDevices', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const hasMediaDevicesProtection = await page.evaluate(async () => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
@@ -249,7 +248,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Navigator Properties Protection', () => {
     it('should protect navigator.hardwareConcurrency', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const concurrency = await page.evaluate(() => {
         return navigator.hardwareConcurrency;
@@ -259,7 +258,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should protect navigator.deviceMemory if available', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const deviceMemory = await page.evaluate(() => {
         return (navigator as any).deviceMemory;
@@ -271,7 +270,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should protect navigator.platform', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const platform = await page.evaluate(() => {
         return navigator.platform;
@@ -281,7 +280,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should protect navigator.language', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const language = await page.evaluate(() => {
         return navigator.language;
@@ -293,7 +292,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Timezone Protection', () => {
     it('should protect Date.getTimezoneOffset', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const timezoneOffset = await page.evaluate(() => {
         return new Date().getTimezoneOffset();
@@ -305,7 +304,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Plugin Fingerprinting Protection', () => {
     it('should protect navigator.plugins', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const plugins = await page.evaluate(() => {
         return navigator.plugins.length;
@@ -322,7 +321,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should maintain consistent fingerprint across multiple checks', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const fingerprint1 = await page.evaluate(() => {
         return {
@@ -351,7 +350,7 @@ describe('FingerprintSpoofingModule', () => {
     });
 
     it('should not break normal page functionality', async () => {
-      await fingerprint.inject(page, testProfile);
+      await fingerprint.inject(page);
 
       const canRenderContent = await page.evaluate(() => {
         const div = document.createElement('div');

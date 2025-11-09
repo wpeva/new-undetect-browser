@@ -227,6 +227,14 @@ export class PerformanceMonitor {
       }
     }
   }
+
+  /**
+   * Clear all metrics
+   */
+  clearMetrics(): void {
+    this.metrics = [];
+    this.timers.clear();
+  }
 }
 
 /**

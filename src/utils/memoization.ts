@@ -324,6 +324,10 @@ export class Lazy<T> {
  */
 export class BatchProcessor<T, R> {
   private batch: T[] = [];
+  private resolvers: Array<{
+    resolve: (value: R) => void;
+    reject: (error: unknown) => void;
+  }> = [];
   private timeoutId: NodeJS.Timeout | null = null;
 
   constructor(
@@ -337,8 +341,8 @@ export class BatchProcessor<T, R> {
    */
   async add(item: T): Promise<R> {
     return new Promise<R>((resolve, reject) => {
-      const index = this.batch.length;
       this.batch.push(item);
+      this.resolvers.push({ resolve, reject });
 
       // Schedule processing
       if (!this.timeoutId) {
@@ -347,18 +351,7 @@ export class BatchProcessor<T, R> {
 
       // Process immediately if batch is full
       if (this.batch.length >= this.maxBatchSize) {
-        this.flush().then((results) => {
-          resolve(results[index]);
-        }).catch(reject);
-      } else {
-        // Store resolver for later
-        const checkResults = () => {
-          this.processor(this.batch)
-            .then((results) => resolve(results[index]))
-            .catch(reject);
-        };
-
-        setTimeout(checkResults, this.maxWaitMs + 10);
+        this.flush();
       }
     });
   }
@@ -366,20 +359,32 @@ export class BatchProcessor<T, R> {
   /**
    * Process current batch immediately
    */
-  private async flush(): Promise<R[]> {
+  private async flush(): Promise<void> {
     if (this.timeoutId) {
       clearTimeout(this.timeoutId);
       this.timeoutId = null;
     }
 
     if (this.batch.length === 0) {
-      return [];
+      return;
     }
 
     const currentBatch = this.batch;
-    this.batch = [];
+    const currentResolvers = this.resolvers;
 
-    return this.processor(currentBatch);
+    this.batch = [];
+    this.resolvers = [];
+
+    try {
+      const results = await this.processor(currentBatch);
+      currentResolvers.forEach((resolver, index) => {
+        resolver.resolve(results[index]);
+      });
+    } catch (error) {
+      currentResolvers.forEach((resolver) => {
+        resolver.reject(error);
+      });
+    }
   }
 
   /**

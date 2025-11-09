@@ -1,29 +1,27 @@
-import { ViewportProtectionModule } from '../../src/modules/viewport-protection';
-import { ViewportProfile } from '../../src/types/browser-types';
+import { ViewportProtectionModule, ViewportProfile } from '../../src/modules/viewport-protection';
 import puppeteer, { Browser, Page } from 'puppeteer';
 
 describe('ViewportProtectionModule', () => {
   let browser: Browser;
   let page: Page;
   let viewport: ViewportProtectionModule;
-  let testProfile: ViewportProfile;
+
+  // Create test profile
+  const testProfile: ViewportProfile = {
+    width: 1920,
+    height: 1080,
+    deviceScaleFactor: 1,
+    isMobile: false,
+    hasTouch: false,
+    isLandscape: true,
+  };
 
   beforeAll(async () => {
-    viewport = new ViewportProtectionModule();
+    viewport = new ViewportProtectionModule(testProfile);
     browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
-
-    // Create test profile
-    testProfile = {
-      width: 1920,
-      height: 1080,
-      deviceScaleFactor: 1,
-      isMobile: false,
-      hasTouch: false,
-      isLandscape: true,
-    };
   });
 
   afterAll(async () => {
