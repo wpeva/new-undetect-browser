@@ -1,0 +1,75 @@
+# ==================================
+# Docker Compose Configuration
+# For UndetectBrowser
+# ==================================
+
+version: '3.8'
+
+services:
+  # Main UndetectBrowser service
+  undetect-browser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: undetect-browser:latest
+    container_name: undetect-browser
+    restart: unless-stopped
+
+    ports:
+      - "${PORT:-3000}:3000"
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24h}
+      - ENABLE_AUTH=${ENABLE_AUTH:-true}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+    volumes:
+      # Persist browser profiles
+      - ./profiles:/app/profiles
+      # Persist logs
+      - ./logs:/app/logs
+      # Cache
+      - browser-cache:/app/.cache
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Named volumes
+volumes:
+  browser-cache:
+    driver: local
+
+# Networks
+networks:
+  default:
+    name: undetect-browser-network

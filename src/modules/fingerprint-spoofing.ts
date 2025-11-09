@@ -105,8 +105,8 @@ export class FingerprintSpoofingModule {
       // ========================================
       if (typeof AudioContext !== 'undefined') {
         const audioContext = AudioContext.prototype.createOscillator;
-        AudioContext.prototype.createOscillator = function () {
-          const oscillator = audioContext.apply(this, arguments as any);
+        AudioContext.prototype.createOscillator = function (...args: any[]) {
+          const oscillator = audioContext.apply(this, args as any);
           const originalStart = oscillator.start;
 
           oscillator.start = function (...args: any[]) {
@@ -227,27 +227,10 @@ export class FingerprintSpoofingModule {
         });
       };
 
-      // Standard fonts that should be available
-      const standardFonts = [
-        'Arial',
-        'Verdana',
-        'Times New Roman',
-        'Courier New',
-        'Georgia',
-        'Palatino',
-        'Garamond',
-        'Comic Sans MS',
-        'Trebuchet MS',
-        'Impact',
-        'Arial Black',
-        'Tahoma',
-      ];
-
       // ========================================
       // 7. Battery API Protection
       // ========================================
       if (navigator.getBattery) {
-        const originalGetBattery = navigator.getBattery;
         navigator.getBattery = function () {
           return Promise.resolve({
             charging: Math.random() > 0.5,
@@ -269,8 +252,6 @@ export class FingerprintSpoofingModule {
       // 8. Media Devices Protection
       // ========================================
       if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-        const originalEnumerateDevices =
-          navigator.mediaDevices.enumerateDevices;
         navigator.mediaDevices.enumerateDevices = function () {
           return Promise.resolve([
             {

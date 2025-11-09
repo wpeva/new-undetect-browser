@@ -154,7 +154,7 @@ export class UndetectBrowserInstance {
   private profile: BrowserProfile;
   private stealthEngine: StealthEngine;
   private profileManager: ProfileManager;
-  private pages: Set<Page>;
+  private _pages: Set<Page>;
 
   constructor(
     browser: Browser,
@@ -166,7 +166,7 @@ export class UndetectBrowserInstance {
     this.profile = profile;
     this.stealthEngine = stealthEngine;
     this.profileManager = profileManager;
-    this.pages = new Set();
+    this._pages = new Set();
   }
 
   /**
@@ -194,7 +194,7 @@ export class UndetectBrowserInstance {
    * Apply stealth protections to a page
    */
   private async applyStealthToPage(page: Page): Promise<void> {
-    this.pages.add(page);
+    this._pages.add(page);
 
     // Set viewport
     await page.setViewport(this.profile.viewport);
@@ -207,7 +207,7 @@ export class UndetectBrowserInstance {
       try {
         await (page as any).emulateTimezone(this.profile.timezone);
       } catch (e) {
-        logger.warn('Failed to set timezone:', e);
+        logger.warn('Failed to set timezone:', { error: String(e) });
       }
     }
 
@@ -380,10 +380,27 @@ export * from './modules/behavioral-simulation';
 export * from './modules/network-protection';
 export * from './modules/advanced-evasions';
 
+// Export new advanced modules
+export * from './modules/canvas-protection-v2';
+export * from './modules/webrtc-protection-v2';
+export * from './modules/hardware-spoofing';
+export * from './modules/advanced-behavioral-simulator';
+export * from './modules/biometric-profiler';
+export * from './modules/headless-detection-protection';
+export * from './modules/automation-detection-protection';
+
+// Export advanced core features
+export * from './core/advanced-browser';
+export * from './core/advanced-profile-manager';
+export { ProxyManager, createProxyFromString, formatProxyToString } from './core/proxy-manager';
+export { CookieSessionManager, createCookieSessionManager } from './core/cookie-session-manager';
+
 // Export types and utilities
 export * from './utils/logger';
 export * from './utils/helpers';
 export * from './utils/fingerprint-generator';
+export * from './utils/enhanced-fingerprint-generator';
+export * from './utils/human-behavior-stats';
 export * from './core/stealth-engine';
 export * from './core/profile-manager';
 export * from './storage/profile-storage';

@@ -1,4 +1,4 @@
-import { Page, Browser, HTTPRequest } from 'puppeteer';
+import { Page, Browser } from 'puppeteer';
 
 export interface UndetectConfig {
   stealth?: StealthConfig;
