@@ -29,7 +29,7 @@ jobs:
         run: npm ci
 
       - name: Run fast tests (without Chrome)
-        run: npm test -- tests/unit/memoization.test.ts tests/unit/performance-monitor.test.ts
+        run: npm test -- tests/unit/memoization.test.ts tests/unit/performance.test.ts
         env:
           CI: true
 
@@ -55,19 +55,36 @@ jobs:
 
       - name: Install Chrome for Puppeteer
         run: |
+          echo "Installing Chrome dependencies..."
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 \
+            libnspr4 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libdbus-1-3 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libasound2
           echo "Installing Chrome for Puppeteer..."
-          npx puppeteer browsers install chrome
+          node -e "const puppeteer = require('puppeteer'); (async () => { const browserFetcher = puppeteer.createBrowserFetcher(); await browserFetcher.download(puppeteer.PUPPETEER_REVISIONS.chromium); })();"
           echo "Chrome installation completed"
 
       - name: Verify Chrome installation
         run: |
           echo "Verifying Chrome installation..."
-          npx puppeteer browsers list || true
+          node -e "const puppeteer = require('puppeteer'); console.log('Puppeteer version:', require('puppeteer/package.json').version);"
 
       - name: Run all tests with coverage
         run: npm test -- --coverage
         env:
-          CI: false
+          CI: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Browser, Page, LaunchOptions } from 'puppeteer';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
@@ -71,7 +70,7 @@ export class AdvancedBrowser {
     // Initialize managers
     const storage = new ProfileStorage({
       type: 'file',
-      dataDir: this.config.dataDir,
+      path: this.config.dataDir,
     });
 
     this.profileManager = new AdvancedProfileManager(storage);

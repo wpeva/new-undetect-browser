@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { BrowserProfile } from '../storage/profile-storage';
 import { ProfileManager, ProfileOptions } from './profile-manager';
 import { logger } from '../utils/logger';
