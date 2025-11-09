@@ -32,6 +32,7 @@ module.exports = {
     process.env.CI ? 'viewport-protection\\.test\\.ts$' : '',
     process.env.CI ? 'headless-detection-protection\\.test\\.ts$' : '',
     process.env.CI ? 'automation-detection-protection\\.test\\.ts$' : '',
+    process.env.CI ? 'fingerprint-spoofing\\.test\\.ts$' : '',
     process.env.CI ? 'sannysoft\\.test\\.ts$' : '',
   ].filter(Boolean),
   maxWorkers: process.env.CI ? 2 : '50%',
