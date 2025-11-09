@@ -11,6 +11,8 @@
     "test:detection": "jest --testPathPattern=detection",
     "test:unit": "jest --testPathPattern=unit",
     "test:integration": "jest --testPathPattern=integration",
+    "test:coverage": "jest --coverage --collectCoverageFrom='src/**/*.ts'",
+    "test:coverage:unit": "jest --coverage --testPathPattern=unit --collectCoverageFrom='src/**/*.ts'",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
     "prepare": "npm run build"
