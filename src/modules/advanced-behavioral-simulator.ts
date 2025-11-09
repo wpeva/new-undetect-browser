@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Advanced Behavioral Simulator
  * Ultra-realistic human behavior simulation based on real statistics

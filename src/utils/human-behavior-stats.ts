@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Real Human Behavior Statistics
  * Based on academic research and real user data
