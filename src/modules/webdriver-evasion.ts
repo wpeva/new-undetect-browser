@@ -37,15 +37,15 @@ export class WebDriverEvasionModule {
 
       // Prevent new CDP variables from being added
       const originalDefineProperty = Object.defineProperty;
-      Object.defineProperty = function (obj, prop, descriptor) {
+      Object.defineProperty = function (obj: any, prop: any, descriptor: any) {
         if (
           typeof prop === 'string' &&
           /^(cdc_|__webdriver|__driver|__selenium)/.test(prop)
         ) {
           return obj;
         }
-        return originalDefineProperty.call(this, obj, prop, descriptor);
-      };
+        return originalDefineProperty(obj, prop, descriptor);
+      } as any;
 
       // ========================================
       // 3. Chrome Runtime
@@ -54,8 +54,8 @@ export class WebDriverEvasionModule {
         (window as any).chrome = {};
       }
 
-      if (!window.chrome.runtime) {
-        window.chrome.runtime = {
+      if (!(window.chrome as any).runtime) {
+        (window.chrome as any).runtime = {
           OnInstalledReason: {
             CHROME_UPDATE: 'chrome_update',
             INSTALL: 'install',
@@ -99,8 +99,8 @@ export class WebDriverEvasionModule {
       }
 
       // Add chrome.app
-      if (!window.chrome.app) {
-        window.chrome.app = {
+      if (!(window.chrome as any).app) {
+        (window.chrome as any).app = {
           isInstalled: false,
           InstallState: {
             DISABLED: 'disabled',
@@ -122,6 +122,7 @@ export class WebDriverEvasionModule {
       window.navigator.permissions.query = ((parameters: any) =>
         parameters.name === 'notifications'
           ? Promise.resolve({
+              name: 'notifications' as PermissionName,
               state: Notification.permission,
               onchange: null,
               addEventListener: () => {},

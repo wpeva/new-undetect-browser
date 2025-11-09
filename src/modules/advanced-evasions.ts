@@ -158,9 +158,9 @@ export class AdvancedEvasionsModule {
         const originalCanPlayType =
           HTMLMediaElement.prototype.canPlayType.bind(HTMLMediaElement.prototype);
 
-        HTMLMediaElement.prototype.canPlayType = function (type: string) {
+        HTMLMediaElement.prototype.canPlayType = function (type: string): CanPlayTypeResult {
           // Standard codec support for Chrome
-          const supportedTypes: Record<string, string> = {
+          const supportedTypes: Record<string, CanPlayTypeResult> = {
             'video/mp4': 'probably',
             'video/webm': 'probably',
             'video/ogg': 'maybe',
@@ -322,7 +322,7 @@ export class AdvancedEvasionsModule {
         const originalEstimate = navigator.storage.estimate.bind(navigator.storage);
 
         navigator.storage.estimate = function () {
-          return originalEstimate().then((estimate) => {
+          return originalEstimate().then((estimate: any) => {
             // Normalize to common values
             return {
               quota: 1024 * 1024 * 1024 * 10, // 10GB
@@ -381,12 +381,12 @@ export class AdvancedEvasionsModule {
       // 19. Feature Policy / Permissions Policy
       // ========================================
       // Ensure consistent feature policy
-      if (document.featurePolicy) {
-        const originalAllowsFeature = document.featurePolicy.allowsFeature.bind(
-          document.featurePolicy
+      if ((document as any).featurePolicy) {
+        const originalAllowsFeature = (document as any).featurePolicy.allowsFeature.bind(
+          (document as any).featurePolicy
         );
 
-        document.featurePolicy.allowsFeature = function (feature: string) {
+        (document as any).featurePolicy.allowsFeature = function (feature: string) {
           // Common features that should be allowed
           const allowedFeatures = [
             'geolocation',

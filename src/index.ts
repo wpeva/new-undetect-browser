@@ -154,7 +154,7 @@ export class UndetectBrowserInstance {
   private profile: BrowserProfile;
   private stealthEngine: StealthEngine;
   private profileManager: ProfileManager;
-  private pages: Set<Page>;
+  private _pages: Set<Page>;
 
   constructor(
     browser: Browser,
@@ -166,7 +166,7 @@ export class UndetectBrowserInstance {
     this.profile = profile;
     this.stealthEngine = stealthEngine;
     this.profileManager = profileManager;
-    this.pages = new Set();
+    this._pages = new Set();
   }
 
   /**
@@ -194,7 +194,7 @@ export class UndetectBrowserInstance {
    * Apply stealth protections to a page
    */
   private async applyStealthToPage(page: Page): Promise<void> {
-    this.pages.add(page);
+    this._pages.add(page);
 
     // Set viewport
     await page.setViewport(this.profile.viewport);

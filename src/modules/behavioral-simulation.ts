@@ -312,19 +312,19 @@ export class BehavioralSimulationModule {
         const wrongChar = this.getAdjacentKey(char);
         const mistakeTiming = this.getRealisticKeyTiming(wrongChar, prevChar);
 
-        await randomDelay(mistakeTiming.pressTime);
-        await page.keyboard.down(wrongChar);
-        await randomDelay(mistakeTiming.holdTime);
-        await page.keyboard.up(wrongChar);
+        await randomDelay(mistakeTiming.pressTime, mistakeTiming.pressTime);
+        await page.keyboard.down(wrongChar as any);
+        await randomDelay(mistakeTiming.holdTime, mistakeTiming.holdTime);
+        await page.keyboard.up(wrongChar as any);
 
         // Realize mistake (100-200ms delay)
         await randomDelay(100, 200);
 
         // Backspace
         const backspaceTiming = this.getRealisticKeyTiming('Backspace');
-        await randomDelay(backspaceTiming.pressTime);
+        await randomDelay(backspaceTiming.pressTime, backspaceTiming.pressTime);
         await page.keyboard.down('Backspace');
-        await randomDelay(backspaceTiming.holdTime);
+        await randomDelay(backspaceTiming.holdTime, backspaceTiming.holdTime);
         await page.keyboard.up('Backspace');
 
         await randomDelay(50, 100);
@@ -333,10 +333,10 @@ export class BehavioralSimulationModule {
       // Type the correct character with realistic timing
       const timing = this.getRealisticKeyTiming(char, prevChar);
 
-      await randomDelay(timing.pressTime);
-      await page.keyboard.down(char);
-      await randomDelay(timing.holdTime);
-      await page.keyboard.up(char);
+      await randomDelay(timing.pressTime, timing.pressTime);
+      await page.keyboard.down(char as any);
+      await randomDelay(timing.holdTime, timing.holdTime);
+      await page.keyboard.up(char as any);
 
       prevChar = char;
     }
