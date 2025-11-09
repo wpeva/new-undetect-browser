@@ -384,6 +384,8 @@ export * from './modules/advanced-evasions';
 export * from './modules/canvas-protection-v2';
 export * from './modules/webrtc-protection-v2';
 export * from './modules/hardware-spoofing';
+export * from './modules/advanced-behavioral-simulator';
+export * from './modules/biometric-profiler';
 
 // Export advanced core features
 export * from './core/advanced-browser';
@@ -396,6 +398,7 @@ export * from './utils/logger';
 export * from './utils/helpers';
 export * from './utils/fingerprint-generator';
 export * from './utils/enhanced-fingerprint-generator';
+export * from './utils/human-behavior-stats';
 export * from './core/stealth-engine';
 export * from './core/profile-manager';
 export * from './storage/profile-storage';
