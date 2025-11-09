@@ -1,5 +1,6 @@
 import { Page } from 'puppeteer';
 import { logger } from '../utils/logger';
+import * as fs from 'fs';
 
 export interface DetectionResult {
   category: string;
@@ -294,7 +295,7 @@ export class DetectionTester {
   /**
    * Test network-level protection
    */
-  private async testNetwork(page: Page): Promise<DetectionResult[]> {
+  private async testNetwork(_page: Page): Promise<DetectionResult[]> {
     const results: DetectionResult[] = [];
 
     // Check headers (requires network interception)
@@ -501,7 +502,6 @@ export class DetectionTester {
    * Export report as JSON
    */
   exportReport(report: DetectionTestReport, filepath: string): void {
-    const fs = require('fs');
     fs.writeFileSync(filepath, JSON.stringify(report, null, 2));
     logger.info(`Report exported to ${filepath}`);
   }

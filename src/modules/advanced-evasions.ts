@@ -24,7 +24,7 @@ export class AdvancedEvasionsModule {
       // ========================================
       // Prevent detection via performance.now() patterns
       const originalPerformanceNow = performance.now.bind(performance);
-      let performanceOffset = Math.random() * 0.1; // 0-0.1ms offset
+      const performanceOffset = Math.random() * 0.1; // 0-0.1ms offset
 
       performance.now = function () {
         const actualTime = originalPerformanceNow();
@@ -142,8 +142,6 @@ export class AdvancedEvasionsModule {
       // ========================================
       // Prevent gamepad fingerprinting
       if (navigator.getGamepads) {
-        const originalGetGamepads = navigator.getGamepads.bind(navigator);
-
         navigator.getGamepads = function () {
           // Always return empty array for consistency
           return [null, null, null, null] as (Gamepad | null)[];

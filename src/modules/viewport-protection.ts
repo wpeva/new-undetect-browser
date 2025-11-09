@@ -33,23 +33,6 @@ export class ViewportProtectionModule {
       // ========================================
       // Ensure window.innerWidth/Height match viewport
 
-      const originalInnerWidth = Object.getOwnPropertyDescriptor(
-        Window.prototype,
-        'innerWidth'
-      );
-      const originalInnerHeight = Object.getOwnPropertyDescriptor(
-        Window.prototype,
-        'innerHeight'
-      );
-      const originalOuterWidth = Object.getOwnPropertyDescriptor(
-        Window.prototype,
-        'outerWidth'
-      );
-      const originalOuterHeight = Object.getOwnPropertyDescriptor(
-        Window.prototype,
-        'outerHeight'
-      );
-
       // Calculate realistic outer dimensions (adding browser chrome)
       const chromeHeight = profile.isMobile ? 0 : 85; // Browser toolbar height
       const chromeWidth = profile.isMobile ? 0 : 16; // Scrollbar width

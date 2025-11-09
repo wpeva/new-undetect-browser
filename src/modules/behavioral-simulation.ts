@@ -220,7 +220,6 @@ export class BehavioralSimulationModule {
    */
   private getRealisticKeyTiming(char: string, prevChar?: string): { pressTime: number; holdTime: number } {
     const now = Date.now();
-    const timeSinceLastKey = now - this.keyTimingPattern.lastKeyTime;
 
     // Base WPM with fatigue (slower over time)
     const fatigueFactor = Math.min(1.2, 1 + this.keyTimingPattern.pressToPress.length / 1000);
