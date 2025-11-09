@@ -12,6 +12,7 @@ export interface StealthConfig {
   fingerprintSpoofing?: boolean;
   behavioralSimulation?: boolean;
   networkProtection?: boolean;
+  advancedEvasions?: boolean;
   customFingerprint?: FingerprintProfile;
 }
 

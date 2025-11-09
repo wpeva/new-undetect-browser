@@ -3,6 +3,7 @@ import { WebDriverEvasionModule } from '../modules/webdriver-evasion';
 import { FingerprintSpoofingModule } from '../modules/fingerprint-spoofing';
 import { BehavioralSimulationModule } from '../modules/behavioral-simulation';
 import { NetworkProtectionModule } from '../modules/network-protection';
+import { AdvancedEvasionsModule } from '../modules/advanced-evasions';
 import { logger } from '../utils/logger';
 import {
   FingerprintProfile,
@@ -15,6 +16,7 @@ export interface StealthConfig {
   fingerprintSpoofing?: boolean;
   behavioralSimulation?: boolean;
   networkProtection?: boolean;
+  advancedEvasions?: boolean;
   customFingerprint?: FingerprintProfile;
 }
 
@@ -27,17 +29,22 @@ export class StealthEngine {
   private webdriverEvasion: WebDriverEvasionModule;
   private fingerprintSpoofer: FingerprintSpoofingModule;
   private behavioralSimulation: BehavioralSimulationModule;
+  private advancedEvasions: AdvancedEvasionsModule;
   private networkProtection: NetworkProtectionModule | null = null;
   private fingerprint: FingerprintProfile;
   private initialized: boolean = false;
 
   constructor(config: StealthConfig = {}) {
+    const level = config.level || 'advanced';
+
+    // Apply level-based defaults
     this.config = {
-      level: config.level || 'advanced',
-      webdriverEvasion: config.webdriverEvasion !== false,
-      fingerprintSpoofing: config.fingerprintSpoofing !== false,
-      behavioralSimulation: config.behavioralSimulation !== false,
-      networkProtection: config.networkProtection !== false,
+      level,
+      webdriverEvasion: config.webdriverEvasion ?? true,
+      fingerprintSpoofing: config.fingerprintSpoofing ?? (level !== 'basic'),
+      behavioralSimulation: config.behavioralSimulation ?? (level !== 'basic'),
+      networkProtection: config.networkProtection ?? (level !== 'basic'),
+      advancedEvasions: config.advancedEvasions ?? (level === 'paranoid'),
       customFingerprint: config.customFingerprint,
     };
 
@@ -49,6 +56,7 @@ export class StealthEngine {
     this.webdriverEvasion = new WebDriverEvasionModule();
     this.fingerprintSpoofer = new FingerprintSpoofingModule(this.fingerprint);
     this.behavioralSimulation = new BehavioralSimulationModule();
+    this.advancedEvasions = new AdvancedEvasionsModule();
 
     logger.info(`StealthEngine initialized with level: ${this.config.level}`);
   }
@@ -81,7 +89,7 @@ export class StealthEngine {
     logger.debug('Applying stealth protections to page');
 
     try {
-      // Apply WebDriver evasion
+      // Apply WebDriver evasion (always first)
       if (this.config.webdriverEvasion) {
         await this.webdriverEvasion.inject(page);
       }
@@ -91,12 +99,17 @@ export class StealthEngine {
         await this.fingerprintSpoofer.inject(page);
       }
 
+      // Apply advanced evasions (paranoid mode)
+      if (this.config.advancedEvasions) {
+        await this.advancedEvasions.inject(page);
+      }
+
       // Apply behavioral simulation helpers
       if (this.config.behavioralSimulation) {
         await this.behavioralSimulation.injectHelpers(page);
       }
 
-      // Setup network protection
+      // Setup network protection (always last)
       if (this.config.networkProtection) {
         if (!this.networkProtection) {
           this.networkProtection = new NetworkProtectionModule(userAgent);
@@ -162,5 +175,12 @@ export class StealthEngine {
    */
   getNetworkProtection(): NetworkProtectionModule | null {
     return this.networkProtection;
+  }
+
+  /**
+   * Get advanced evasions module
+   */
+  getAdvancedEvasions(): AdvancedEvasionsModule {
+    return this.advancedEvasions;
   }
 }

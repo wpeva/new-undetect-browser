@@ -169,6 +169,64 @@ export class FingerprintSpoofingModule {
       // ========================================
       // 6. Font Fingerprinting Protection
       // ========================================
+      // Protect against font enumeration via text measurement
+      const originalOffsetWidth = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        'offsetWidth'
+      );
+      const originalOffsetHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        'offsetHeight'
+      );
+
+      // Add subtle noise to text measurements
+      if (originalOffsetWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+          get: function () {
+            const value = originalOffsetWidth.get?.call(this);
+            // Only add noise for text measurement elements
+            if (this.style && this.style.font) {
+              const noise = (Math.random() - 0.5) * 0.01; // ±0.005px noise
+              return value ? value + noise : value;
+            }
+            return value;
+          },
+          configurable: true,
+        });
+      }
+
+      if (originalOffsetHeight) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+          get: function () {
+            const value = originalOffsetHeight.get?.call(this);
+            // Only add noise for text measurement elements
+            if (this.style && this.style.font) {
+              const noise = (Math.random() - 0.5) * 0.01; // ±0.005px noise
+              return value ? value + noise : value;
+            }
+            return value;
+          },
+          configurable: true,
+        });
+      }
+
+      // Protect against CanvasRenderingContext2D.measureText
+      const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
+      CanvasRenderingContext2D.prototype.measureText = function (text: string) {
+        const metrics = originalMeasureText.call(this, text);
+        // Add imperceptible noise to metrics
+        const noise = 0.0001;
+
+        return new Proxy(metrics, {
+          get: function (target, prop) {
+            if (prop === 'width') {
+              return (target as any)[prop] + (Math.random() - 0.5) * noise;
+            }
+            return Reflect.get(target, prop);
+          },
+        });
+      };
+
       // Standard fonts that should be available
       const standardFonts = [
         'Arial',

@@ -378,6 +378,7 @@ export * from './modules/webdriver-evasion';
 export * from './modules/fingerprint-spoofing';
 export * from './modules/behavioral-simulation';
 export * from './modules/network-protection';
+export * from './modules/advanced-evasions';
 
 // Export types and utilities
 export * from './utils/logger';
