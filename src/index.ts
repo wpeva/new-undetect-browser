@@ -241,9 +241,46 @@ export class UndetectBrowserInstance {
     }
 
     // Apply stealth protections
-    await this.stealthEngine.applyProtections(page);
+    await this.stealthEngine.applyProtections(page, this.profile.userAgent);
+
+    // Add human-like methods to page
+    this.addHumanLikeMethods(page);
 
     logger.debug('Stealth protections applied to page');
+  }
+
+  /**
+   * Add human-like interaction methods to a page
+   */
+  private addHumanLikeMethods(page: Page): void {
+    const behavioralSim = this.stealthEngine.getBehavioralSimulation();
+
+    // Add human-like methods
+    (page as any).humanClick = async (selector: string, options?: any) => {
+      return behavioralSim.humanClick(page, selector, options);
+    };
+
+    (page as any).humanType = async (selector: string, text: string, options?: any) => {
+      return behavioralSim.humanType(page, selector, text, options);
+    };
+
+    (page as any).humanScroll = async (options: any) => {
+      return behavioralSim.humanScroll(page, options);
+    };
+
+    (page as any).humanMove = async (x: number, y: number, options?: any) => {
+      return behavioralSim.humanMouseMove(page, x, y, options);
+    };
+
+    (page as any).humanDelay = async (min?: number, max?: number) => {
+      return behavioralSim.humanDelay(min, max);
+    };
+
+    (page as any).simulateReading = async (duration?: number) => {
+      return behavioralSim.simulateReading(page, duration);
+    };
+
+    logger.debug('Human-like methods added to page');
   }
 
   /**
@@ -335,6 +372,12 @@ export class UndetectBrowserInstance {
     return this.profile;
   }
 }
+
+// Export modules
+export * from './modules/webdriver-evasion';
+export * from './modules/fingerprint-spoofing';
+export * from './modules/behavioral-simulation';
+export * from './modules/network-protection';
 
 // Export types and utilities
 export * from './utils/logger';

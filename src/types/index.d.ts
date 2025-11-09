@@ -12,6 +12,7 @@ export interface StealthConfig {
   fingerprintSpoofing?: boolean;
   behavioralSimulation?: boolean;
   networkProtection?: boolean;
+  customFingerprint?: FingerprintProfile;
 }
 
 export interface StorageConfig {
@@ -144,10 +145,48 @@ export interface EvasionPatch {
 // Extend Page interface with human-like methods
 declare module 'puppeteer' {
   interface Page {
-    humanMove?(x: number, y: number): Promise<void>;
-    humanClick?(selector: string): Promise<void>;
-    humanType?(selector: string, text: string): Promise<void>;
-    humanScroll?(options: { direction: 'up' | 'down'; distance?: number }): Promise<void>;
+    /**
+     * Move mouse in a human-like way using Bezier curves
+     */
+    humanMove?(x: number, y: number, options?: {
+      steps?: number;
+      duration?: number;
+    }): Promise<void>;
+
+    /**
+     * Click element in a human-like way with natural offset
+     */
+    humanClick?(selector: string, options?: {
+      offset?: { x: number; y: number };
+      delay?: number;
+    }): Promise<void>;
+
+    /**
+     * Type text in a human-like way with variable speed
+     */
+    humanType?(selector: string, text: string, options?: {
+      delay?: number;
+      mistake?: boolean;
+    }): Promise<void>;
+
+    /**
+     * Scroll in a human-like way with pauses
+     */
+    humanScroll?(options: {
+      direction: 'up' | 'down';
+      distance?: number;
+      duration?: number;
+    }): Promise<void>;
+
+    /**
+     * Wait for a random human-like delay
+     */
+    humanDelay?(min?: number, max?: number): Promise<void>;
+
+    /**
+     * Simulate reading behavior by moving mouse randomly
+     */
+    simulateReading?(duration?: number): Promise<void>;
   }
 }
 

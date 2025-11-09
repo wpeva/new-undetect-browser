@@ -1,6 +1,8 @@
 import { Page } from 'puppeteer';
 import { WebDriverEvasionModule } from '../modules/webdriver-evasion';
 import { FingerprintSpoofingModule } from '../modules/fingerprint-spoofing';
+import { BehavioralSimulationModule } from '../modules/behavioral-simulation';
+import { NetworkProtectionModule } from '../modules/network-protection';
 import { logger } from '../utils/logger';
 import {
   FingerprintProfile,
@@ -11,6 +13,8 @@ export interface StealthConfig {
   level?: 'basic' | 'advanced' | 'paranoid';
   webdriverEvasion?: boolean;
   fingerprintSpoofing?: boolean;
+  behavioralSimulation?: boolean;
+  networkProtection?: boolean;
   customFingerprint?: FingerprintProfile;
 }
 
@@ -22,6 +26,8 @@ export class StealthEngine {
   private config: StealthConfig;
   private webdriverEvasion: WebDriverEvasionModule;
   private fingerprintSpoofer: FingerprintSpoofingModule;
+  private behavioralSimulation: BehavioralSimulationModule;
+  private networkProtection: NetworkProtectionModule | null = null;
   private fingerprint: FingerprintProfile;
   private initialized: boolean = false;
 
@@ -30,6 +36,8 @@ export class StealthEngine {
       level: config.level || 'advanced',
       webdriverEvasion: config.webdriverEvasion !== false,
       fingerprintSpoofing: config.fingerprintSpoofing !== false,
+      behavioralSimulation: config.behavioralSimulation !== false,
+      networkProtection: config.networkProtection !== false,
       customFingerprint: config.customFingerprint,
     };
 
@@ -40,6 +48,7 @@ export class StealthEngine {
     // Initialize modules
     this.webdriverEvasion = new WebDriverEvasionModule();
     this.fingerprintSpoofer = new FingerprintSpoofingModule(this.fingerprint);
+    this.behavioralSimulation = new BehavioralSimulationModule();
 
     logger.info(`StealthEngine initialized with level: ${this.config.level}`);
   }
@@ -64,7 +73,7 @@ export class StealthEngine {
   /**
    * Apply all protections to a page
    */
-  async applyProtections(page: Page): Promise<void> {
+  async applyProtections(page: Page, userAgent: string): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -80,6 +89,20 @@ export class StealthEngine {
       // Apply fingerprint spoofing
       if (this.config.fingerprintSpoofing) {
         await this.fingerprintSpoofer.inject(page);
+      }
+
+      // Apply behavioral simulation helpers
+      if (this.config.behavioralSimulation) {
+        await this.behavioralSimulation.injectHelpers(page);
+      }
+
+      // Setup network protection
+      if (this.config.networkProtection) {
+        if (!this.networkProtection) {
+          this.networkProtection = new NetworkProtectionModule(userAgent);
+        }
+        await this.networkProtection.setupInterception(page);
+        await this.networkProtection.setExtraHeaders(page);
       }
 
       logger.debug('All stealth protections applied successfully');
@@ -125,5 +148,19 @@ export class StealthEngine {
    */
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  /**
+   * Get behavioral simulation module
+   */
+  getBehavioralSimulation(): BehavioralSimulationModule {
+    return this.behavioralSimulation;
+  }
+
+  /**
+   * Get network protection module
+   */
+  getNetworkProtection(): NetworkProtectionModule | null {
+    return this.networkProtection;
   }
 }
