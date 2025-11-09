@@ -9,7 +9,7 @@ import { Server } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import path from 'path';
 import { UndetectBrowser } from '../src/index';
-import { logger } from '../src/utils/logger';
+import { logger, LogLevel } from '../src/utils/logger';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -88,7 +88,7 @@ app.post('/api/browser/launch', async (req: Request, res: Response) => {
         headlessProtection: true,
         automationProtection: true,
       },
-      logLevel: 'info',
+      logLevel: LogLevel.INFO,
     });
 
     const instance = await browser.launch({
@@ -144,14 +144,14 @@ app.post('/api/browser/:sessionId/navigate', async (req: Request, res: Response)
 
     io.emit('browser:navigated', { sessionId, url, timestamp: Date.now() });
 
-    res.json({
+    return res.json({
       success: true,
       url,
       title: await page.title(),
     });
   } catch (error: any) {
     logger.error('Navigation failed:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message,
     });
@@ -177,13 +177,13 @@ app.post('/api/browser/:sessionId/screenshot', async (req: Request, res: Respons
 
     const screenshot = await pages[0].screenshot({ encoding: 'base64' });
 
-    res.json({
+    return res.json({
       success: true,
       screenshot: `data:image/png;base64,${screenshot}`,
     });
   } catch (error: any) {
     logger.error('Screenshot failed:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message,
     });
@@ -210,7 +210,7 @@ app.get('/api/browser/:sessionId/info', async (req: Request, res: Response) => {
       }))
     );
 
-    res.json({
+    return res.json({
       success: true,
       sessionId,
       status: session.status,
@@ -219,7 +219,7 @@ app.get('/api/browser/:sessionId/info', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get info failed:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message,
     });
@@ -243,13 +243,13 @@ app.post('/api/browser/:sessionId/close', async (req: Request, res: Response) =>
 
     io.emit('browser:closed', { sessionId, timestamp: Date.now() });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Browser closed successfully',
     });
   } catch (error: any) {
     logger.error('Close browser failed:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message,
     });
@@ -294,13 +294,13 @@ app.post('/api/browser/:sessionId/execute', async (req: Request, res: Response) 
 
     const result = await pages[0].evaluate(script);
 
-    res.json({
+    return res.json({
       success: true,
       result,
     });
   } catch (error: any) {
     logger.error('Script execution failed:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message,
     });
@@ -339,8 +339,9 @@ io.on('connection', (socket) => {
 // Serve Frontend
 // ============================================
 
-app.get('*', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../web/build/index.html'));
+// Serve index.html for root path
+app.get('/', (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../web/index.html'));
 });
 
 // ============================================

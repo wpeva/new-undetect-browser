@@ -250,35 +250,7 @@ declare global {
 }
 
 // Helper Types for Fingerprinting
-export interface FingerprintProfile {
-  canvas: {
-    noise: number;
-    toDataURL: boolean;
-  };
-  webgl: {
-    vendor: string;
-    renderer: string;
-    noise: number;
-  };
-  audio: {
-    noise: number;
-    frequencyVariation: number;
-  };
-  fonts: string[];
-  plugins: PluginArray;
-  screen: {
-    width: number;
-    height: number;
-    colorDepth: number;
-    pixelDepth: number;
-  };
-  timezone: number;
-  language: string;
-  platform: string;
-  hardwareConcurrency: number;
-  deviceMemory: number;
-  userAgent: string;
-}
+// FingerprintProfile is defined in src/utils/fingerprint-generator.ts
 
 export interface ViewportProfile {
   width: number;

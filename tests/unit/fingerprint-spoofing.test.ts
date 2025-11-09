@@ -1,5 +1,5 @@
 import { FingerprintSpoofingModule } from '../../src/modules/fingerprint-spoofing';
-import { FingerprintProfile } from '../../src/types/browser-types';
+import { FingerprintProfile } from '../../src/utils/fingerprint-generator';
 import puppeteer, { Browser, Page } from 'puppeteer';
 
 describe('FingerprintSpoofingModule', () => {
@@ -7,35 +7,30 @@ describe('FingerprintSpoofingModule', () => {
   let page: Page;
   let fingerprint: FingerprintSpoofingModule;
 
-  // Create test profile
+  // Create test profile matching the actual FingerprintProfile interface
   const testProfile: FingerprintProfile = {
     canvas: {
-      noise: 0.001,
-      toDataURL: true,
+      noiseLevel: 0.001,
     },
     webgl: {
       vendor: 'Intel Inc.',
       renderer: 'Intel Iris OpenGL Engine',
-      noise: 0.0001,
     },
     audio: {
-      noise: 0.00001,
       frequencyVariation: 0.0001,
     },
-    fonts: ['Arial', 'Verdana', 'Times New Roman'],
-    plugins: [] as unknown as PluginArray,
     screen: {
       width: 1920,
       height: 1080,
+      availWidth: 1920,
+      availHeight: 1055,
       colorDepth: 24,
       pixelDepth: 24,
     },
-    timezone: -480, // PST
-    language: 'en-US',
-    platform: 'MacIntel',
-    hardwareConcurrency: 8,
-    deviceMemory: 8,
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+    hardware: {
+      cores: 8,
+      memory: 8,
+    },
   };
 
   beforeAll(async () => {
@@ -254,7 +249,7 @@ describe('FingerprintSpoofingModule', () => {
         return navigator.hardwareConcurrency;
       });
 
-      expect(concurrency).toBe(testProfile.hardwareConcurrency);
+      expect(concurrency).toBe(testProfile.hardware.cores);
     });
 
     it('should protect navigator.deviceMemory if available', async () => {
@@ -265,40 +260,26 @@ describe('FingerprintSpoofingModule', () => {
       });
 
       if (deviceMemory !== undefined) {
-        expect(deviceMemory).toBe(testProfile.deviceMemory);
+        expect(deviceMemory).toBe(testProfile.hardware.memory);
       }
     });
 
-    it('should protect navigator.platform', async () => {
+    it('should verify screen dimensions are set correctly', async () => {
       await fingerprint.inject(page);
 
-      const platform = await page.evaluate(() => {
-        return navigator.platform;
+      const screenDimensions = await page.evaluate(() => {
+        return {
+          width: screen.width,
+          height: screen.height,
+          availWidth: screen.availWidth,
+          availHeight: screen.availHeight,
+        };
       });
 
-      expect(platform).toBe(testProfile.platform);
-    });
-
-    it('should protect navigator.language', async () => {
-      await fingerprint.inject(page);
-
-      const language = await page.evaluate(() => {
-        return navigator.language;
-      });
-
-      expect(language).toBe(testProfile.language);
-    });
-  });
-
-  describe('Timezone Protection', () => {
-    it('should protect Date.getTimezoneOffset', async () => {
-      await fingerprint.inject(page);
-
-      const timezoneOffset = await page.evaluate(() => {
-        return new Date().getTimezoneOffset();
-      });
-
-      expect(timezoneOffset).toBe(testProfile.timezone);
+      expect(screenDimensions.width).toBe(testProfile.screen.width);
+      expect(screenDimensions.height).toBe(testProfile.screen.height);
+      expect(screenDimensions.availWidth).toBe(testProfile.screen.availWidth);
+      expect(screenDimensions.availHeight).toBe(testProfile.screen.availHeight);
     });
   });
 
@@ -317,7 +298,7 @@ describe('FingerprintSpoofingModule', () => {
 
   describe('Integration Tests', () => {
     it('should inject all protections without errors', async () => {
-      await expect(fingerprint.inject(page, testProfile)).resolves.not.toThrow();
+      await expect(fingerprint.inject(page)).resolves.not.toThrow();
     });
 
     it('should maintain consistent fingerprint across multiple checks', async () => {

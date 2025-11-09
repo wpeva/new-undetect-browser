@@ -3,29 +3,8 @@
  * Common type definitions for browser-related functionality
  */
 
-export interface FingerprintProfile {
-  canvas: {
-    noise: number;
-  };
-  webgl: {
-    vendor: string;
-    renderer: string;
-  };
-  audio: {
-    noise: number;
-  };
-  fonts: string[];
-  screen: {
-    width: number;
-    height: number;
-    colorDepth: number;
-    pixelRatio: number;
-  };
-  hardware: {
-    cores: number;
-    memory: number;
-  };
-}
+// FingerprintProfile is defined in src/utils/fingerprint-generator.ts
+// Import it from there when needed
 
 export interface Viewport {
   width: number;

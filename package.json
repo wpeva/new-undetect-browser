@@ -9,6 +9,8 @@
     "build:watch": "tsc --watch",
     "build:clean": "rm -rf dist && npm run build",
     "dev": "tsc --watch",
+    "server": "npm run build && node dist/server/index.js",
+    "server:dev": "nodemon --watch server --exec \"npm run build && node dist/server/index.js\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:detection": "jest --testPathPattern=detection",
