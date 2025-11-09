@@ -74,11 +74,12 @@ jobs:
           CI: true
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         if: matrix.node-version == '20.x'
         with:
           files: ./coverage/lcov.info
           flags: unit
+          token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
 
   test-detection:
@@ -106,7 +107,7 @@ jobs:
 
       - name: Upload screenshots
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: detection-screenshots
           path: tests/detection/screenshots/
