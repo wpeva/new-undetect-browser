@@ -1,0 +1,283 @@
+name: CI with Chrome Tests
+
+on:
+  push:
+    branches: [main, master, develop, 'claude/**']
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  # Fast unit tests without Chrome (for quick feedback)
+  test-fast:
+    name: Fast Unit Tests (No Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run fast unit tests (memoization & performance)
+        run: npm test -- tests/unit/memoization.test.ts tests/unit/performance.test.ts
+        env:
+          CI: true
+
+  # Full tests with Chrome
+  test-with-chrome:
+    name: Full Tests with Chrome
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Install Chrome
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+        id: setup-chrome
+
+      - name: Display Chrome version
+        run: |
+          echo "Chrome path: ${{ steps.setup-chrome.outputs.chrome-path }}"
+          ${{ steps.setup-chrome.outputs.chrome-path }} --version
+
+      # Install Chrome dependencies for Ubuntu
+      - name: Install Chrome dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 \
+            libnspr4 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libasound2 \
+            libpango-1.0-0 \
+            libcairo2 \
+            libatspi2.0-0 \
+            libxshmfence1
+
+      # Install Puppeteer Chrome (in case tests need it)
+      - name: Install Puppeteer Chrome
+        run: |
+          npx puppeteer browsers install chrome
+          echo "PUPPETEER_EXECUTABLE_PATH=$(npx puppeteer browsers path chrome)" >> $GITHUB_ENV
+
+      - name: Build
+        run: npm run build
+
+      # Run all tests with coverage
+      - name: Run all tests with coverage
+        run: npm test -- --coverage --maxWorkers=2
+        env:
+          CI: true
+          HEADLESS: new
+          PUPPETEER_EXECUTABLE_PATH: ${{ env.PUPPETEER_EXECUTABLE_PATH }}
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+      # Run detection tests (against real detection sites)
+      - name: Run detection tests (sannysoft.com)
+        run: npm run test:detection
+        continue-on-error: true
+        env:
+          CI: true
+          HEADLESS: new
+
+      # Upload test screenshots and artifacts
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-chrome
+          path: |
+            test-results/
+            screenshots/
+            coverage/
+          retention-days: 7
+
+  # Playwright tests
+  test-with-playwright:
+    name: Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Run Playwright tests
+        run: npm test -- tests/integration/playwright.test.ts
+        continue-on-error: true
+        env:
+          CI: true
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-playwright
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Lint and type check
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run build
+
+      - name: ESLint check
+        run: npm run lint
+        continue-on-error: true
+
+  # Security audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+  # Build check
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: [test-fast, lint]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Check dist folder
+        run: |
+          echo "Checking build artifacts..."
+          ls -la dist/
+          echo "Build completed successfully!"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+          retention-days: 7
+
+  # Docker build test
+  docker:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: [build, test-fast]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: undetect-browser:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test Docker image
+        run: |
+          docker run --rm undetect-browser:latest node --version
+          docker run --rm undetect-browser:latest npm --version
