@@ -321,7 +321,7 @@ export class HeadlessDetectionProtection {
           readText: () => Promise.resolve(''),
           writeText: (_text: string) => Promise.resolve(),
           read: () => Promise.resolve([]),
-          write: (data: any) => Promise.resolve(),
+          write: (_data: any) => Promise.resolve(),
         };
       }
 
@@ -350,7 +350,7 @@ export class HeadlessDetectionProtection {
           oncontrollerchange: null,
           onmessage: null,
           onmessageerror: null,
-          register: (scriptURL: string) => Promise.resolve({
+          register: (_scriptURL: string) => Promise.resolve({
             active: null,
             installing: null,
             waiting: null,
@@ -483,19 +483,19 @@ export class HeadlessDetectionProtection {
       // Ensure Intl API is complete (sometimes incomplete in headless)
       if (window.Intl) {
         if (!Intl.PluralRules) {
-          (Intl as any).PluralRules = function (locales?: string | string[], options?: any) {
+          (Intl as any).PluralRules = function (_locales?: string | string[], _options?: any) {
             return {
-              select: (n: number) => 'other',
+              select: (_n: number) => 'other',
               resolvedOptions: () => ({ locale: 'en-US', type: 'cardinal' }),
             };
           };
         }
 
         if (!Intl.RelativeTimeFormat) {
-          (Intl as any).RelativeTimeFormat = function (locales?: string | string[], options?: any) {
+          (Intl as any).RelativeTimeFormat = function (_locales?: string | string[], _options?: any) {
             return {
-              format: (value: number, unit: string) => `${value} ${unit}${value !== 1 ? 's' : ''} ago`,
-              formatToParts: (value: number, unit: string) => [],
+              format: (_value: number, _unit: string) => `${_value} ${_unit}${_value !== 1 ? 's' : ''} ago`,
+              formatToParts: (_value: number, _unit: string) => [],
               resolvedOptions: () => ({ locale: 'en-US', style: 'long', numeric: 'always' }),
             };
           };
@@ -510,7 +510,7 @@ export class HeadlessDetectionProtection {
       if (!history.scrollRestoration) {
         try {
           (history as any).scrollRestoration = 'auto';
-        } catch (e) {
+        } catch (_e) {
           // Read-only in some browsers
         }
       }
