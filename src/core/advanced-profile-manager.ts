@@ -169,7 +169,7 @@ export class AdvancedProfileManager extends ProfileManager {
       const profile: AdvancedProfile = JSON.parse(data);
       this.profiles.set(id, profile);
       return profile;
-    } catch (error) {
+    } catch (_error) {
       logger.warn(`Profile ${id} not found`);
       return null;
     }
@@ -224,7 +224,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Search profiles with filters
    */
-  async searchProfiles(filters: ProfileFilters): Promise<AdvancedProfile[]> {
+  searchProfiles(filters: ProfileFilters): AdvancedProfile[] {
     let results = Array.from(this.profiles.values());
 
     // Filter by name
@@ -287,7 +287,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Get all profiles
    */
-  async getAllProfiles(): Promise<AdvancedProfile[]> {
+  getAllProfiles(): AdvancedProfile[] {
     return Array.from(this.profiles.values());
   }
 
@@ -462,7 +462,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Get profile statistics
    */
-  async getStatistics(): Promise<ProfileStatistics> {
+  getStatistics(): ProfileStatistics {
     const profiles = Array.from(this.profiles.values());
 
     return {

@@ -1,6 +1,5 @@
 import { logger } from '../utils/logger';
-import { validateRequired, validateNonEmptyString, validateNumberRange } from '../utils/validators';
-import { withRetry } from '../utils/retry';
+import { validateRequired, validateNumberRange } from '../utils/validators';
 import * as http from 'http';
 import * as https from 'https';
 
@@ -351,7 +350,7 @@ export class ProxyManager {
         const proxy = this.parseProxyString(line.trim(), defaultType);
         this.addProxy(proxy);
         imported++;
-      } catch (error) {
+      } catch (_error) {
         logger.warn(`Failed to parse proxy: ${line}`);
       }
     }
@@ -457,7 +456,7 @@ export class ProxyManager {
               ip: result.query,
               country: result.country,
             });
-          } catch (error) {
+          } catch (_error) {
             resolve({});
           }
         });

@@ -553,7 +553,7 @@ export class CookieSessionManager {
       const filePath = path.join(this.dataDir, `${sessionId}_${filename}`);
       const data = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(data);
-    } catch (error) {
+    } catch (_error) {
       return {};
     }
   }

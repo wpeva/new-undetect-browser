@@ -153,7 +153,7 @@ export class AdvancedBrowser {
         throw new Error(`Profile ${options.profileId} not found`);
       }
     } else if (options.profileName) {
-      const profiles = await this.profileManager.searchProfiles({
+      const profiles = this.profileManager.searchProfiles({
         name: options.profileName,
       });
       profile = profiles[0] || null;
@@ -314,16 +314,16 @@ export class AdvancedBrowser {
   /**
    * Get all profiles
    */
-  async getProfiles(): Promise<AdvancedProfile[]> {
+  getProfiles(): AdvancedProfile[] {
     return this.profileManager.getAllProfiles();
   }
 
   /**
    * Search profiles
    */
-  async searchProfiles(
+  searchProfiles(
     filters: Parameters<typeof this.profileManager.searchProfiles>[0]
-  ): Promise<AdvancedProfile[]> {
+  ): AdvancedProfile[] {
     return this.profileManager.searchProfiles(filters);
   }
 
@@ -356,7 +356,7 @@ export class AdvancedBrowser {
     activeBrowsers: number;
   }> {
     return {
-      profiles: await this.profileManager.getStatistics(),
+      profiles: this.profileManager.getStatistics(),
       proxies: this.proxyManager.getStatistics(),
       activeBrowsers: this.activeBrowsers.size,
     };
@@ -367,7 +367,7 @@ export class AdvancedBrowser {
    */
   private async injectProtections(
     page: Page,
-    profile: AdvancedProfile
+    _profile: AdvancedProfile
   ): Promise<void> {
     const injections: Promise<void>[] = [];
 
