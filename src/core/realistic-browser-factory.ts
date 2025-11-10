@@ -27,6 +27,10 @@ import {
   humanFillForm,
   HumanBehaviorProfile,
 } from '../modules/realistic-human-behavior';
+import {
+  getEnhancedPrivacyArgs,
+  applyEnhancedPrivacyProtection,
+} from '../modules/enhanced-privacy-protection';
 import { logger, LogLevel } from '../utils/logger';
 
 /**
@@ -110,6 +114,9 @@ export class RealisticBrowserInstance {
    */
   async newPage(): Promise<RealisticPage> {
     const page = await this.browserInstance.newPage();
+
+    // Apply enhanced privacy protection (WebRTC, DNS leaks, etc.)
+    await applyEnhancedPrivacyProtection(page);
 
     // Apply consistent fingerprint
     await applyConsistentFingerprint(page, this.fingerprint);
@@ -260,21 +267,27 @@ export class RealisticBrowserFactory {
     logger.debug(`  Mouse: ${Math.round(biometricProfile.mouseSpeed)} px/s`);
     logger.debug(`  Reaction: ${Math.round(biometricProfile.reactionTime)} ms`);
 
-    // Step 4: Prepare launch options
+    // Step 4: Prepare launch options with enhanced privacy
+    const proxyServer = config.proxy ? this.formatProxyServer(config.proxy) : undefined;
+
+    // Get enhanced privacy arguments (includes WebRTC blocking, DNS leak protection, etc.)
+    const enhancedArgs = getEnhancedPrivacyArgs(proxyServer);
+
     const launchOptions: LaunchOptions = {
       headless: false,
       ...config.launchOptions,
+      args: [
+        ...enhancedArgs,
+        ...(config.launchOptions?.args || []),
+      ],
     };
 
-    // Add proxy if provided
     if (config.proxy) {
-      const proxyServer = this.formatProxyServer(config.proxy);
-      launchOptions.args = [
-        `--proxy-server=${proxyServer}`,
-        ...(launchOptions.args || []),
-      ];
-
       logger.info(`Using proxy: ${proxyServer}`);
+      logger.info('✅ Enhanced privacy protection enabled');
+      logger.info('✅ WebRTC completely blocked');
+      logger.info('✅ DNS leak protection active');
+      logger.info('✅ 100% proxy isolation enforced');
     }
 
     // Step 5: Launch browser

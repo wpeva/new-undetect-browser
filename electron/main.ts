@@ -189,7 +189,9 @@ ipcMain.handle('browser:launch', async (_event, profileId) => {
       activeBrowsers.delete(profileId);
     }
 
-    // Create browser with full proxy isolation
+    // Create browser with full proxy isolation and enhanced privacy protection
+    // Note: Enhanced privacy args (WebRTC blocking, DNS leak protection, etc.)
+    // are automatically added by createRealisticBrowser
     const browser = await createRealisticBrowser({
       country: profile.country,
       userSeed: profile.userSeed,
@@ -198,11 +200,8 @@ ipcMain.handle('browser:launch', async (_event, profileId) => {
         headless: false,
         args: [
           '--start-maximized',
-          '--disable-blink-features=AutomationControlled',
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          // CRITICAL: Force all traffic through proxy
-          ...(profile.proxy ? [`--proxy-server=${profile.proxy.type}://${profile.proxy.host}:${profile.proxy.port}`] : []),
+          // Enhanced privacy args are automatically added via getEnhancedPrivacyArgs()
+          // Includes: WebRTC blocking, DNS leak protection, forced proxy routing
         ],
       },
     });
