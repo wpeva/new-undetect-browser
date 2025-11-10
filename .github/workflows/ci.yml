@@ -70,7 +70,7 @@ jobs:
         run: npm run build
 
       - name: Run unit tests (memoization & performance)
-        run: npm test -- tests/unit/memoization.test.ts tests/unit/performance.test.ts --coverage
+        run: npm run test:ci:coverage
         env:
           CI: true
 

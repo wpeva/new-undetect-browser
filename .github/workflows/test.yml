@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Run fast tests (without Chrome)
-        run: npm test -- tests/unit/memoization.test.ts tests/unit/performance.test.ts
+        run: npm run test:ci
         env:
           CI: true
 
@@ -55,7 +55,7 @@ jobs:
         run: npm ci
 
       - name: Run tests with coverage (Chrome tests skipped)
-        run: npm test -- tests/unit/memoization.test.ts tests/unit/performance.test.ts --coverage
+        run: npm run test:ci:coverage
         env:
           CI: true
 
