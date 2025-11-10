@@ -421,7 +421,7 @@ export class BiometricProfiler {
           }
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Directory doesn't exist yet
     }
   }
@@ -434,7 +434,7 @@ export class BiometricProfiler {
       const filePath = path.join(this.dataDir, `${profileId}.json`);
       const data = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(data);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }

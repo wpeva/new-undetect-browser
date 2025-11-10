@@ -300,13 +300,13 @@ export class HardwareSpoofing {
       if (navigator.keyboard) {
         // @ts-expect-error - keyboard property is defined in browser-types.d.ts
         Object.defineProperty(navigator.keyboard, 'getLayoutMap', {
-          value: async function (): Promise<Map<string, string>> {
+          value: function (): Promise<Map<string, string>> {
             // Return US keyboard layout
             const layout = new Map<string, string>();
             layout.set('KeyA', 'a');
             layout.set('KeyB', 'b');
             // ... (simplified)
-            return layout;
+            return Promise.resolve(layout);
           },
           configurable: true,
         });

@@ -437,7 +437,7 @@ export class AutomationDetectionProtection {
       // Ensure Trusted Types API is available (CSP feature)
       if (!(window as any).trustedTypes) {
         (window as any).trustedTypes = {
-          createPolicy: (name: string, policy: any) => ({
+          createPolicy: (name: string, _policy: any) => ({
             name,
             createHTML: (input: string) => input,
             createScript: (input: string) => input,

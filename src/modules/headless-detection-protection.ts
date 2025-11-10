@@ -175,8 +175,8 @@ export class HeadlessDetectionProtection {
 
       // Ensure media devices exist (often missing in headless)
       if (navigator.mediaDevices && !navigator.mediaDevices.enumerateDevices) {
-        navigator.mediaDevices.enumerateDevices = async function () {
-          return [
+        navigator.mediaDevices.enumerateDevices = function () {
+          return Promise.resolve([
             {
               deviceId: 'default',
               kind: 'audioinput' as MediaDeviceKind,
@@ -198,7 +198,7 @@ export class HeadlessDetectionProtection {
               groupId: 'default',
               toJSON: () => {},
             },
-          ];
+          ]);
         };
       }
 
@@ -256,8 +256,8 @@ export class HeadlessDetectionProtection {
       // ========================================
 
       // Headless browsers often have irregular RAF timing
-      const originalRAF = window.requestAnimationFrame;
-      const originalCAF = window.cancelAnimationFrame;
+      const _originalRAF = window.requestAnimationFrame;
+      const _originalCAF = window.cancelAnimationFrame;
 
       const rafCallbacks = new Map();
       let rafId = 0;
@@ -319,7 +319,7 @@ export class HeadlessDetectionProtection {
       if (!navigator.clipboard) {
         (navigator as any).clipboard = {
           readText: () => Promise.resolve(''),
-          writeText: (text: string) => Promise.resolve(),
+          writeText: (_text: string) => Promise.resolve(),
           read: () => Promise.resolve([]),
           write: (data: any) => Promise.resolve(),
         };
