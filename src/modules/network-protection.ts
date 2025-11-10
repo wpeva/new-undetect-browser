@@ -27,13 +27,13 @@ export class NetworkProtectionModule {
   async setupInterception(page: Page): Promise<void> {
     await page.setRequestInterception(true);
 
-    page.on('request', async (request: HTTPRequest) => {
-      try {
-        await this.interceptRequest(request);
-      } catch (error) {
+    page.on('request', (request: HTTPRequest) => {
+      this.interceptRequest(request).catch((error) => {
         logger.error('Request interception error:', error);
-        request.continue();
-      }
+        request.continue().catch(() => {
+          // Request already handled
+        });
+      });
     });
 
     logger.debug('Network interception setup complete');

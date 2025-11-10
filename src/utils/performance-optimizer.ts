@@ -70,7 +70,7 @@ export class LazyInit<T> {
       return this.value;
     }
 
-    if (this.initPromise) {
+    if (this.initPromise !== undefined) {
       return this.initPromise;
     }
 
@@ -119,9 +119,11 @@ export class BatchProcessor<T, R> {
       this.queue.push({ item, resolve, reject });
 
       if (this.queue.length >= this.maxBatchSize) {
-        this.flush();
+        void this.flush();
       } else if (!this.timer) {
-        this.timer = setTimeout(() => this.flush(), this.maxWaitMs);
+        this.timer = setTimeout(() => {
+          void this.flush();
+        }, this.maxWaitMs);
       }
     });
   }

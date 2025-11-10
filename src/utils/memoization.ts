@@ -346,12 +346,14 @@ export class BatchProcessor<T, R> {
 
       // Schedule processing
       if (!this.timeoutId) {
-        this.timeoutId = setTimeout(() => this.flush(), this.maxWaitMs);
+        this.timeoutId = setTimeout(() => {
+          void this.flush();
+        }, this.maxWaitMs);
       }
 
       // Process immediately if batch is full
       if (this.batch.length >= this.maxBatchSize) {
-        this.flush();
+        void this.flush();
       }
     });
   }
