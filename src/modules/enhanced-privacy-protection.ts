@@ -2,15 +2,24 @@
  * Enhanced Privacy Protection Module
  *
  * Provides maximum protection against:
- * - WebRTC IP leaks
+ * - WebRTC IP leaks (via spoofing, not blocking - more natural)
  * - DNS leaks
  * - Proxy bypass attempts
  * - All fingerprinting detection
  *
  * Designed to pass pixelscan.net with all green checks
+ *
+ * IMPORTANT: WebRTC is SPOOFED by default, not blocked.
+ * Spoofing makes WebRTC work normally but shows only proxy IPs.
+ * This looks more natural than complete blocking.
  */
 
 import { Page } from 'puppeteer';
+import {
+  applyWebRTCSpoofing,
+  createWebRTCConfigFromProxy,
+  WebRTCSpoofConfig,
+} from './webrtc-advanced-spoofing';
 
 /**
  * Chrome launch arguments for maximum privacy and proxy isolation
@@ -116,45 +125,56 @@ export function getEnhancedPrivacyArgs(proxyServer?: string): string[] {
 }
 
 /**
- * Apply enhanced privacy protection to a page
- * Blocks WebRTC, DNS leaks, and all IP leak vectors
+ * Enhanced privacy protection options
  */
-export async function applyEnhancedPrivacyProtection(page: Page): Promise<void> {
+export interface EnhancedPrivacyOptions {
+  /** WebRTC configuration (default: spoof with proxy IP) */
+  webrtc?: WebRTCSpoofConfig;
+
+  /** Proxy IP for WebRTC spoofing */
+  proxyIP?: string;
+
+  /** Whether to apply all protections */
+  applyAll?: boolean;
+}
+
+/**
+ * Apply enhanced privacy protection to a page
+ *
+ * IMPORTANT: By default, WebRTC is SPOOFED (not blocked) to look more natural.
+ * WebRTC will work normally but show only proxy IPs.
+ *
+ * @param page - Puppeteer page
+ * @param options - Privacy options
+ */
+export async function applyEnhancedPrivacyProtection(
+  page: Page,
+  options: EnhancedPrivacyOptions = {}
+): Promise<void> {
+  const { proxyIP, webrtc, applyAll = true } = options;
+
+  // ============================================================================
+  // WEBRTC ADVANCED SPOOFING (RECOMMENDED)
+  // ============================================================================
+
+  // Create WebRTC config from proxy IP if not provided
+  const webrtcConfig =
+    webrtc || createWebRTCConfigFromProxy(proxyIP);
+
+  // Apply WebRTC spoofing (makes WebRTC work but shows only proxy IPs)
+  await applyWebRTCSpoofing(page, webrtcConfig);
+
+  // If applyAll is false, only apply WebRTC spoofing
+  if (!applyAll) {
+    return;
+  }
+
+  // ============================================================================
+  // ADDITIONAL PRIVACY PROTECTIONS
+  // ============================================================================
   await page.evaluateOnNewDocument(() => {
-    // ============================================================================
-    // WEBRTC COMPLETE BLOCKING - PREVENT IP LEAKS
-    // ============================================================================
-
-    // Block RTCPeerConnection completely
-    (window as any).RTCPeerConnection = undefined;
-    (window as any).webkitRTCPeerConnection = undefined;
-    (window as any).mozRTCPeerConnection = undefined;
-
-    // Block RTCDataChannel
-    (window as any).RTCDataChannel = undefined;
-
-    // Block RTCSessionDescription
-    (window as any).RTCSessionDescription = undefined;
-    (window as any).webkitRTCSessionDescription = undefined;
-    (window as any).mozRTCSessionDescription = undefined;
-
-    // Block RTCIceCandidate
-    (window as any).RTCIceCandidate = undefined;
-    (window as any).webkitRTCIceCandidate = undefined;
-    (window as any).mozRTCIceCandidate = undefined;
-
-    // Block getUserMedia (camera/microphone access)
-    if (navigator.mediaDevices) {
-      const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
-      navigator.mediaDevices.getUserMedia = function () {
-        return Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
-      };
-    }
-
-    // Block legacy getUserMedia
-    (navigator as any).getUserMedia = undefined;
-    (navigator as any).webkitGetUserMedia = undefined;
-    (navigator as any).mozGetUserMedia = undefined;
+    // NOTE: WebRTC spoofing is handled by webrtc-advanced-spoofing.ts
+    // WebRTC will work normally but show only proxy IPs (more natural)
 
     // ============================================================================
     // DNS LEAK PROTECTION

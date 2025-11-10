@@ -30,7 +30,9 @@ import {
 import {
   getEnhancedPrivacyArgs,
   applyEnhancedPrivacyProtection,
+  EnhancedPrivacyOptions,
 } from '../modules/enhanced-privacy-protection';
+import { WebRTCSpoofConfig } from '../modules/webrtc-advanced-spoofing';
 import { logger, LogLevel } from '../utils/logger';
 
 /**
@@ -51,6 +53,18 @@ export interface RealisticBrowserConfig {
 
   /** Whether to apply human behavior automatically */
   autoHumanBehavior?: boolean;
+
+  /**
+   * WebRTC configuration
+   * Default: 'spoof' mode (WebRTC works but shows only proxy IPs)
+   * This is more natural than blocking WebRTC completely
+   */
+  webrtc?: WebRTCSpoofConfig;
+
+  /**
+   * Privacy options
+   */
+  privacy?: EnhancedPrivacyOptions;
 }
 
 /**
@@ -115,8 +129,15 @@ export class RealisticBrowserInstance {
   async newPage(): Promise<RealisticPage> {
     const page = await this.browserInstance.newPage();
 
-    // Apply enhanced privacy protection (WebRTC, DNS leaks, etc.)
-    await applyEnhancedPrivacyProtection(page);
+    // Get proxy IP for WebRTC spoofing
+    const proxyIP = this.config.proxy ? this.config.proxy.host : undefined;
+
+    // Apply enhanced privacy protection (WebRTC spoofing, DNS leaks, etc.)
+    await applyEnhancedPrivacyProtection(page, {
+      proxyIP,
+      webrtc: this.config.webrtc,
+      ...this.config.privacy,
+    });
 
     // Apply consistent fingerprint
     await applyConsistentFingerprint(page, this.fingerprint);
@@ -283,9 +304,11 @@ export class RealisticBrowserFactory {
     };
 
     if (config.proxy) {
+      const webrtcMode = config.webrtc?.mode || 'spoof';
       logger.info(`Using proxy: ${proxyServer}`);
       logger.info('✅ Enhanced privacy protection enabled');
-      logger.info('✅ WebRTC completely blocked');
+      logger.info(`✅ WebRTC mode: ${webrtcMode} ${webrtcMode === 'spoof' ? '(RECOMMENDED - looks natural)' : ''}`);
+      logger.info('✅ WebRTC IPs spoofed to proxy IP');
       logger.info('✅ DNS leak protection active');
       logger.info('✅ 100% proxy isolation enforced');
     }

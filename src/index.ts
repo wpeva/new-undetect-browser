@@ -399,8 +399,11 @@ export { CookieSessionManager, createCookieSessionManager } from './core/cookie-
 export * from './modules/consistent-fingerprint';
 export * from './modules/realistic-human-behavior';
 
-// Export NEW enhanced privacy protection (WebRTC blocking, DNS leak protection)
+// Export NEW enhanced privacy protection (WebRTC spoofing, DNS leak protection)
 export * from './modules/enhanced-privacy-protection';
+
+// Export NEW advanced WebRTC spoofing (substitutes IPs instead of blocking)
+export * from './modules/webrtc-advanced-spoofing';
 
 // Export NEW high-level realistic browser factory (RECOMMENDED API)
 export * from './core/realistic-browser-factory';
