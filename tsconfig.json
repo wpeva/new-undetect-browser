@@ -40,6 +40,9 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "tests"
+    "tests",
+    "server/database/**/*",
+    "server/models/**/*",
+    "server/index-v2.ts"
   ]
 }
