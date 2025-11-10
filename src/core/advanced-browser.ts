@@ -350,11 +350,11 @@ export class AdvancedBrowser {
   /**
    * Get statistics
    */
-  async getStatistics(): Promise<{
+  getStatistics(): {
     profiles: ReturnType<typeof this.profileManager.getStatistics>;
     proxies: ReturnType<typeof this.proxyManager.getStatistics>;
     activeBrowsers: number;
-  }> {
+  } {
     return {
       profiles: this.profileManager.getStatistics(),
       proxies: this.proxyManager.getStatistics(),

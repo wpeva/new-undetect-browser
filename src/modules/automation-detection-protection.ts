@@ -196,7 +196,7 @@ export class AutomationDetectionProtection {
       const originalDocumentDefineProperty = Object.defineProperty;
       const documentProxyHandler = {
         apply: function (target: any, thisArg: any, argumentsList: any[]) {
-          const [obj, prop, descriptor] = argumentsList;
+          const [obj, prop, _descriptor] = argumentsList;
 
           // Block CDP-related properties
           if (

@@ -294,14 +294,14 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Get profiles by category
    */
-  async getProfilesByCategory(category: string): Promise<AdvancedProfile[]> {
+  getProfilesByCategory(category: string): AdvancedProfile[] {
     return this.searchProfiles({ category });
   }
 
   /**
    * Get profiles by tags
    */
-  async getProfilesByTags(tags: string[]): Promise<AdvancedProfile[]> {
+  getProfilesByTags(tags: string[]): AdvancedProfile[] {
     return this.searchProfiles({ tags });
   }
 

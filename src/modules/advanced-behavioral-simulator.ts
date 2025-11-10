@@ -11,9 +11,7 @@ import {
   READING_PATTERNS,
   SCROLLING_PATTERNS,
   CLICK_PATTERNS,
-  ATTENTION_PATTERNS,
   PAGE_INTERACTION_PATTERNS,
-  BIOMETRIC_VARIANCE,
   normalRandom,
   randomRange,
   weightedRandom,
@@ -416,8 +414,8 @@ export class AdvancedBehavioralSimulator {
    */
   private addSubmovements(
     points: Array<{ x: number; y: number }>,
-    targetX: number,
-    targetY: number
+    _targetX: number,
+    _targetY: number
   ): Array<{ x: number; y: number }> {
     const { submovements } = MOUSE_MOVEMENT_STATS;
     const correctionCount = randomRange(
@@ -515,7 +513,7 @@ export class AdvancedBehavioralSimulator {
   /**
    * Private: Get digraph typing delay
    */
-  private getDigraphDelay(digraph: string, baseDelay: number): number {
+  private getDigraphDelay(digraph: string, _baseDelay: number): number {
     const { digraphLatencies } = KEYBOARD_TIMING_STATS;
 
     // Check for common digraph
