@@ -405,11 +405,11 @@ export async function applyConsistentFingerprint(
     Intl.DateTimeFormat.prototype = originalDateTimeFormat.prototype;
 
     // Override geolocation
-    const originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;
+    const _originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;
     navigator.geolocation.getCurrentPosition = function (
       success,
-      error,
-      options
+      _error,
+      _options
     ) {
       success({
         coords: {
@@ -476,18 +476,18 @@ export async function applyConsistentFingerprint(
     });
 
     // Battery API
-    navigator.getBattery = async () => ({
+    navigator.getBattery = () => Promise.resolve({
       charging: fp.battery.charging,
       chargingTime: fp.battery.charging ? 3600 : Infinity,
       dischargingTime: fp.battery.charging ? Infinity : 7200,
       level: fp.battery.level,
       addEventListener: () => {},
       removeEventListener: () => {},
-    });
+    } as any);
 
     // Media Devices
-    const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
-    navigator.mediaDevices.enumerateDevices = async function () {
+    const _originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+    navigator.mediaDevices.enumerateDevices = function () {
       const devices: MediaDeviceInfo[] = [];
 
       for (let i = 0; i < fp.mediaDevices.audioinput; i++) {
@@ -520,7 +520,7 @@ export async function applyConsistentFingerprint(
         } as MediaDeviceInfo);
       }
 
-      return devices;
+      return Promise.resolve(devices);
     };
 
     console.log('[ConsistentFingerprint] Applied:', {
@@ -635,7 +635,7 @@ function getPlatformString(platform: string): string {
 /**
  * Generate plugins based on platform
  */
-function generatePlugins(platform: string, random: () => number): any[] {
+function generatePlugins(platform: string, _random: () => number): any[] {
   if (platform === 'Windows') {
     return [
       {

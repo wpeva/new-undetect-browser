@@ -163,7 +163,7 @@ export class RealisticBrowserInstance {
    * Get all pages
    */
   async pages(): Promise<Page[]> {
-    return this.browserInstance.pages();
+    return await this.browserInstance.pages();
   }
 
   /**
@@ -330,6 +330,9 @@ export class RealisticBrowserFactory {
     // - Use GeoIP API (MaxMind, IP2Location, etc.)
     // - Query proxy provider API
     // - Make test request through proxy to geolocation service
+
+    // Mock async operation
+    await Promise.resolve();
 
     // For now, return a random country
     const countries = ['US', 'GB', 'DE', 'FR', 'ES', 'IT', 'RU', 'CN', 'JP', 'BR', 'AU', 'CA'];

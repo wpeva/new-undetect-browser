@@ -264,13 +264,14 @@ export async function humanReadPage(
 ): Promise<void> {
   // Get page height
   const height = await page.evaluate(() => document.body.scrollHeight);
-  const viewport = await page.viewport();
+  const viewport = page.viewport();
   const viewportHeight = viewport?.height || 800;
 
   // Estimate reading time based on content
   const textContent = await page.evaluate(() => document.body.innerText);
   const wordCount = textContent.split(/\s+/).length;
-  const readingTime = (wordCount / profile.readingSpeed) * 60000; // ms
+  // Use reading time for potential future optimization
+  const _readingTime = (wordCount / profile.readingSpeed) * 60000; // ms
 
   // Scroll through page naturally
   let currentScroll = 0;
