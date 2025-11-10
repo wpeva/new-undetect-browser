@@ -140,6 +140,9 @@ interface WebGLDebugRendererInfo {
   readonly UNMASKED_RENDERER_WEBGL: number;
 }
 
+// VisibilityState type
+type VisibilityState = 'visible' | 'hidden' | 'prerender';
+
 // Connection Info Types
 type ConnectionType = 'bluetooth' | 'cellular' | 'ethernet' | 'none' | 'wifi' | 'wimax' | 'other' | 'unknown';
 type EffectiveConnectionType = 'slow-2g' | '2g' | '3g' | '4g';
@@ -169,6 +172,10 @@ declare global {
     connection?: NetworkInformation;
     mozConnection?: NetworkInformation;
     webkitConnection?: NetworkInformation;
+    keyboard?: {
+      lock?: (keys?: string[]) => Promise<void>;
+      unlock?: () => void;
+    };
   }
 
   // Extended Document interface
@@ -246,6 +253,12 @@ declare global {
   // Gamepad Types
   interface Gamepad {
     readonly mapping: GamepadMappingType;
+  }
+
+  // WebGL Extensions
+  interface WebGLRenderingContext {
+    readonly UNMASKED_VENDOR_WEBGL: number;
+    readonly UNMASKED_RENDERER_WEBGL: number;
   }
 }
 

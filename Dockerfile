@@ -4,7 +4,7 @@
 # ==================================
 
 # Stage 1: Builder
-FROM node:20-bullseye-slim AS builder
+FROM node:20-bookworm-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -34,13 +34,12 @@ RUN npm run build
 
 # ==================================
 # Stage 2: Production Image
-FROM node:20-bullseye-slim
+FROM node:20-bookworm-slim
 
 # Install Chromium and required dependencies
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
-    libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libatspi2.0-0 \
@@ -58,6 +57,7 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     ca-certificates \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables for Puppeteer

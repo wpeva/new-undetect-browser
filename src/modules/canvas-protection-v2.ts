@@ -250,9 +250,13 @@ export class CanvasProtectionV2 {
           const result = originalGetParameter.apply(this, [pname]);
 
           // Add slight noise to canvas dimensions
+          // WebGL debug extension constants
+          const UNMASKED_VENDOR_WEBGL = 0x9245;
+          const UNMASKED_RENDERER_WEBGL = 0x9246;
+
           if (
-            pname === WebGLRenderingContext.UNMASKED_VENDOR_WEBGL ||
-            pname === WebGLRenderingContext.UNMASKED_RENDERER_WEBGL
+            pname === UNMASKED_VENDOR_WEBGL ||
+            pname === UNMASKED_RENDERER_WEBGL
           ) {
             // Return slightly modified vendor/renderer
             if (typeof result === 'string') {

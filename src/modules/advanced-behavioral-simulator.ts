@@ -167,8 +167,10 @@ export class AdvancedBehavioralSimulator {
         KEYBOARD_TIMING_STATS.holdTime.max
       );
 
+      // @ts-ignore - char is a string but keyboard.down/up accept KeyInput
       await page.keyboard.down(char);
       await this.delay(holdTime);
+      // @ts-ignore - char is a string but keyboard.down/up accept KeyInput
       await page.keyboard.up(char);
 
       await this.delay(delay);

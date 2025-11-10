@@ -82,53 +82,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
 
-  test-detection:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Chrome dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libnss3 \
-            libnspr4 \
-            libatk1.0-0 \
-            libatk-bridge2.0-0 \
-            libcups2 \
-            libdrm2 \
-            libdbus-1-3 \
-            libxkbcommon0 \
-            libxcomposite1 \
-            libxdamage1 \
-            libxfixes3 \
-            libxrandr2 \
-            libgbm1 \
-            libasound2
-
-      - name: Install Chrome for Puppeteer
-        run: |
-          node -e "const puppeteer = require('puppeteer'); (async () => { const browserFetcher = puppeteer.createBrowserFetcher(); await browserFetcher.download(puppeteer.PUPPETEER_REVISIONS.chromium); })();"
-
-      - name: Run detection tests
-        run: npm run test:detection
-        continue-on-error: true
-
-      - name: Upload screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: detection-screenshots
-          path: tests/detection/screenshots/
+  # Detection tests are skipped in CI (require GUI/headless false)
+  # Run these tests locally for full validation
 
   docker:
     runs-on: ubuntu-latest

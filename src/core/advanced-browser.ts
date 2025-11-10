@@ -12,7 +12,6 @@ import {
   EnhancedFingerprintOptions,
 } from '../utils/enhanced-fingerprint-generator';
 import { logger } from '../utils/logger';
-import { ProfileStorage } from '../storage/profile-storage';
 
 // Add stealth plugin
 puppeteer.use(StealthPlugin());
@@ -68,12 +67,10 @@ export class AdvancedBrowser {
     };
 
     // Initialize managers
-    const storage = new ProfileStorage({
+    this.profileManager = new AdvancedProfileManager({
       type: 'file',
       path: this.config.dataDir,
     });
-
-    this.profileManager = new AdvancedProfileManager(storage);
     this.proxyManager = new ProxyManager();
     this.cookieSessionManager = new CookieSessionManager(
       `${this.config.dataDir}/sessions`

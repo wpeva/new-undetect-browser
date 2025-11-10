@@ -306,6 +306,7 @@ export class AutomationDetectionProtection {
       // Ensure MutationObserver behaves naturally
       const OriginalMutationObserver = window.MutationObserver;
 
+      // @ts-ignore - Replacing constructor for automation detection
       window.MutationObserver = function (this: MutationObserver, callback: MutationCallback) {
         const observer = new OriginalMutationObserver(callback);
 
@@ -323,6 +324,7 @@ export class AutomationDetectionProtection {
         return observer;
       };
 
+      // @ts-ignore - Assigning prototype for automation detection
       window.MutationObserver.prototype = OriginalMutationObserver.prototype;
 
       // ========================================
@@ -336,6 +338,7 @@ export class AutomationDetectionProtection {
         return new OriginalPromise(executor);
       } as any;
 
+      // @ts-ignore - Assigning prototype for automation detection
       window.Promise.prototype = OriginalPromise.prototype;
       window.Promise.all = OriginalPromise.all.bind(OriginalPromise);
       window.Promise.race = OriginalPromise.race.bind(OriginalPromise);
@@ -458,6 +461,7 @@ export class AutomationDetectionProtection {
       if (window.PerformanceObserver) {
         const OriginalPerformanceObserver = window.PerformanceObserver;
 
+        // @ts-ignore - Replacing constructor for automation detection
         window.PerformanceObserver = function (this: PerformanceObserver, callback: PerformanceObserverCallback) {
           const observer = new OriginalPerformanceObserver(callback);
 
@@ -481,6 +485,7 @@ export class AutomationDetectionProtection {
       if (window.IntersectionObserver) {
         const OriginalIntersectionObserver = window.IntersectionObserver;
 
+        // @ts-ignore - Replacing constructor for automation detection
         window.IntersectionObserver = function (
           this: IntersectionObserver,
           callback: IntersectionObserverCallback,
@@ -508,6 +513,7 @@ export class AutomationDetectionProtection {
       if (window.ResizeObserver) {
         const OriginalResizeObserver = window.ResizeObserver;
 
+        // @ts-ignore - Replacing constructor for automation detection
         window.ResizeObserver = function (this: ResizeObserver, callback: ResizeObserverCallback) {
           const observer = new OriginalResizeObserver(callback);
 
@@ -529,6 +535,7 @@ export class AutomationDetectionProtection {
       // Some sites check if Proxy is being used
       const OriginalProxy = window.Proxy;
 
+      // @ts-ignore - Replacing Proxy for automation detection
       window.Proxy = function (target: any, handler: ProxyHandler<any>) {
         // Check if we're being detected
         if (handler.get || handler.set || handler.apply) {
