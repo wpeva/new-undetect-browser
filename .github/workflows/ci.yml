@@ -116,8 +116,7 @@ jobs:
             libasound2t64 || sudo apt-get install -y libasound2
 
       - name: Install Chrome for Puppeteer
-        run: |
-          node -e "const puppeteer = require('puppeteer'); (async () => { const browserFetcher = puppeteer.createBrowserFetcher(); await browserFetcher.download(puppeteer.PUPPETEER_REVISIONS.chromium); })();"
+        run: npx puppeteer browsers install chrome
 
       - name: Run detection tests
         run: npm run test:detection

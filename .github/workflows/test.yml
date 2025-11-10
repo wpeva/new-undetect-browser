@@ -73,12 +73,12 @@ jobs:
             libgbm1 \
             libasound2t64 || sudo apt-get install -y libasound2
           echo "Installing Chrome for Puppeteer..."
-          node -e "const puppeteer = require('puppeteer'); (async () => { const browserFetcher = puppeteer.createBrowserFetcher(); await browserFetcher.download(puppeteer.PUPPETEER_REVISIONS.chromium); })();"
+          npx puppeteer browsers install chrome
           echo "Chrome installation completed"
 
       - name: Verify Chrome installation
         run: |
-          echo "Verifying Chrome installation..."
+          echo "Verifying Puppeteer installation..."
           node -e "const puppeteer = require('puppeteer'); console.log('Puppeteer version:', require('puppeteer/package.json').version);"
 
       - name: Run all tests with coverage
