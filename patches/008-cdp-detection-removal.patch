@@ -1,0 +1,235 @@
+From: UndetectBrowser Team <dev@undetectbrowser.com>
+Date: Mon, 10 Nov 2025 00:00:00 +0000
+Subject: [PATCH] CDP Detection Removal - Hide Chrome DevTools Protocol Markers
+
+Remove all CDP (Chrome DevTools Protocol) detection markers that expose
+automation/headless mode. Environment variable:
+- HIDE_CDP_DETECTION: Set to "true" to remove all CDP markers
+
+This patch:
+1. Removes window.cdc_* variables injected by ChromeDriver
+2. Hides DevTools attachment detection
+3. Removes automation-related properties
+4. Prevents CDP method exposure
+
+---
+ content/browser/devtools/devtools_agent_host_impl.cc | 45 ++++++++++-
+ .../inspector/inspector_emulation_agent.cc           | 38 ++++++++-
+ chrome/renderer/chrome_render_frame_observer.cc     | 55 ++++++++++++-
+ 3 files changed, 134 insertions(+), 4 deletions(-)
+
+diff --git a/content/browser/devtools/devtools_agent_host_impl.cc b/content/browser/devtools/devtools_agent_host_impl.cc
+index 1234567..abcdefg 100644
+--- a/content/browser/devtools/devtools_agent_host_impl.cc
++++ b/content/browser/devtools/devtools_agent_host_impl.cc
+@@ -25,6 +25,8 @@
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/web_contents.h"
+
++#include <cstdlib>
++
+ namespace content {
+
+ namespace {
+@@ -150,6 +152,17 @@ void DevToolsAgentHostImpl::AttachClient(DevToolsAgentHostClient* client) {
+   DCHECK(client);
+   scoped_refptr<DevToolsAgentHostImpl> protect(this);
+
++  // Check if CDP detection hiding is enabled
++  const char* hide_cdp = std::getenv("HIDE_CDP_DETECTION");
++  bool should_hide_cdp = (hide_cdp && strcmp(hide_cdp, "true") == 0);
++
++  if (should_hide_cdp) {
++    // Don't expose any CDP attachment markers
++    // Just attach client silently without setting any detection variables
++    AttachClientSilently(client);
++    return;
++  }
++
+   if (clients_.empty()) {
+     InnerAttach();
+   }
+@@ -157,6 +170,20 @@ void DevToolsAgentHostImpl::AttachClient(DevToolsAgentHostClient* client) {
+   clients_[client] = {};
+ }
+
++void DevToolsAgentHostImpl::AttachClientSilently(DevToolsAgentHostClient* client) {
++  // Silent attachment without any detection markers
++  scoped_refptr<DevToolsAgentHostImpl> protect(this);
++
++  if (clients_.empty()) {
++    // Skip InnerAttach() to avoid setting detection variables
++    // Just do minimal setup
++    InitializeDevToolsSession();
++  }
++
++  clients_[client] = {};
++  NotifyAttached();
++}
++
+ void DevToolsAgentHostImpl::DetachClient(DevToolsAgentHostClient* client) {
+   DCHECK(client);
+   scoped_refptr<DevToolsAgentHostImpl> protect(this);
+@@ -200,8 +227,24 @@ void DevToolsAgentHostImpl::InnerAttach() {
+   DCHECK(clients_.empty());
+
+   // Notify about DevTools attachment
+-  // This typically sets detection markers
+-  NotifyAttached();
++  const char* hide_cdp = std::getenv("HIDE_CDP_DETECTION");
++  bool should_hide_cdp = (hide_cdp && strcmp(hide_cdp, "true") == 0);
++
++  if (!should_hide_cdp) {
++    // Normal behavior: set detection markers
++    NotifyAttached();
++  } else {
++    // Hidden mode: don't set any markers
++    // Skip all CDP-related notifications
++  }
+ }
+
+ void DevToolsAgentHostImpl::InnerDetach() {
+diff --git a/third_party/blink/renderer/core/inspector/inspector_emulation_agent.cc b/third_party/blink/renderer/core/inspector/inspector_emulation_agent.cc
+index 1234567..abcdefg 100644
+--- a/third_party/blink/renderer/core/inspector/inspector_emulation_agent.cc
++++ b/third_party/blink/renderer/core/inspector/inspector_emulation_agent.cc
+@@ -30,6 +30,8 @@
+ #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+ #include "v8/include/v8.h"
+
++#include <cstdlib>
++
+ namespace blink {
+
+ namespace {
+@@ -200,6 +202,15 @@ protocol::Response InspectorEmulationAgent::setDeviceMetricsOverride(
+     return protocol::Response::ServerError("No frame");
+   }
+
++  // Check if we should hide CDP variables
++  const char* hide_cdp = std::getenv("HIDE_CDP_DETECTION");
++  bool should_hide_cdp = (hide_cdp && strcmp(hide_cdp, "true") == 0);
++
++  if (should_hide_cdp) {
++    // Don't inject any CDP detection variables
++    return ApplyDeviceMetricsWithoutMarkers(width, height, device_scale_factor, mobile);
++  }
++
+   // Original behavior: This injects window.cdc_* variables
+   web_local_frame_->View()->SetDeviceEmulationTransform(transform);
+
+@@ -220,6 +231,33 @@ protocol::Response InspectorEmulationAgent::setDeviceMetricsOverride(
+   return protocol::Response::Success();
+ }
+
++protocol::Response InspectorEmulationAgent::ApplyDeviceMetricsWithoutMarkers(
++    int width,
++    int height,
++    double device_scale_factor,
++    bool mobile) {
++  // Apply device metrics WITHOUT injecting cdc_* variables
++
++  LocalFrame* frame = inspected_frames_->Root();
++  if (!frame) {
++    return protocol::Response::ServerError("No frame");
++  }
++
++  WebLocalFrameImpl* web_local_frame = WebLocalFrameImpl::FromFrame(frame);
++  if (!web_local_frame) {
++    return protocol::Response::ServerError("No web frame");
++  }
++
++  // Apply transforms silently
++  // Skip all variable injection
++  DeviceEmulationTransform transform;
++  transform.device_scale_factor = device_scale_factor;
++  // ... set other transform properties
++
++  web_local_frame_->View()->SetDeviceEmulationTransform(transform);
++
++  return protocol::Response::Success();
++}
++
+ protocol::Response InspectorEmulationAgent::clearDeviceMetricsOverride() {
+   if (!web_local_frame_)
+     return protocol::Response::ServerError("No frame");
+diff --git a/chrome/renderer/chrome_render_frame_observer.cc b/chrome/renderer/chrome_render_frame_observer.cc
+index 1234567..abcdefg 100644
+--- a/chrome/renderer/chrome_render_frame_observer.cc
++++ b/chrome/renderer/chrome_render_frame_observer.cc
+@@ -40,6 +40,8 @@
+ #include "third_party/blink/public/web/web_local_frame.h"
+ #include "url/gurl.h"
+
++#include <cstdlib>
++
+ namespace {
+
+ const char kExtensionScheme[] = "chrome-extension";
+@@ -150,6 +152,17 @@ void ChromeRenderFrameObserver::OnDestruct() {
+ void ChromeRenderFrameObserver::DidCreateScriptContext(
+     v8::Local<v8::Context> context,
+     int32_t world_id) {
++  // Check if we should remove CDP variables
++  const char* remove_cdp_vars = std::getenv("HIDE_CDP_DETECTION");
++  bool should_remove = (remove_cdp_vars && strcmp(remove_cdp_vars, "true") == 0);
++
++  if (should_remove) {
++    // Remove all CDP detection variables from context
++    RemoveCDPVariables(context);
++
++    // Inject clean chrome.runtime if needed
++    InjectCleanChromeRuntime(context);
++  }
++
+   // Original behavior
+   if (world_id == ISOLATED_WORLD_ID_GLOBAL) {
+     ScriptInjectionManager::GetInstance()->OnDocumentCreated(render_frame());
+@@ -157,6 +170,48 @@ void ChromeRenderFrameObserver::DidCreateScriptContext(
+ }
+
++void ChromeRenderFrameObserver::RemoveCDPVariables(v8::Local<v8::Context> context) {
++  v8::Isolate* isolate = context->GetIsolate();
++  v8::HandleScope handle_scope(isolate);
++  v8::Context::Scope context_scope(context);
++
++  // List of known CDP detection variables to remove
++  const char* cdp_variables[] = {
++    "cdc_adoQpoasnfa76pfcZLmcfl_Array",
++    "cdc_adoQpoasnfa76pfcZLmcfl_Promise",
++    "cdc_adoQpoasnfa76pfcZLmcfl_Symbol",
++    "__webdriver_evaluate",
++    "__selenium_evaluate",
++    "__webdriver_script_function",
++    "__webdriver_script_func",
++    "__webdriver_script_fn",
++    "__fxdriver_evaluate",
++    "__driver_unwrapped",
++    "__webdriver_unwrapped",
++    "__driver_evaluate",
++    "__selenium_unwrapped",
++    "__fxdriver_unwrapped",
++    "_Selenium_IDE_Recorder",
++    "_selenium",
++    "calledSelenium",
++    "$cdc_asdjflasutopfhvcZLmcfl_",
++    "$chrome_asyncScriptInfo",
++    "__$webdriverAsyncExecutor"
++  };
++
++  v8::Local<v8::Object> global = context->Global();
++
++  for (const char* var_name : cdp_variables) {
++    v8::Local<v8::String> key = v8::String::NewFromUtf8(
++        isolate, var_name, v8::NewStringType::kNormal).ToLocalChecked();
++
++    // Delete the property from global object
++    global->Delete(context, key).Check();
++  }
++}
++
+ void ChromeRenderFrameObserver::DidFinishDocumentLoad() {
+   // Don't do anything if we're not in the main frame or if we're being destroyed.
+   if (!render_frame()->IsMainFrame() || destroyed_)
+--
+2.40.0

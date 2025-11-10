@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  chromium-builder:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.chromium-build
+    image: undetect-chromium-builder:latest
+    container_name: chromium-builder
+    hostname: chromium-builder
+
+    # Resource limits (adjust based on your hardware)
+    deploy:
+      resources:
+        limits:
+          cpus: '16'      # Use up to 16 CPU cores
+          memory: 32G      # Maximum 32GB RAM
+        reservations:
+          cpus: '8'       # Reserve at least 8 cores
+          memory: 16G     # Reserve at least 16GB RAM
+
+    # Volumes for persistent data
+    volumes:
+      # Chromium source code
+      - chromium-src:/home/chromium-builder/chromium
+      # Patches directory
+      - ../patches:/home/chromium-builder/patches:ro
+      # Build scripts
+      - ../build-scripts:/home/chromium-builder/build-scripts:ro
+      # Output directory for releases
+      - ../releases:/home/chromium-builder/releases
+
+    # Environment variables for build configuration
+    environment:
+      # Build configuration
+      - BUILD_TYPE=Release
+      - NUM_JOBS=16
+
+      # Anti-detection environment variables (for testing)
+      - WEBGL_VENDOR=Intel Inc.
+      - WEBGL_RENDERER=Intel(R) UHD Graphics 630
+      - CANVAS_NOISE_SEED=12345
+      - HIDE_CDP_DETECTION=true
+      - REMOVE_CDP_VARIABLES=true
+
+    # Keep container running
+    tty: true
+    stdin_open: true
+
+    # Shared memory size (important for Chromium build)
+    shm_size: '2gb'
+
+# Named volumes for persistent data
+volumes:
+  chromium-src:
+    driver: local

@@ -45,6 +45,10 @@ temp/
 # Chrome/Chromium
 chrome-user-data/
 .chromium-browser-snapshots/
+chromium/
+
+# Chromium fork releases
+releases/
 
 # Screenshots
 screenshots/

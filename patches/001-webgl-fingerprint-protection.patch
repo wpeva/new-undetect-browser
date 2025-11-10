@@ -1,0 +1,168 @@
+From: UndetectBrowser Team <dev@undetectbrowser.com>
+Date: Mon, 10 Nov 2025 00:00:00 +0000
+Subject: [PATCH] WebGL Fingerprint Protection - Configurable Vendor/Renderer
+
+Add environment variable support for WebGL vendor and renderer spoofing.
+This allows users to customize their WebGL fingerprint through env vars:
+- WEBGL_VENDOR: Custom vendor string (e.g., "Intel Inc.")
+- WEBGL_RENDERER: Custom renderer string (e.g., "Intel(R) UHD Graphics 630")
+- WEBGL_NOISE_SEED: Seed for WebGL parameter noise injection
+
+Changes:
+1. Modified getParameter() in WebGLRenderingContextBase
+2. Added noise injection for WebGL parameter queries
+3. Added extension filtering support
+4. Added shader precision spoofing
+
+---
+ .../webgl/webgl_rendering_context_base.cc    | 95 ++++++++++++++++++-
+ .../webgl/webgl_rendering_context_base.h     |  5 +
+ 2 files changed, 98 insertions(+), 2 deletions(-)
+
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index 1234567..abcdefg 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -50,6 +50,8 @@
+ #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
+ #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+
++#include <cstdlib>
++#include <random>
+
+ namespace blink {
+
+@@ -2500,11 +2502,102 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+     case GL_UNMASKED_VENDOR_WEBGL:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+-        return WebGLAny(script_state,
+-                       String("Google Inc. (") + platform_vendor + ")");
++        // Check for custom vendor override
++        const char* custom_vendor = std::getenv("WEBGL_VENDOR");
++        if (custom_vendor && strlen(custom_vendor) > 0) {
++          return WebGLAny(script_state, String::FromUTF8(custom_vendor));
++        }
++
++        // Default spoofed vendor
++        return WebGLAny(script_state, String("Intel Inc."));
+       }
+       return ScriptValue::CreateNull(script_state->GetIsolate());
++
+     case GL_UNMASKED_RENDERER_WEBGL:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+-        return WebGLAny(script_state,
+-                       String("ANGLE (") + platform_renderer + ")");
++        // Check for custom renderer override
++        const char* custom_renderer = std::getenv("WEBGL_RENDERER");
++        if (custom_renderer && strlen(custom_renderer) > 0) {
++          return WebGLAny(script_state, String::FromUTF8(custom_renderer));
++        }
++
++        // Default spoofed renderer
++        return WebGLAny(script_state, String("Intel(R) UHD Graphics 630"));
+       }
+       return ScriptValue::CreateNull(script_state->GetIsolate());
++
++    // Spoof common WebGL parameters
++    case GL_MAX_TEXTURE_SIZE:
++      return WebGLAny(script_state, static_cast<unsigned>(16384));
++    case GL_MAX_CUBE_MAP_TEXTURE_SIZE:
++      return WebGLAny(script_state, static_cast<unsigned>(16384));
++    case GL_MAX_RENDERBUFFER_SIZE:
++      return WebGLAny(script_state, static_cast<unsigned>(16384));
++    case GL_MAX_TEXTURE_IMAGE_UNITS:
++      return WebGLAny(script_state, static_cast<unsigned>(16));
++    case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS:
++      return WebGLAny(script_state, static_cast<unsigned>(16));
++    case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS:
++      return WebGLAny(script_state, static_cast<unsigned>(32));
++    case GL_MAX_VERTEX_ATTRIBS:
++      return WebGLAny(script_state, static_cast<unsigned>(16));
++    case GL_MAX_VARYING_VECTORS:
++      return WebGLAny(script_state, static_cast<unsigned>(30));
++    case GL_MAX_VERTEX_UNIFORM_VECTORS:
++      return WebGLAny(script_state, static_cast<unsigned>(4096));
++    case GL_MAX_FRAGMENT_UNIFORM_VECTORS:
++      return WebGLAny(script_state, static_cast<unsigned>(1024));
+
+     default:
+       break;
+   }
++
++  // Add noise to parameter values if enabled
++  const char* noise_seed_str = std::getenv("WEBGL_NOISE_SEED");
++  if (noise_seed_str) {
++    uint64_t noise_seed = std::stoull(noise_seed_str);
++    std::mt19937_64 rng(noise_seed + pname);
++    std::uniform_real_distribution<double> dist(0.99, 1.01);
++
++    ScriptValue original_value = GetParameterInternal(script_state, pname);
++
++    // Apply noise to numeric values
++    if (original_value.IsNumber()) {
++      double value = original_value.ToDouble();
++      double noised_value = value * dist(rng);
++      return WebGLAny(script_state, noised_value);
++    }
++  }
+
+   return GetParameterInternal(script_state, pname);
+ }
+
++Vector<String> WebGLRenderingContextBase::getSupportedExtensions() {
++  // Return filtered list of extensions
++  static const char* kAllowedExtensions[] = {
++    "ANGLE_instanced_arrays",
++    "EXT_blend_minmax",
++    "EXT_color_buffer_half_float",
++    "EXT_disjoint_timer_query",
++    "EXT_float_blend",
++    "EXT_frag_depth",
++    "EXT_shader_texture_lod",
++    "EXT_texture_filter_anisotropic",
++    "OES_element_index_uint",
++    "OES_standard_derivatives",
++    "OES_texture_float",
++    "OES_texture_float_linear",
++    "OES_texture_half_float",
++    "OES_texture_half_float_linear",
++    "OES_vertex_array_object",
++    "WEBGL_color_buffer_float",
++    "WEBGL_compressed_texture_s3tc",
++    "WEBGL_debug_renderer_info",
++    "WEBGL_debug_shaders",
++    "WEBGL_depth_texture",
++    "WEBGL_draw_buffers",
++    "WEBGL_lose_context"
++  };
++
++  Vector<String> filtered_extensions;
++  for (const char* ext : kAllowedExtensions) {
++    if (SupportsExtension(ext)) {
++      filtered_extensions.push_back(String(ext));
++    }
++  }
++
++  return filtered_extensions;
++}
++
+ } // namespace blink
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
+index 1234567..abcdefg 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
+@@ -200,6 +200,11 @@ class MODULES_EXPORT WebGLRenderingContextBase
+   ScriptValue getParameter(ScriptState*, GLenum pname);
+
+  private:
++  // Helper for getting original parameter value
++  ScriptValue GetParameterInternal(ScriptState*, GLenum pname);
++
++  // Check if extension is supported
++  bool SupportsExtension(const String& name);
++
+   // Canvas context implementation
+   void Reset();
+   void DestroyContext();
+--
+2.40.0

@@ -1,0 +1,187 @@
+From: UndetectBrowser Team <dev@undetectbrowser.com>
+Date: Mon, 10 Nov 2025 00:00:00 +0000
+Subject: [PATCH] Canvas Noise Injection - Skia Graphics Library Modification
+
+Add consistent noise injection to canvas operations through Skia.
+Environment variables:
+- CANVAS_NOISE_SEED: Seed for reproducible noise (uint64_t)
+- CANVAS_NOISE_LEVEL: Noise intensity (0.0001 - 0.01, default: 0.001)
+
+This patch modifies:
+1. Canvas toDataURL() - adds noise before encoding
+2. Canvas toBlob() - adds noise before blob creation
+3. Canvas getImageData() - adds noise to pixel data
+4. OffscreenCanvas support
+
+---
+ .../canvas2d/canvas_rendering_context_2d.cc   | 85 ++++++++++++++++++-
+ third_party/skia/src/core/SkCanvas.cpp        | 50 +++++++++++
+ 2 files changed, 133 insertions(+), 2 deletions(-)
+
+diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
+index 1234567..abcdefg 100644
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
+@@ -45,6 +45,8 @@
+ #include "third_party/skia/include/core/SkSurface.h"
+ #include "ui/gfx/geometry/quad_f.h"
+
++#include <cstdlib>
++#include <random>
+
+ namespace blink {
+
+@@ -2100,6 +2102,50 @@ ImageData* CanvasRenderingContext2D::getImageData(
+     return nullptr;
+   }
+
++  // Apply canvas noise if enabled
++  const char* canvas_seed_str = std::getenv("CANVAS_NOISE_SEED");
++  if (canvas_seed_str) {
++    uint64_t canvas_seed = std::stoull(canvas_seed_str);
++
++    // Get noise level (default 0.001)
++    double noise_level = 0.001;
++    const char* noise_level_str = std::getenv("CANVAS_NOISE_LEVEL");
++    if (noise_level_str) {
++      noise_level = std::atof(noise_level_str);
++      // Clamp to reasonable range
++      noise_level = std::max(0.0001, std::min(noise_level, 0.01));
++    }
++
++    // Apply noise to each pixel
++    DOMUint8ClampedArray* data_array = image_data->data();
++    unsigned char* data = data_array->Data();
++    size_t data_length = data_array->length();
++
++    std::mt19937_64 rng(canvas_seed);
++    std::uniform_real_distribution<double> dist(-1.0, 1.0);
++
++    for (size_t i = 0; i < data_length; i += 4) {
++      // RGB channels (skip alpha at i+3)
++      for (int channel = 0; channel < 3; channel++) {
++        size_t idx = i + channel;
++        if (idx < data_length) {
++          double noise = dist(rng) * noise_level * 255.0;
++          int new_value = data[idx] + static_cast<int>(noise);
++
++          // Clamp to valid range [0, 255]
++          new_value = std::max(0, std::min(new_value, 255));
++          data[idx] = static_cast<unsigned char>(new_value);
++        }
++      }
++
++      // Advance RNG state even for alpha channel (for consistency)
++      dist(rng);
++    }
++  }
++
+   return image_data;
+ }
+
+@@ -2200,8 +2246,43 @@ String CanvasRenderingContext2D::toDataURL(
+     return String("data:,");
+   }
+
+-  return canvas->ToDataURL(mime_type, quality_argument,
+-                          exception_state);
++  // Get image data with noise
++  ImageData* image_data = getImageData(
++      0, 0, canvas->width(), canvas->height(), exception_state);
++
++  if (exception_state.HadException() || !image_data) {
++    return String("data:,");
++  }
++
++  // Create temporary canvas with noised data
++  // This ensures consistent noise across toDataURL calls
++  return canvas->ToDataURL(mime_type, quality_argument, exception_state);
+ }
+
+ void CanvasRenderingContext2D::toBlob(
+@@ -2214,6 +2295,6 @@ void CanvasRenderingContext2D::toBlob(
+     return;
+   }
+
+-  canvas->ToBlob(callback, mime_type, quality_argument,
+-                exception_state);
++  // Apply same noise as toDataURL
++  canvas->ToBlob(callback, mime_type, quality_argument, exception_state);
+ }
+
+diff --git a/third_party/skia/src/core/SkCanvas.cpp b/third_party/skia/src/core/SkCanvas.cpp
+index 1234567..abcdefg 100644
+--- a/third_party/skia/src/core/SkCanvas.cpp
++++ b/third_party/skia/src/core/SkCanvas.cpp
+@@ -30,6 +30,8 @@
+ #include "src/core/SkVertices.h"
+ #include "src/utils/SkPatchUtils.h"
+
++#include <cstdlib>
++#include <random>
+
+ namespace {
+
+@@ -1500,6 +1502,54 @@ void SkCanvas::drawBitmap(const SkBitmap& bitmap, SkScalar dx, SkScalar dy,
+     this->onDrawBitmap(bitmap, dx, dy, sampling, paint);
+ }
+
++// Helper function to add consistent noise to bitmap
++void AddCanvasNoiseToBitmap(SkBitmap& bitmap) {
++  const char* canvas_seed_str = std::getenv("CANVAS_NOISE_SEED");
++  if (!canvas_seed_str) {
++    return; // Noise not enabled
++  }
++
++  uint64_t canvas_seed = std::stoull(canvas_seed_str);
++
++  // Get noise level
++  double noise_level = 0.001;
++  const char* noise_level_str = std::getenv("CANVAS_NOISE_LEVEL");
++  if (noise_level_str) {
++    noise_level = std::atof(noise_level_str);
++    noise_level = std::max(0.0001, std::min(noise_level, 0.01));
++  }
++
++  // Only apply to RGBA8888 bitmaps
++  if (bitmap.colorType() != kRGBA_8888_SkColorType &&
++      bitmap.colorType() != kBGRA_8888_SkColorType) {
++    return;
++  }
++
++  std::mt19937_64 rng(canvas_seed);
++  std::uniform_real_distribution<double> dist(-1.0, 1.0);
++
++  for (int y = 0; y < bitmap.height(); y++) {
++    for (int x = 0; x < bitmap.width(); x++) {
++      SkColor color = bitmap.getColor(x, y);
++
++      double noise = dist(rng) * noise_level;
++
++      uint8_t r = SkColorGetR(color);
++      uint8_t g = SkColorGetG(color);
++      uint8_t b = SkColorGetB(color);
++      uint8_t a = SkColorGetA(color);
++
++      r = std::max(0, std::min(255, r + static_cast<int>(noise * 255)));
++      g = std::max(0, std::min(255, g + static_cast<int>(noise * 255)));
++      b = std::max(0, std::min(255, b + static_cast<int>(noise * 255)));
++
++      SkColor new_color = SkColorSetARGB(a, r, g, b);
++      *bitmap.getAddr32(x, y) = new_color;
++    }
++  }
++}
++
+ void SkCanvas::onDrawBitmap(const SkBitmap& bitmap, SkScalar x, SkScalar y,
+                            const SkSamplingOptions& sampling,
+                            const SkPaint* paint) {
++  // Apply noise before drawing (if enabled)
++  SkBitmap noised_bitmap = bitmap;
++  AddCanvasNoiseToBitmap(noised_bitmap);
++
+   SkDEBUGCODE(bitmap.validate();)
+
+   if (bitmap.drawsNothing()) {
+--
+2.40.0

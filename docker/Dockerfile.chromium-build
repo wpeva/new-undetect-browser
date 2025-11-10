@@ -1,0 +1,93 @@
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/home/chromium-builder/depot_tools:${PATH}"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Base tools
+    git \
+    curl \
+    wget \
+    python3 \
+    python3-pip \
+    lsb-release \
+    sudo \
+    vim \
+    build-essential \
+    ninja-build \
+    pkg-config \
+    # X11 and graphics libraries
+    libglib2.0-dev \
+    libgtk-3-dev \
+    libdbus-1-dev \
+    libx11-dev \
+    libxcomposite-dev \
+    libxcursor-dev \
+    libxdamage-dev \
+    libxi-dev \
+    libxtst-dev \
+    libxrandr-dev \
+    libgconf-2-4 \
+    libxss1 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    # Audio libraries
+    libasound2 \
+    libpulse0 \
+    # NSS (Network Security Services)
+    libnss3 \
+    libnss3-dev \
+    # Other required libs
+    libcups2-dev \
+    libxkbcommon-dev \
+    libpango1.0-dev \
+    libcairo2-dev \
+    libgdk-pixbuf2.0-dev \
+    # Compression tools
+    zip \
+    unzip \
+    bzip2 \
+    # Debugging tools
+    gdb \
+    strace \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for building (Chromium doesn't like building as root)
+RUN useradd -m -s /bin/bash chromium-builder && \
+    echo "chromium-builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    mkdir -p /home/chromium-builder && \
+    chown -R chromium-builder:chromium-builder /home/chromium-builder
+
+USER chromium-builder
+WORKDIR /home/chromium-builder
+
+# Install depot_tools
+RUN git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git /home/chromium-builder/depot_tools
+
+# Configure git (required by depot_tools)
+RUN git config --global user.name "Chromium Builder" && \
+    git config --global user.email "builder@undetectbrowser.local" && \
+    git config --global core.autocrlf false && \
+    git config --global core.filemode false && \
+    git config --global color.ui true
+
+# Download Chromium source (this takes a while - ~20GB)
+# Comment this out if you want to fetch Chromium at runtime
+# RUN mkdir chromium && cd chromium && \
+#     fetch --nohooks --no-history chromium && \
+#     cd src && \
+#     ./build/install-build-deps.sh --no-prompt && \
+#     gclient sync
+
+# Create directories for build artifacts
+RUN mkdir -p /home/chromium-builder/chromium \
+    /home/chromium-builder/patches \
+    /home/chromium-builder/releases
+
+# Expose volumes for external access
+VOLUME ["/home/chromium-builder/chromium", "/home/chromium-builder/patches", "/home/chromium-builder/releases"]
+
+# Default command
+CMD ["/bin/bash"]
