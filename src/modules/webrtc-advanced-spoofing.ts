@@ -278,7 +278,7 @@ export async function applyWebRTCSpoofing(
         navigator.mediaDevices
       );
 
-      navigator.mediaDevices.getUserMedia = function (constraints?: MediaStreamConstraints) {
+      navigator.mediaDevices.getUserMedia = function (_constraints?: MediaStreamConstraints) {
         console.log('[WebRTC] 🎥 getUserMedia called - returning empty stream');
 
         // Return a fake stream instead of blocking completely
@@ -289,9 +289,10 @@ export async function applyWebRTCSpoofing(
 
     // Override enumerateDevices to show fake devices
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-      const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices.bind(
-        navigator.mediaDevices
-      );
+      // Store original but don't use it to avoid suspicion
+      // const _originalEnumerateDevices = navigator.mediaDevices.enumerateDevices.bind(
+      //   navigator.mediaDevices
+      // );
 
       navigator.mediaDevices.enumerateDevices = async function () {
         console.log('[WebRTC] 🎤 enumerateDevices called - returning fake devices');
@@ -405,14 +406,14 @@ export async function testWebRTCSpoofing(page: Page): Promise<{
             }
           };
 
-          pc.createOffer().then((offer) => pc.setLocalDescription(offer));
+          void pc.createOffer().then((offer) => pc.setLocalDescription(offer));
 
           // Timeout after 5 seconds
           setTimeout(() => {
             pc.close();
             resolve({ localIPs, publicIPs, working: localIPs.length > 0 || publicIPs.length > 0 });
           }, 5000);
-        } catch (error) {
+        } catch (_error) {
           resolve({ localIPs: [], publicIPs: [], working: false });
         }
       }
@@ -441,11 +442,7 @@ export async function verifyWebRTCSpoofing(
     issues.push('WebRTC is not working (might look suspicious)');
   }
 
-  // Check if any real IPs are leaking
-  const hasRealLocalIP = test.localIPs.some(
-    (ip) => !ip.startsWith('192.168.') || ip !== expectedProxyIP
-  );
-
+  // Check if any real IPs are leaking (public IPs that don't match proxy)
   const hasRealPublicIP = test.publicIPs.some((ip) => ip !== expectedProxyIP);
 
   if (hasRealPublicIP) {
