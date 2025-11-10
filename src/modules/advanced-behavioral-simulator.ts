@@ -11,9 +11,7 @@ import {
   READING_PATTERNS,
   SCROLLING_PATTERNS,
   CLICK_PATTERNS,
-  ATTENTION_PATTERNS,
   PAGE_INTERACTION_PATTERNS,
-  BIOMETRIC_VARIANCE,
   normalRandom,
   randomRange,
   weightedRandom,
@@ -67,7 +65,7 @@ export class AdvancedBehavioralSimulator {
     targetWidth: number = 100
   ): Promise<void> {
     const viewport = page.viewport();
-    if (!viewport) return;
+    if (!viewport) {return;}
 
     // Get current mouse position (estimate from center)
     const currentX = viewport.width / 2;
@@ -167,10 +165,10 @@ export class AdvancedBehavioralSimulator {
         KEYBOARD_TIMING_STATS.holdTime.max
       );
 
-      // @ts-ignore - char is a string but keyboard.down/up accept KeyInput
+      // @ts-expect-error - char is a string but keyboard.down/up accept KeyInput
       await page.keyboard.down(char);
       await this.delay(holdTime);
-      // @ts-ignore - char is a string but keyboard.down/up accept KeyInput
+      // @ts-expect-error - char is a string but keyboard.down/up accept KeyInput
       await page.keyboard.up(char);
 
       await this.delay(delay);
@@ -201,7 +199,7 @@ export class AdvancedBehavioralSimulator {
       const element = textElements[Math.floor(Math.random() * textElements.length)];
       const box = await element.boundingBox();
 
-      if (!box) continue;
+      if (!box) {continue;}
 
       // Simulate eye movements (saccades and fixations)
       await this.simulateEyeTracking(page, box);
@@ -416,8 +414,8 @@ export class AdvancedBehavioralSimulator {
    */
   private addSubmovements(
     points: Array<{ x: number; y: number }>,
-    targetX: number,
-    targetY: number
+    _targetX: number,
+    _targetY: number
   ): Array<{ x: number; y: number }> {
     const { submovements } = MOUSE_MOVEMENT_STATS;
     const correctionCount = randomRange(
@@ -515,7 +513,7 @@ export class AdvancedBehavioralSimulator {
   /**
    * Private: Get digraph typing delay
    */
-  private getDigraphDelay(digraph: string, baseDelay: number): number {
+  private getDigraphDelay(digraph: string, _baseDelay: number): number {
     const { digraphLatencies } = KEYBOARD_TIMING_STATS;
 
     // Check for common digraph

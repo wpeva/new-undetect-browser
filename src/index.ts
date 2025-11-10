@@ -395,6 +395,16 @@ export * from './core/advanced-profile-manager';
 export { ProxyManager, createProxyFromString, formatProxyToString } from './core/proxy-manager';
 export { CookieSessionManager, createCookieSessionManager } from './core/cookie-session-manager';
 
+// Export NEW realistic human simulation modules
+export * from './modules/consistent-fingerprint';
+export * from './modules/realistic-human-behavior';
+
+// Export NEW enhanced privacy protection (WebRTC blocking, DNS leak protection)
+export * from './modules/enhanced-privacy-protection';
+
+// Export NEW high-level realistic browser factory (RECOMMENDED API)
+export * from './core/realistic-browser-factory';
+
 // Export types and utilities
 export * from './utils/logger';
 export * from './utils/helpers';

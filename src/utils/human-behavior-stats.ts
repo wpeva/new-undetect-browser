@@ -437,8 +437,8 @@ export function normalRandom(mean: number, stdDev: number, min?: number, max?: n
   const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
   let value = mean + z0 * stdDev;
 
-  if (min !== undefined) value = Math.max(min, value);
-  if (max !== undefined) value = Math.min(max, value);
+  if (min !== undefined) {value = Math.max(min, value);}
+  if (max !== undefined) {value = Math.min(max, value);}
 
   return value;
 }

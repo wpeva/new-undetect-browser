@@ -117,7 +117,7 @@ export class ProfileManager {
    * List all profiles
    */
   async listProfiles(): Promise<string[]> {
-    return await this.storage.list();
+    return this.storage.list();
   }
 
   /**

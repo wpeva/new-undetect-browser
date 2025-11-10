@@ -25,7 +25,7 @@ export class FingerprintSpoofingModule {
       // ========================================
       const canvasNoise = (canvas: HTMLCanvasElement) => {
         const context = canvas.getContext('2d');
-        if (!context) return;
+        if (!context) {return;}
 
         const originalGetImageData = context.getImageData;
         context.getImageData = function (...args: any[]) {

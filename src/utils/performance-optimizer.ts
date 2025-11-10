@@ -70,7 +70,7 @@ export class LazyInit<T> {
       return this.value;
     }
 
-    if (this.initPromise) {
+    if (this.initPromise !== undefined) {
       return this.initPromise;
     }
 
@@ -119,9 +119,11 @@ export class BatchProcessor<T, R> {
       this.queue.push({ item, resolve, reject });
 
       if (this.queue.length >= this.maxBatchSize) {
-        this.flush();
+        void this.flush();
       } else if (!this.timer) {
-        this.timer = setTimeout(() => this.flush(), this.maxWaitMs);
+        this.timer = setTimeout(() => {
+          void this.flush();
+        }, this.maxWaitMs);
       }
     });
   }
@@ -132,7 +134,7 @@ export class BatchProcessor<T, R> {
       this.timer = null;
     }
 
-    if (this.queue.length === 0) return;
+    if (this.queue.length === 0) {return;}
 
     const batch = this.queue.splice(0, this.queue.length);
     const items = batch.map((b) => b.item);
@@ -156,7 +158,7 @@ export function createDebounced<T extends (...args: any[]) => any>(
   let timer: NodeJS.Timeout | null = null;
 
   const debounced = function (this: any, ...args: any[]) {
-    if (timer) clearTimeout(timer);
+    if (timer) {clearTimeout(timer);}
     return new Promise((resolve) => {
       timer = setTimeout(() => {
         resolve(fn.apply(this, args));
@@ -193,7 +195,7 @@ export function createThrottled<T extends (...args: any[]) => any>(
       return fn.apply(this, args);
     }
 
-    if (timer) clearTimeout(timer);
+    if (timer) {clearTimeout(timer);}
     return new Promise((resolve) => {
       timer = setTimeout(() => {
         lastRun = Date.now();
@@ -229,7 +231,7 @@ export class ObjectPool<T> {
   }
 
   release(obj: T): void {
-    if (!this.inUse.has(obj)) return;
+    if (!this.inUse.has(obj)) {return;}
 
     this.inUse.delete(obj);
     this.reset(obj);

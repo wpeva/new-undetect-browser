@@ -74,7 +74,7 @@ export class StealthEngine {
   /**
    * Initialize the stealth engine
    */
-  async initialize(): Promise<void> {
+  initialize(): void {
     if (this.initialized) {
       logger.warn('StealthEngine already initialized');
       return;
@@ -93,7 +93,7 @@ export class StealthEngine {
    */
   async applyProtections(page: Page, userAgent: string): Promise<void> {
     if (!this.initialized) {
-      await this.initialize();
+      this.initialize();
     }
 
     logger.debug('Applying stealth protections to page');

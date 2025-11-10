@@ -427,8 +427,10 @@ export class BehavioralSimulationModule {
    */
   async simulateReading(page: Page, duration: number = 3000): Promise<void> {
     const endTime = Date.now() + duration;
-    const viewport = await page.viewport();
-    if (!viewport) return;
+    const viewport = page.viewport();
+    if (!viewport) {
+      return;
+    }
 
     while (Date.now() < endTime) {
       // Random position within viewport

@@ -142,7 +142,7 @@ export class LRUCache<K, V> {
    */
   has(key: K): boolean {
     const entry = this.cache.get(key);
-    if (!entry) return false;
+    if (!entry) {return false;}
 
     // Check expiration
     if (Date.now() - entry.timestamp > this.ttl) {
@@ -346,12 +346,14 @@ export class BatchProcessor<T, R> {
 
       // Schedule processing
       if (!this.timeoutId) {
-        this.timeoutId = setTimeout(() => this.flush(), this.maxWaitMs);
+        this.timeoutId = setTimeout(() => {
+          void this.flush();
+        }, this.maxWaitMs);
       }
 
       // Process immediately if batch is full
       if (this.batch.length >= this.maxBatchSize) {
-        this.flush();
+        void this.flush();
       }
     });
   }

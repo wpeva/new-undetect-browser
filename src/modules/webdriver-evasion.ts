@@ -261,7 +261,7 @@ export class WebDriverEvasionModule {
                   get: () => undefined,
                 });
               }
-            } catch (e) {
+            } catch (_e) {
               // Cross-origin iframe, can't access
             }
           });

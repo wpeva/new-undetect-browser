@@ -130,7 +130,7 @@ export class CanvasProtectionV2 {
         /**
          * Advanced noise - perlin-like pattern
          */
-        function injectPerlinNoise(imageData: ImageData, intensity: number): void {
+        function _injectPerlinNoise(imageData: ImageData, intensity: number): void {
           const data = imageData.data;
           const width = imageData.width;
           const height = imageData.height;
@@ -222,7 +222,7 @@ export class CanvasProtectionV2 {
         if (typeof OffscreenCanvas !== 'undefined') {
           const originalOffscreenToBlob = OffscreenCanvas.prototype.convertToBlob;
           if (originalOffscreenToBlob) {
-            OffscreenCanvas.prototype.convertToBlob = async function (
+            OffscreenCanvas.prototype.convertToBlob = function (
               options?: ImageEncodeOptions
             ): Promise<Blob> {
               const context = this.getContext('2d') as OffscreenCanvasRenderingContext2D;

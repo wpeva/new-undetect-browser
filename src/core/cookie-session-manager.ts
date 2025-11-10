@@ -102,7 +102,7 @@ export class CookieSessionManager {
       // Filter out expired cookies
       const now = Date.now() / 1000;
       const validCookies = cookies.filter((c) => {
-        if (!c.expires) return true;
+        if (!c.expires) {return true;}
         return c.expires > now;
       });
 
@@ -462,7 +462,7 @@ export class CookieSessionManager {
 
       const now = Date.now() / 1000;
       const validCookies = cookies.filter((c) => {
-        if (!c.expires) return true;
+        if (!c.expires) {return true;}
         return c.expires > now;
       });
 
@@ -553,7 +553,7 @@ export class CookieSessionManager {
       const filePath = path.join(this.dataDir, `${sessionId}_${filename}`);
       const data = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(data);
-    } catch (error) {
+    } catch (_error) {
       return {};
     }
   }

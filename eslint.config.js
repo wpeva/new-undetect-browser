@@ -64,6 +64,7 @@ module.exports = [
       'tests/',
       'examples/',
       '*.js',
+      '**/*.d.ts',
       '!eslint.config.js',
       '!jest.config.js',
     ],

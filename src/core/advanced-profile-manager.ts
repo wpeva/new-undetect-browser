@@ -169,7 +169,7 @@ export class AdvancedProfileManager extends ProfileManager {
       const profile: AdvancedProfile = JSON.parse(data);
       this.profiles.set(id, profile);
       return profile;
-    } catch (error) {
+    } catch (_error) {
       logger.warn(`Profile ${id} not found`);
       return null;
     }
@@ -224,7 +224,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Search profiles with filters
    */
-  async searchProfiles(filters: ProfileFilters): Promise<AdvancedProfile[]> {
+  searchProfiles(filters: ProfileFilters): AdvancedProfile[] {
     let results = Array.from(this.profiles.values());
 
     // Filter by name
@@ -287,21 +287,21 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Get all profiles
    */
-  async getAllProfiles(): Promise<AdvancedProfile[]> {
+  getAllProfiles(): AdvancedProfile[] {
     return Array.from(this.profiles.values());
   }
 
   /**
    * Get profiles by category
    */
-  async getProfilesByCategory(category: string): Promise<AdvancedProfile[]> {
+  getProfilesByCategory(category: string): AdvancedProfile[] {
     return this.searchProfiles({ category });
   }
 
   /**
    * Get profiles by tags
    */
-  async getProfilesByTags(tags: string[]): Promise<AdvancedProfile[]> {
+  getProfilesByTags(tags: string[]): AdvancedProfile[] {
     return this.searchProfiles({ tags });
   }
 
@@ -462,7 +462,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Get profile statistics
    */
-  async getStatistics(): Promise<ProfileStatistics> {
+  getStatistics(): ProfileStatistics {
     const profiles = Array.from(this.profiles.values());
 
     return {
@@ -472,7 +472,7 @@ export class AdvancedProfileManager extends ProfileManager {
       withProxy: profiles.filter((p) => p.metadata.proxy?.enabled).length,
       withCookies: profiles.filter((p) => p.metadata.cookies!.length > 0).length,
       recentlyUsed: profiles.filter((p) => {
-        if (!p.metadata.lastUsed) return false;
+        if (!p.metadata.lastUsed) {return false;}
         const dayAgo = new Date();
         dayAgo.setDate(dayAgo.getDate() - 1);
         return new Date(p.metadata.lastUsed) >= dayAgo;

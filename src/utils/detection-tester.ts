@@ -49,7 +49,7 @@ export class DetectionTester {
     results.push(...(await this.testBehavioral(page)));
 
     // Network tests
-    results.push(...(await this.testNetwork(page)));
+    results.push(...this.testNetwork(page));
 
     // Advanced evasions tests
     results.push(...(await this.testAdvancedEvasions(page)));
@@ -295,7 +295,7 @@ export class DetectionTester {
   /**
    * Test network-level protection
    */
-  private async testNetwork(_page: Page): Promise<DetectionResult[]> {
+  private testNetwork(_page: Page): DetectionResult[] {
     const results: DetectionResult[] = [];
 
     // Check headers (requires network interception)

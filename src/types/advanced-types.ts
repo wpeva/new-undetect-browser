@@ -3,8 +3,6 @@
  * Extends base types for Multilogin-level functionality
  */
 
-import { Protocol } from 'puppeteer';
-
 /**
  * Proxy configuration (re-export to avoid conflicts)
  */

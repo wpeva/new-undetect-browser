@@ -232,7 +232,7 @@ export class ViewportProtectionModule {
                   configurable: true,
                 });
               }
-            } catch (e) {
+            } catch (_e) {
               // Cross-origin iframe
             }
           });

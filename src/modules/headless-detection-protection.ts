@@ -175,8 +175,8 @@ export class HeadlessDetectionProtection {
 
       // Ensure media devices exist (often missing in headless)
       if (navigator.mediaDevices && !navigator.mediaDevices.enumerateDevices) {
-        navigator.mediaDevices.enumerateDevices = async function () {
-          return [
+        navigator.mediaDevices.enumerateDevices = function () {
+          return Promise.resolve([
             {
               deviceId: 'default',
               kind: 'audioinput' as MediaDeviceKind,
@@ -198,7 +198,7 @@ export class HeadlessDetectionProtection {
               groupId: 'default',
               toJSON: () => {},
             },
-          ];
+          ]);
         };
       }
 
@@ -246,7 +246,7 @@ export class HeadlessDetectionProtection {
       });
 
       Object.defineProperty(document, 'visibilityState', {
-        // @ts-ignore - VisibilityState type is defined in browser-types.d.ts
+        // @ts-expect-error - VisibilityState type is defined in browser-types.d.ts
         get: () => 'visible' as VisibilityState,
         configurable: true,
       });
@@ -256,10 +256,10 @@ export class HeadlessDetectionProtection {
       // ========================================
 
       // Headless browsers often have irregular RAF timing
-      const originalRAF = window.requestAnimationFrame;
-      const originalCAF = window.cancelAnimationFrame;
+      const _originalRAF = window.requestAnimationFrame;
+      const _originalCAF = window.cancelAnimationFrame;
 
-      let rafCallbacks = new Map();
+      const rafCallbacks = new Map();
       let rafId = 0;
 
       window.requestAnimationFrame = function (callback: FrameRequestCallback): number {
@@ -319,9 +319,9 @@ export class HeadlessDetectionProtection {
       if (!navigator.clipboard) {
         (navigator as any).clipboard = {
           readText: () => Promise.resolve(''),
-          writeText: (text: string) => Promise.resolve(),
+          writeText: (_text: string) => Promise.resolve(),
           read: () => Promise.resolve([]),
-          write: (data: any) => Promise.resolve(),
+          write: (_data: any) => Promise.resolve(),
         };
       }
 
@@ -350,7 +350,7 @@ export class HeadlessDetectionProtection {
           oncontrollerchange: null,
           onmessage: null,
           onmessageerror: null,
-          register: (scriptURL: string) => Promise.resolve({
+          register: (_scriptURL: string) => Promise.resolve({
             active: null,
             installing: null,
             waiting: null,
@@ -361,7 +361,7 @@ export class HeadlessDetectionProtection {
             dispatchEvent: () => true,
             update: () => Promise.resolve(),
             unregister: () => Promise.resolve(true),
-            // @ts-ignore - Partial ServiceWorkerRegistration for headless detection
+            //  - Partial ServiceWorkerRegistration for headless detection
           } as unknown as ServiceWorkerRegistration),
           getRegistration: () => Promise.resolve(undefined),
           getRegistrations: () => Promise.resolve([]),
@@ -397,18 +397,18 @@ export class HeadlessDetectionProtection {
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 
       if (gl && 'getParameter' in gl) {
-        // @ts-ignore - getExtension returns specific extension types
+        //  - getExtension returns specific extension types
         const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
         if (debugInfo) {
-          // @ts-ignore - getParameter exists on WebGL contexts
+          //  - getParameter exists on WebGL contexts
           const originalGetParameter = gl.getParameter.bind(gl);
-          // @ts-ignore - Overriding getParameter for WebGL spoofing
+          //  - Overriding getParameter for WebGL spoofing
           gl.getParameter = function (pname: number) {
-            // @ts-ignore - UNMASKED_VENDOR_WEBGL exists on debug extension
+            //  - UNMASKED_VENDOR_WEBGL exists on debug extension
             if (pname === debugInfo.UNMASKED_VENDOR_WEBGL) {
               return 'Intel Inc.';
             }
-            // @ts-ignore - UNMASKED_RENDERER_WEBGL exists on debug extension
+            //  - UNMASKED_RENDERER_WEBGL exists on debug extension
             if (pname === debugInfo.UNMASKED_RENDERER_WEBGL) {
               return 'Intel Iris OpenGL Engine';
             }
@@ -483,19 +483,19 @@ export class HeadlessDetectionProtection {
       // Ensure Intl API is complete (sometimes incomplete in headless)
       if (window.Intl) {
         if (!Intl.PluralRules) {
-          (Intl as any).PluralRules = function (locales?: string | string[], options?: any) {
+          (Intl as any).PluralRules = function (_locales?: string | string[], _options?: any) {
             return {
-              select: (n: number) => 'other',
+              select: (_n: number) => 'other',
               resolvedOptions: () => ({ locale: 'en-US', type: 'cardinal' }),
             };
           };
         }
 
         if (!Intl.RelativeTimeFormat) {
-          (Intl as any).RelativeTimeFormat = function (locales?: string | string[], options?: any) {
+          (Intl as any).RelativeTimeFormat = function (_locales?: string | string[], _options?: any) {
             return {
-              format: (value: number, unit: string) => `${value} ${unit}${value !== 1 ? 's' : ''} ago`,
-              formatToParts: (value: number, unit: string) => [],
+              format: (_value: number, _unit: string) => `${_value} ${_unit}${_value !== 1 ? 's' : ''} ago`,
+              formatToParts: (_value: number, _unit: string) => [],
               resolvedOptions: () => ({ locale: 'en-US', style: 'long', numeric: 'always' }),
             };
           };
@@ -510,7 +510,7 @@ export class HeadlessDetectionProtection {
       if (!history.scrollRestoration) {
         try {
           (history as any).scrollRestoration = 'auto';
-        } catch (e) {
+        } catch (_e) {
           // Read-only in some browsers
         }
       }
