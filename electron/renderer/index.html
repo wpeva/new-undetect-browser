@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UndetectBrowser - Антидетект Браузер</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <h1>🔒 UndetectBrowser</h1>
+        <p class="version">v1.0.0</p>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="profiles">
+          <span class="icon">👤</span>
+          <span>Профили</span>
+        </button>
+        <button class="nav-item" data-tab="proxies">
+          <span class="icon">🌐</span>
+          <span>Прокси</span>
+        </button>
+        <button class="nav-item" data-tab="settings">
+          <span class="icon">⚙️</span>
+          <span>Настройки</span>
+        </button>
+        <button class="nav-item" data-tab="about">
+          <span class="icon">ℹ️</span>
+          <span>О программе</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="stats">
+          <div class="stat-item">
+            <span class="stat-label">Профилей:</span>
+            <span class="stat-value" id="total-profiles">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Активных:</span>
+            <span class="stat-value" id="active-profiles">0</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Profiles Tab -->
+      <div class="tab-content active" id="profiles-tab">
+        <header class="content-header">
+          <h2>Профили браузеров</h2>
+          <button class="btn btn-primary" id="create-profile-btn">
+            <span>➕</span> Создать профиль
+          </button>
+        </header>
+
+        <div class="profiles-grid" id="profiles-grid">
+          <!-- Profile cards will be inserted here -->
+        </div>
+      </div>
+
+      <!-- Proxies Tab -->
+      <div class="tab-content" id="proxies-tab">
+        <header class="content-header">
+          <h2>Управление прокси</h2>
+          <button class="btn btn-primary" id="add-proxy-btn">
+            <span>➕</span> Добавить прокси
+          </button>
+        </header>
+
+        <div class="proxies-list" id="proxies-list">
+          <div class="empty-state">
+            <p>💡 Здесь будут ваши прокси-серверы</p>
+            <button class="btn btn-secondary" id="import-proxies-btn">Импортировать список</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div class="tab-content" id="settings-tab">
+        <header class="content-header">
+          <h2>Настройки</h2>
+        </header>
+
+        <div class="settings-container">
+          <div class="setting-group">
+            <h3>Общие настройки</h3>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="auto-update-check"> Автоматические обновления
+              </label>
+            </div>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="start-minimized-check"> Запускать свернутым
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <h3>Безопасность</h3>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="clear-on-exit-check"> Очищать данные при выходе
+              </label>
+            </div>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="force-proxy-check" checked disabled> Принудительная изоляция через прокси
+              </label>
+              <small>Весь трафик идет только через прокси. Ваш реальный IP никогда не используется.</small>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <h3>Fingerprinting</h3>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="auto-fingerprint-check" checked disabled> Автоматическая генерация fingerprint
+              </label>
+              <small>Fingerprint автоматически подстраивается под страну прокси</small>
+            </div>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="human-behavior-check" checked disabled> Реалистичное поведение человека
+              </label>
+              <small>Естественные движения мыши, печать с опечатками, паузы</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- About Tab -->
+      <div class="tab-content" id="about-tab">
+        <header class="content-header">
+          <h2>О программе</h2>
+        </header>
+
+        <div class="about-container">
+          <div class="about-logo">
+            <h1>🔒 UndetectBrowser</h1>
+            <p class="version-large">Версия 1.0.0</p>
+          </div>
+
+          <div class="features-grid">
+            <div class="feature-card">
+              <h3>🎭 100% Необнаружимость</h3>
+              <p>Полная защита от всех систем детекта ботов</p>
+            </div>
+            <div class="feature-card">
+              <h3>🌍 Консистентные Fingerprint'ы</h3>
+              <p>Все данные автоматически подстраиваются под страну прокси</p>
+            </div>
+            <div class="feature-card">
+              <h3>🤖 Реалистичное поведение</h3>
+              <p>Имитация реального человека с опечатками и паузами</p>
+            </div>
+            <div class="feature-card">
+              <h3>🔒 Полная изоляция</h3>
+              <p>Ваш реальный IP никогда не виден. Весь трафик через прокси.</p>
+            </div>
+          </div>
+
+          <div class="tech-specs">
+            <h3>Технические особенности:</h3>
+            <ul>
+              <li>✅ 12 стран с полной поддержкой геолокации</li>
+              <li>✅ Canvas/WebGL fingerprinting с консистентным шумом</li>
+              <li>✅ Биометрические профили поведения</li>
+              <li>✅ Движение мыши по кривым Безье</li>
+              <li>✅ Печать 40-80 WPM с естественными вариациями</li>
+              <li>✅ Автоматический выбор шрифтов под платформу</li>
+              <li>✅ WebRTC protection</li>
+              <li>✅ DNS leak protection</li>
+            </ul>
+          </div>
+
+          <div class="docs-links">
+            <h3>Документация:</h3>
+            <button class="btn btn-secondary">📚 Руководство пользователя</button>
+            <button class="btn btn-secondary">🔧 API документация</button>
+            <button class="btn btn-secondary">💡 Примеры использования</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: Create Profile -->
+  <div class="modal" id="create-profile-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Создать новый профиль</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Название профиля</label>
+          <input type="text" id="profile-name-input" placeholder="Мой профиль" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label>Страна</label>
+          <select id="profile-country-select" class="form-select">
+            <option value="US">🇺🇸 United States</option>
+            <option value="GB">🇬🇧 United Kingdom</option>
+            <option value="DE">🇩🇪 Germany</option>
+            <option value="FR">🇫🇷 France</option>
+            <option value="ES">🇪🇸 Spain</option>
+            <option value="IT">🇮🇹 Italy</option>
+            <option value="RU">🇷🇺 Russia</option>
+            <option value="CN">🇨🇳 China</option>
+            <option value="JP">🇯🇵 Japan</option>
+            <option value="BR">🇧🇷 Brazil</option>
+            <option value="AU">🇦🇺 Australia</option>
+            <option value="CA">🇨🇦 Canada</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Прокси (опционально)</label>
+          <input type="text" id="profile-proxy-input" placeholder="http://host:port:user:pass" class="form-input">
+          <small>Формат: protocol://host:port:username:password</small>
+        </div>
+
+        <div class="form-group">
+          <label>Заметки</label>
+          <textarea id="profile-notes-input" placeholder="Для чего используется этот профиль..." class="form-textarea"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Отмена</button>
+        <button class="btn btn-primary" id="save-profile-btn">Создать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <p id="loading-text">Загрузка...</p>
+  </div>
+
+  <!-- Notification toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
