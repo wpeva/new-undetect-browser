@@ -472,7 +472,7 @@ export class AdvancedProfileManager extends ProfileManager {
       withProxy: profiles.filter((p) => p.metadata.proxy?.enabled).length,
       withCookies: profiles.filter((p) => p.metadata.cookies!.length > 0).length,
       recentlyUsed: profiles.filter((p) => {
-        if (!p.metadata.lastUsed) return false;
+        if (!p.metadata.lastUsed) {return false;}
         const dayAgo = new Date();
         dayAgo.setDate(dayAgo.getDate() - 1);
         return new Date(p.metadata.lastUsed) >= dayAgo;

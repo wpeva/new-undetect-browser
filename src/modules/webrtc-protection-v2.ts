@@ -70,11 +70,11 @@ export class WebRTCProtectionV2 {
        * Filter ICE candidates to prevent IP leaks
        */
       function filterICECandidate(candidate: string | null): string | null {
-        if (!candidate) return candidate;
+        if (!candidate) {return candidate;}
 
         // Parse candidate
         const parts = candidate.split(' ');
-        if (parts.length < 5) return candidate;
+        if (parts.length < 5) {return candidate;}
 
         const ip = parts[4];
 
@@ -108,7 +108,7 @@ export class WebRTCProtectionV2 {
        * Check if IP is public
        */
       function isPublicIP(ip: string): boolean {
-        if (!ip || ip === '0.0.0.0') return false;
+        if (!ip || ip === '0.0.0.0') {return false;}
 
         // IPv6
         if (ip.includes(':')) {
@@ -117,21 +117,21 @@ export class WebRTCProtectionV2 {
 
         // IPv4 private ranges
         const parts = ip.split('.');
-        if (parts.length !== 4) return false;
+        if (parts.length !== 4) {return false;}
 
         const first = parseInt(parts[0], 10);
         const second = parseInt(parts[1], 10);
 
         // 10.0.0.0/8
-        if (first === 10) return false;
+        if (first === 10) {return false;}
         // 172.16.0.0/12
-        if (first === 172 && second >= 16 && second <= 31) return false;
+        if (first === 172 && second >= 16 && second <= 31) {return false;}
         // 192.168.0.0/16
-        if (first === 192 && second === 168) return false;
+        if (first === 192 && second === 168) {return false;}
         // 127.0.0.0/8
-        if (first === 127) return false;
+        if (first === 127) {return false;}
         // 169.254.0.0/16
-        if (first === 169 && second === 254) return false;
+        if (first === 169 && second === 254) {return false;}
 
         return true;
       }
@@ -140,14 +140,14 @@ export class WebRTCProtectionV2 {
        * Check if IP is local
        */
       function isLocalIP(ip: string): boolean {
-        if (!ip || ip === '0.0.0.0') return true;
+        if (!ip || ip === '0.0.0.0') {return true;}
 
         // IPv6 link-local
-        if (ip.startsWith('fe80:') || ip.startsWith('fc00:')) return true;
+        if (ip.startsWith('fe80:') || ip.startsWith('fc00:')) {return true;}
 
         // IPv4
         const parts = ip.split('.');
-        if (parts.length !== 4) return false;
+        if (parts.length !== 4) {return false;}
 
         const first = parseInt(parts[0], 10);
         const second = parseInt(parts[1], 10);
@@ -394,13 +394,13 @@ export class WebRTCProtectionV2 {
           }
 
           const candidate = event.candidate.candidate;
-          if (!candidate) return;
+          if (!candidate) {return;}
 
           // Parse IP from candidate
           const ipMatch = /([0-9]{1,3}\.){3}[0-9]{1,3}|[a-f0-9:]+/i.exec(
             candidate
           );
-          if (!ipMatch) return;
+          if (!ipMatch) {return;}
 
           const ip = ipMatch[0];
 

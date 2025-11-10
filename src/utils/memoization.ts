@@ -142,7 +142,7 @@ export class LRUCache<K, V> {
    */
   has(key: K): boolean {
     const entry = this.cache.get(key);
-    if (!entry) return false;
+    if (!entry) {return false;}
 
     // Check expiration
     if (Date.now() - entry.timestamp > this.ttl) {

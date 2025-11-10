@@ -67,7 +67,7 @@ export class AdvancedBehavioralSimulator {
     targetWidth: number = 100
   ): Promise<void> {
     const viewport = page.viewport();
-    if (!viewport) return;
+    if (!viewport) {return;}
 
     // Get current mouse position (estimate from center)
     const currentX = viewport.width / 2;
@@ -167,10 +167,10 @@ export class AdvancedBehavioralSimulator {
         KEYBOARD_TIMING_STATS.holdTime.max
       );
 
-      // @ts-ignore - char is a string but keyboard.down/up accept KeyInput
+      // @ts-expect-error - char is a string but keyboard.down/up accept KeyInput
       await page.keyboard.down(char);
       await this.delay(holdTime);
-      // @ts-ignore - char is a string but keyboard.down/up accept KeyInput
+      // @ts-expect-error - char is a string but keyboard.down/up accept KeyInput
       await page.keyboard.up(char);
 
       await this.delay(delay);
@@ -201,7 +201,7 @@ export class AdvancedBehavioralSimulator {
       const element = textElements[Math.floor(Math.random() * textElements.length)];
       const box = await element.boundingBox();
 
-      if (!box) continue;
+      if (!box) {continue;}
 
       // Simulate eye movements (saccades and fixations)
       await this.simulateEyeTracking(page, box);

@@ -166,7 +166,7 @@ export class BiometricProfiler {
    * Record mouse movement for learning
    */
   recordMouseMovement(start: Point, end: Point, duration: number): void {
-    if (!this.currentProfile) return;
+    if (!this.currentProfile) {return;}
 
     const { mouseTrajectories } = this.currentProfile.patterns;
 
@@ -188,7 +188,7 @@ export class BiometricProfiler {
    * Record typing for learning
    */
   recordTyping(digraph: string, duration: number): void {
-    if (!this.currentProfile) return;
+    if (!this.currentProfile) {return;}
 
     const { commonDigraphs } = this.currentProfile.patterns;
 
@@ -205,7 +205,7 @@ export class BiometricProfiler {
    * Record click location for learning
    */
   recordClick(element: string, position: Point): void {
-    if (!this.currentProfile) return;
+    if (!this.currentProfile) {return;}
 
     const { clickLocations } = this.currentProfile.patterns;
 
@@ -221,7 +221,7 @@ export class BiometricProfiler {
    * Record scroll distance for learning
    */
   recordScroll(distance: number): void {
-    if (!this.currentProfile) return;
+    if (!this.currentProfile) {return;}
 
     const { scrollDistances } = this.currentProfile.patterns;
 
@@ -237,7 +237,7 @@ export class BiometricProfiler {
    * Record pause for learning
    */
   recordPause(duration: number): void {
-    if (!this.currentProfile) return;
+    if (!this.currentProfile) {return;}
 
     const { pausePatterns } = this.currentProfile.patterns;
 
@@ -253,7 +253,7 @@ export class BiometricProfiler {
    * Complete session and update learning
    */
   async completeSession(sessionDuration: number, errorCount: number, actionCount: number): Promise<void> {
-    if (!this.currentProfile) return;
+    if (!this.currentProfile) {return;}
 
     const profile = this.currentProfile;
 
@@ -295,7 +295,7 @@ export class BiometricProfiler {
    * Get behavior adjustments for current time of day
    */
   getTimeOfDayMultiplier(): number {
-    if (!this.currentProfile) return 1.0;
+    if (!this.currentProfile) {return 1.0;}
 
     const hour = new Date().getHours();
 
@@ -312,7 +312,7 @@ export class BiometricProfiler {
    * Get learned typing speed for specific digraph
    */
   getDigraphSpeed(digraph: string): number | null {
-    if (!this.currentProfile) return null;
+    if (!this.currentProfile) {return null;}
 
     return this.currentProfile.patterns.commonDigraphs[digraph] || null;
   }

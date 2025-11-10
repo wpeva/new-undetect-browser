@@ -195,7 +195,7 @@ export class HardwareSpoofing {
       // Spoof Battery API
       if (config.battery && navigator.getBattery) {
         const originalGetBattery = navigator.getBattery;
-        // @ts-ignore - BatteryManager type is defined in browser-types.d.ts
+        // @ts-expect-error - BatteryManager type is defined in browser-types.d.ts
         navigator.getBattery = function (): Promise<BatteryManager> {
           return originalGetBattery.call(this).then((battery) => {
             // Create proxy for battery
@@ -242,7 +242,7 @@ export class HardwareSpoofing {
 
       // Spoof Performance API timing
       const originalNow = Performance.prototype.now;
-      let timeOffset = Math.random() * 100; // Add random offset
+      const timeOffset = Math.random() * 100; // Add random offset
 
       Performance.prototype.now = function (): number {
         return originalNow.call(this) + timeOffset;
@@ -261,7 +261,7 @@ export class HardwareSpoofing {
           return {
             quota: totalStorage,
             usage: usedStorage,
-            // @ts-ignore - usageDetails is a non-standard property
+            // @ts-expect-error - usageDetails is a non-standard property
             usageDetails: estimate.usageDetails,
           };
         };
@@ -296,9 +296,9 @@ export class HardwareSpoofing {
       });
 
       // Spoof Keyboard Layout
-      // @ts-ignore - keyboard property is defined in browser-types.d.ts
+      // @ts-expect-error - keyboard property is defined in browser-types.d.ts
       if (navigator.keyboard) {
-        // @ts-ignore - keyboard property is defined in browser-types.d.ts
+        // @ts-expect-error - keyboard property is defined in browser-types.d.ts
         Object.defineProperty(navigator.keyboard, 'getLayoutMap', {
           value: async function (): Promise<Map<string, string>> {
             // Return US keyboard layout
