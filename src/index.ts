@@ -408,6 +408,11 @@ export * from './modules/webrtc-advanced-spoofing';
 // Export NEW high-level realistic browser factory (RECOMMENDED API)
 export * from './core/realistic-browser-factory';
 
+// Export NEW Session 1 critical protection modules
+export * from './modules/client-rects-protection';
+export * from './modules/speech-synthesis-protection';
+export * from './modules/media-codecs-protection';
+
 // Export types and utilities
 export * from './utils/logger';
 export * from './utils/helpers';
