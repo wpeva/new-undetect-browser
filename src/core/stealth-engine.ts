@@ -6,6 +6,9 @@ import { NetworkProtectionModule } from '../modules/network-protection';
 import { AdvancedEvasionsModule } from '../modules/advanced-evasions';
 import { HeadlessDetectionProtection } from '../modules/headless-detection-protection';
 import { AutomationDetectionProtection } from '../modules/automation-detection-protection';
+import { ClientRectsProtection } from '../modules/client-rects-protection';
+import { SpeechSynthesisProtection } from '../modules/speech-synthesis-protection';
+import { MediaCodecsProtection } from '../modules/media-codecs-protection';
 import { logger } from '../utils/logger';
 import {
   FingerprintProfile,
@@ -21,6 +24,9 @@ export interface StealthConfig {
   advancedEvasions?: boolean;
   headlessProtection?: boolean;
   automationProtection?: boolean;
+  clientRectsProtection?: boolean;
+  speechSynthesisProtection?: boolean;
+  mediaCodecsProtection?: boolean;
   customFingerprint?: FingerprintProfile;
 }
 
@@ -36,6 +42,9 @@ export class StealthEngine {
   private advancedEvasions: AdvancedEvasionsModule;
   private headlessProtection: HeadlessDetectionProtection;
   private automationProtection: AutomationDetectionProtection;
+  private clientRectsProtection: ClientRectsProtection;
+  private speechSynthesisProtection: SpeechSynthesisProtection;
+  private mediaCodecsProtection: MediaCodecsProtection;
   private networkProtection: NetworkProtectionModule | null = null;
   private fingerprint: FingerprintProfile;
   private initialized: boolean = false;
@@ -53,6 +62,9 @@ export class StealthEngine {
       advancedEvasions: config.advancedEvasions ?? (level === 'paranoid'),
       headlessProtection: config.headlessProtection ?? true, // Always enable by default
       automationProtection: config.automationProtection ?? (level !== 'basic'),
+      clientRectsProtection: config.clientRectsProtection ?? (level !== 'basic'),
+      speechSynthesisProtection: config.speechSynthesisProtection ?? (level !== 'basic'),
+      mediaCodecsProtection: config.mediaCodecsProtection ?? (level !== 'basic'),
       customFingerprint: config.customFingerprint,
     };
 
@@ -67,6 +79,9 @@ export class StealthEngine {
     this.advancedEvasions = new AdvancedEvasionsModule();
     this.headlessProtection = new HeadlessDetectionProtection();
     this.automationProtection = new AutomationDetectionProtection();
+    this.clientRectsProtection = new ClientRectsProtection();
+    this.speechSynthesisProtection = new SpeechSynthesisProtection();
+    this.mediaCodecsProtection = new MediaCodecsProtection();
 
     logger.info(`StealthEngine initialized with level: ${this.config.level}`);
   }
@@ -122,6 +137,21 @@ export class StealthEngine {
       // Apply advanced evasions (paranoid mode)
       if (this.config.advancedEvasions) {
         await this.advancedEvasions.inject(page);
+      }
+
+      // Apply ClientRects protection
+      if (this.config.clientRectsProtection) {
+        await this.clientRectsProtection.inject(page);
+      }
+
+      // Apply SpeechSynthesis protection
+      if (this.config.speechSynthesisProtection) {
+        await this.speechSynthesisProtection.inject(page);
+      }
+
+      // Apply MediaCodecs protection
+      if (this.config.mediaCodecsProtection) {
+        await this.mediaCodecsProtection.inject(page);
       }
 
       // Apply behavioral simulation helpers
@@ -216,5 +246,26 @@ export class StealthEngine {
    */
   getAutomationProtection(): AutomationDetectionProtection {
     return this.automationProtection;
+  }
+
+  /**
+   * Get ClientRects protection module
+   */
+  getClientRectsProtection(): ClientRectsProtection {
+    return this.clientRectsProtection;
+  }
+
+  /**
+   * Get SpeechSynthesis protection module
+   */
+  getSpeechSynthesisProtection(): SpeechSynthesisProtection {
+    return this.speechSynthesisProtection;
+  }
+
+  /**
+   * Get MediaCodecs protection module
+   */
+  getMediaCodecsProtection(): MediaCodecsProtection {
+    return this.mediaCodecsProtection;
   }
 }
