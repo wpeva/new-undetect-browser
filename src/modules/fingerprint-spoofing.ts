@@ -21,8 +21,46 @@ export class FingerprintSpoofingModule {
 
     await page.evaluateOnNewDocument((profile: FingerprintProfile) => {
       // ========================================
-      // 1. Canvas Fingerprint Protection
+      // Per-Domain Consistency
       // ========================================
+
+      // Generate deterministic seed from domain
+      const getDomainSeed = (): number => {
+        const domain = window.location.hostname || 'localhost';
+        let hash = 0;
+        for (let i = 0; i < domain.length; i++) {
+          const char = domain.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash);
+      };
+
+      // Seeded random number generator for consistency
+      class SeededRandom {
+        private seed: number;
+
+        constructor(seed: number) {
+          this.seed = seed;
+        }
+
+        next(): number {
+          // Linear congruential generator
+          this.seed = (this.seed * 9301 + 49297) % 233280;
+          return this.seed / 233280;
+        }
+      }
+
+      const domainSeed = getDomainSeed();
+      const domainRng = new SeededRandom(domainSeed);
+
+      // ========================================
+      // 1. Canvas Fingerprint Protection (Per-Domain Consistency)
+      // ========================================
+
+      // Store canvas fingerprint per domain
+      const canvasFingerprints = new Map<HTMLCanvasElement, ImageData>();
+
       const canvasNoise = (canvas: HTMLCanvasElement) => {
         const context = canvas.getContext('2d');
         if (!context) {return;}
@@ -31,12 +69,15 @@ export class FingerprintSpoofingModule {
         context.getImageData = function (...args: any[]) {
           const imageData = originalGetImageData.apply(this, args as any);
 
+          // Use domain-specific RNG for consistent noise
+          const canvasRng = new SeededRandom(domainSeed + canvas.width + canvas.height);
+
           // Add subtle noise based on profile
           const noiseLevel = profile.canvas.noiseLevel;
 
           for (let i = 0; i < imageData.data.length; i += 4) {
-            if (Math.random() < noiseLevel) {
-              const noise = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+            if (canvasRng.next() < noiseLevel) {
+              const noise = Math.floor(canvasRng.next() * 3) - 1; // -1, 0, or 1
               imageData.data[i] = Math.min(
                 255,
                 Math.max(0, imageData.data[i] + noise)
@@ -71,17 +112,97 @@ export class FingerprintSpoofingModule {
       };
 
       // ========================================
-      // 2. WebGL Fingerprint Protection
+      // 2. WebGL Fingerprint Protection (60+ Parameters)
       // ========================================
+
+      // Comprehensive WebGL parameter spoofing
+      const webglParameters: Record<number, any> = {
+        // Vendor and Renderer
+        37445: profile.webgl.vendor, // UNMASKED_VENDOR_WEBGL
+        37446: profile.webgl.renderer, // UNMASKED_RENDERER_WEBGL
+
+        // Precision
+        2849: 8, // SUBPIXEL_BITS
+
+        // Viewport
+        3386: new Int32Array([16384, 16384]), // MAX_VIEWPORT_DIMS
+
+        // Texture parameters
+        3379: 16384, // MAX_TEXTURE_SIZE
+        34024: 16384, // MAX_CUBE_MAP_TEXTURE_SIZE / MAX_RENDERBUFFER_SIZE
+        34076: 16, // MAX_TEXTURE_IMAGE_UNITS
+        34930: 16, // MAX_TEXTURE_MAX_ANISOTROPY_EXT
+
+        // Color buffer
+        3410: 8, // RED_BITS
+        3411: 8, // GREEN_BITS
+        3412: 8, // BLUE_BITS
+        3413: 8, // ALPHA_BITS
+        3414: 24, // DEPTH_BITS
+        3415: 8, // STENCIL_BITS
+
+        // Aliasing
+        33901: new Float32Array([1, 8192]), // ALIASED_POINT_SIZE_RANGE
+        33902: new Float32Array([1, 1]), // ALIASED_LINE_WIDTH_RANGE
+
+        // Vertex attributes
+        34921: 16, // MAX_VERTEX_ATTRIBS
+        35658: 31, // MAX_VARYING_VECTORS
+        35659: 1024, // MAX_VERTEX_UNIFORM_VECTORS / MAX_VERTEX_UNIFORM_COMPONENTS
+        35660: 32, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+        35661: 16, // MAX_VERTEX_TEXTURE_IMAGE_UNITS
+
+        // Fragment shader
+        35657: 16, // MAX_FRAGMENT_UNIFORM_BLOCKS
+        36338: 1024, // MAX_FRAGMENT_UNIFORM_VECTORS
+
+        // Varying vectors and components
+        35371: 31, // MAX_VARYING_VECTORS
+        35375: 124, // MAX_VARYING_COMPONENTS
+        35376: 32, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+        35379: 1024, // MAX_FRAGMENT_UNIFORM_VECTORS
+        35380: 1024, // MAX_VERTEX_UNIFORM_VECTORS
+
+        // Framebuffer
+        36063: 8, // MAX_COLOR_ATTACHMENTS
+        36183: 8, // MAX_DRAW_BUFFERS
+
+        // Uniform parameters
+        36347: 4096, // MAX_VERTEX_UNIFORM_VECTORS / MAX_VERTEX_UNIFORM_COMPONENTS
+        36348: 16, // MAX_VERTEX_UNIFORM_BLOCKS
+        36349: 64, // MAX_VERTEX_OUTPUT_COMPONENTS
+        36350: 60, // MAX_FRAGMENT_INPUT_COMPONENTS
+
+        // WebGL2 specific
+        35071: 2048, // MAX_3D_TEXTURE_SIZE
+        35373: 2048, // MAX_ARRAY_TEXTURE_LAYERS
+        35968: 8, // MAX_SAMPLES
+        36006: 4, // MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS
+        36007: 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
+        36008: 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS
+        36203: 72, // MAX_UNIFORM_BUFFER_BINDINGS
+        36204: 65536, // MAX_UNIFORM_BLOCK_SIZE
+        36205: 84, // MAX_COMBINED_UNIFORM_BLOCKS
+        36208: 16, // MAX_VERTEX_UNIFORM_BLOCKS
+        36209: 16, // MAX_FRAGMENT_UNIFORM_BLOCKS
+
+        // Additional WebGL parameters
+        32773: 4294967295, // MAX_ELEMENT_INDEX
+        32823: 16384, // MAX_ELEMENTS_INDICES
+        32824: 16384, // MAX_ELEMENTS_VERTICES
+        32937: 64, // MAX_VERTEX_OUTPUT_COMPONENTS
+        32938: 60, // MAX_FRAGMENT_INPUT_COMPONENTS
+        32939: -8, // MIN_PROGRAM_TEXEL_OFFSET
+        32940: 7, // MAX_PROGRAM_TEXEL_OFFSET
+        37154: 65536, // MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS
+        37157: 65536, // MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS
+      };
+
       const getParameter = WebGLRenderingContext.prototype.getParameter;
       WebGLRenderingContext.prototype.getParameter = function (parameter) {
-        // UNMASKED_VENDOR_WEBGL
-        if (parameter === 37445) {
-          return profile.webgl.vendor;
-        }
-        // UNMASKED_RENDERER_WEBGL
-        if (parameter === 37446) {
-          return profile.webgl.renderer;
+        // Return spoofed value if we have one
+        if (webglParameters.hasOwnProperty(parameter)) {
+          return webglParameters[parameter];
         }
         return getParameter.call(this, parameter);
       };
@@ -90,20 +211,55 @@ export class FingerprintSpoofingModule {
       if (typeof WebGL2RenderingContext !== 'undefined') {
         const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
         WebGL2RenderingContext.prototype.getParameter = function (parameter) {
-          if (parameter === 37445) {
-            return profile.webgl.vendor;
-          }
-          if (parameter === 37446) {
-            return profile.webgl.renderer;
+          // Return spoofed value if we have one
+          if (webglParameters.hasOwnProperty(parameter)) {
+            return webglParameters[parameter];
           }
           return getParameter2.call(this, parameter);
         };
       }
 
+      // WebGL extensions spoofing
+      const originalGetExtension = WebGLRenderingContext.prototype.getExtension;
+      WebGLRenderingContext.prototype.getExtension = function(name: string) {
+        const extension = originalGetExtension.call(this, name);
+
+        // Spoof WEBGL_debug_renderer_info extension
+        if (name === 'WEBGL_debug_renderer_info' && extension) {
+          const originalGetParameter = this.getParameter.bind(this);
+          this.getParameter = function(parameter: number) {
+            if (parameter === 37445) return profile.webgl.vendor;
+            if (parameter === 37446) return profile.webgl.renderer;
+            return originalGetParameter(parameter);
+          };
+        }
+
+        return extension;
+      };
+
+      if (typeof WebGL2RenderingContext !== 'undefined') {
+        const originalGetExtension2 = WebGL2RenderingContext.prototype.getExtension;
+        WebGL2RenderingContext.prototype.getExtension = function(name: string) {
+          const extension = originalGetExtension2.call(this, name);
+
+          if (name === 'WEBGL_debug_renderer_info' && extension) {
+            const originalGetParameter = this.getParameter.bind(this);
+            this.getParameter = function(parameter: number) {
+              if (parameter === 37445) return profile.webgl.vendor;
+              if (parameter === 37446) return profile.webgl.renderer;
+              return originalGetParameter(parameter);
+            };
+          }
+
+          return extension;
+        };
+      }
+
       // ========================================
-      // 3. Audio Context Fingerprint Protection
+      // 3. Audio Context Fingerprint Protection (Enhanced)
       // ========================================
       if (typeof AudioContext !== 'undefined') {
+        // Hook createOscillator for frequency variation
         const audioContext = AudioContext.prototype.createOscillator;
         AudioContext.prototype.createOscillator = function (...args: any[]) {
           const oscillator = audioContext.apply(this, args as any);
@@ -111,6 +267,129 @@ export class FingerprintSpoofingModule {
 
           oscillator.start = function (...args: any[]) {
             // Add micro-variation to frequency
+            if (this.frequency) {
+              const variation = profile.audio.frequencyVariation;
+              this.frequency.value += variation;
+            }
+            return originalStart.apply(this, args as any);
+          };
+
+          return oscillator;
+        };
+
+        // Hook createDynamicsCompressor for destination noise
+        const originalCreateDynamicsCompressor = AudioContext.prototype.createDynamicsCompressor;
+        AudioContext.prototype.createDynamicsCompressor = function (...args: any[]) {
+          const compressor = originalCreateDynamicsCompressor.apply(this, args as any);
+
+          // Add subtle variations to compressor parameters
+          const audioRng = new SeededRandom(domainSeed + 1000);
+
+          if (compressor.threshold) {
+            compressor.threshold.value += (audioRng.next() - 0.5) * 0.001;
+          }
+          if (compressor.knee) {
+            compressor.knee.value += (audioRng.next() - 0.5) * 0.001;
+          }
+          if (compressor.ratio) {
+            compressor.ratio.value += (audioRng.next() - 0.5) * 0.001;
+          }
+          if (compressor.attack) {
+            compressor.attack.value += (audioRng.next() - 0.5) * 0.00001;
+          }
+          if (compressor.release) {
+            compressor.release.value += (audioRng.next() - 0.5) * 0.0001;
+          }
+
+          return compressor;
+        };
+
+        // Hook createAnalyser for consistent noise
+        const originalCreateAnalyser = AudioContext.prototype.createAnalyser;
+        AudioContext.prototype.createAnalyser = function (...args: any[]) {
+          const analyser = originalCreateAnalyser.apply(this, args as any);
+          const audioRng = new SeededRandom(domainSeed + 2000);
+
+          const originalGetByteTimeDomainData = analyser.getByteTimeDomainData.bind(analyser);
+          analyser.getByteTimeDomainData = function (array: Uint8Array) {
+            originalGetByteTimeDomainData(array);
+
+            // Add minimal noise to audio data
+            for (let i = 0; i < array.length; i++) {
+              if (audioRng.next() < 0.01) {
+                const noise = Math.floor(audioRng.next() * 3) - 1;
+                array[i] = Math.min(255, Math.max(0, array[i] + noise));
+              }
+            }
+
+            return;
+          };
+
+          const originalGetByteFrequencyData = analyser.getByteFrequencyData.bind(analyser);
+          analyser.getByteFrequencyData = function (array: Uint8Array) {
+            originalGetByteFrequencyData(array);
+
+            // Add minimal noise to frequency data
+            for (let i = 0; i < array.length; i++) {
+              if (audioRng.next() < 0.01) {
+                const noise = Math.floor(audioRng.next() * 3) - 1;
+                array[i] = Math.min(255, Math.max(0, array[i] + noise));
+              }
+            }
+
+            return;
+          };
+
+          return analyser;
+        };
+
+        // Hook destination for consistent audio output
+        const originalDestination = Object.getOwnPropertyDescriptor(
+          AudioContext.prototype,
+          'destination'
+        );
+
+        if (originalDestination) {
+          Object.defineProperty(AudioContext.prototype, 'destination', {
+            get: function () {
+              const destination = originalDestination.get?.call(this);
+
+              if (destination && !destination._spoofed) {
+                // Mark as spoofed to avoid re-wrapping
+                (destination as any)._spoofed = true;
+
+                // Add subtle variation to destination properties
+                const audioRng = new SeededRandom(domainSeed + 3000);
+
+                if (destination.maxChannelCount) {
+                  Object.defineProperty(destination, 'maxChannelCount', {
+                    get: function () {
+                      const base = 2;
+                      const noise = Math.floor(audioRng.next() * 2);
+                      return base + noise; // 2-3 channels
+                    },
+                    configurable: true,
+                  });
+                }
+              }
+
+              return destination;
+            },
+            configurable: true,
+          });
+        }
+      }
+
+      // Support for webkitAudioContext
+      if (typeof (window as any).webkitAudioContext !== 'undefined') {
+        const WebkitAudioContext = (window as any).webkitAudioContext;
+
+        const originalCreateOscillator = WebkitAudioContext.prototype.createOscillator;
+        WebkitAudioContext.prototype.createOscillator = function (...args: any[]) {
+          const oscillator = originalCreateOscillator.apply(this, args as any);
+          const originalStart = oscillator.start;
+
+          oscillator.start = function (...args: any[]) {
             if (this.frequency) {
               const variation = profile.audio.frequencyVariation;
               this.frequency.value += variation;
