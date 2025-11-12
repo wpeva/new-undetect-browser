@@ -1,0 +1,134 @@
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index 3456789..cdefghi 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -68,6 +68,7 @@
+ #include "third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.h"
+ #include "third_party/blink/renderer/platform/graphics/gpu/extensions_3d_util.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
++#include <random>
+
+ namespace blink {
+
+@@ -1245,6 +1246,39 @@ void WebGLRenderingContextBase::GetShaderPrecisionFormat(
+   }
+ }
+
++// WebGL Fingerprint Protection: Spoof sensitive parameters
++static String SpoofWebGLParameter(GLenum pname, const String& original_value) {
++  static thread_local std::mt19937 gen(
++      std::chrono::system_clock::now().time_since_epoch().count());
++
++  switch (pname) {
++    case GL_RENDERER:
++      // Return generic renderer string
++      return "ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)";
++
++    case GL_VENDOR:
++      // Return generic vendor
++      return "Google Inc. (Intel)";
++
++    case GL_VERSION:
++      return "WebGL 1.0 (OpenGL ES 2.0 Chromium)";
++
++    case GL_SHADING_LANGUAGE_VERSION:
++      return "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)";
++
++    case GL_UNMASKED_VENDOR_WEBGL:
++      return "Intel Inc.";
++
++    case GL_UNMASKED_RENDERER_WEBGL:
++      return "Intel(R) UHD Graphics";
++
++    default:
++      return original_value;
++  }
++}
++
++static constexpr uint32_t GL_UNMASKED_VENDOR_WEBGL = 0x9245;
++static constexpr uint32_t GL_UNMASKED_RENDERER_WEBGL = 0x9246;
++
+ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+                                                      GLenum pname) {
+   if (isContextLost())
+@@ -1407,11 +1441,18 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+     case GL_RENDERER: {
+       String value = String(
+           reinterpret_cast<const char*>(ContextGL()->GetString(GL_RENDERER)));
++      // Apply WebGL spoofing
++      value = SpoofWebGLParameter(GL_RENDERER, value);
+       return WebGLAny(script_state, value);
+     }
+     case GL_VENDOR: {
+       String value = String(
+           reinterpret_cast<const char*>(ContextGL()->GetString(GL_VENDOR)));
++      // Apply WebGL spoofing
++      value = SpoofWebGLParameter(GL_VENDOR, value);
++      return WebGLAny(script_state, value);
++    }
++    case GL_UNMASKED_VENDOR_WEBGL: {
++      String value = SpoofWebGLParameter(GL_UNMASKED_VENDOR_WEBGL, "");
+       return WebGLAny(script_state, value);
+     }
+     case GL_VERSION: {
+@@ -1422,6 +1463,10 @@ ScriptValue WebGLRenderingContextBase::getParameter(ScriptState* script_state,
+     case GL_SHADING_LANGUAGE_VERSION: {
+       String value = String(reinterpret_cast<const char*>(
+           ContextGL()->GetString(GL_SHADING_LANGUAGE_VERSION)));
++      return WebGLAny(script_state, value);
++    }
++    case GL_UNMASKED_RENDERER_WEBGL: {
++      String value = SpoofWebGLParameter(GL_UNMASKED_RENDERER_WEBGL, "");
+       return WebGLAny(script_state, value);
+     }
+     case GC3D_ALIASED_LINE_WIDTH_RANGE:
+@@ -5982,6 +6027,36 @@ void WebGLRenderingContextBase::ReadPixels(
+     return;
+   }
+
++  // Add noise to readPixels for fingerprint protection
++  if (type == GL_UNSIGNED_BYTE && format == GL_RGBA) {
++    static thread_local std::mt19937_64 gen(
++        std::chrono::system_clock::now().time_since_epoch().count());
++    std::uniform_int_distribution<int> dist(-1, 1);
++
++    uint8_t* byte_data = static_cast<uint8_t*>(pixels->Data());
++    size_t pixel_count = width * height;
++
++    // Add subtle noise to 0.1% of pixels
++    size_t noise_count = pixel_count / 1000;
++
++    for (size_t i = 0; i < noise_count; i++) {
++      size_t pixel_idx = (gen() % pixel_count) * 4;
++
++      // Modify RGB channels only (not alpha)
++      for (int channel = 0; channel < 3; channel++) {
++        int noise = dist(gen);
++        int original = byte_data[pixel_idx + channel];
++        int modified = original + noise;
++
++        // Clamp to [0, 255]
++        modified = std::max(0, std::min(255, modified));
++
++        byte_data[pixel_idx + channel] = static_cast<uint8_t>(modified);
++      }
++    }
++  }
++}
++
+   ContextGL()->ReadPixels(x, y, width, height, format, type, pixels->Data());
+ }
+
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_debug_renderer_info.idl b/third_party/blink/renderer/modules/webgl/webgl_debug_renderer_info.idl
+index 4567890..defghij 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_debug_renderer_info.idl
++++ b/third_party/blink/renderer/modules/webgl/webgl_debug_renderer_info.idl
+@@ -2,6 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+
++// Modified for fingerprint protection
++
+ [
+     LegacyNoInterfaceObject
+ ] interface WebGLDebugRendererInfo {

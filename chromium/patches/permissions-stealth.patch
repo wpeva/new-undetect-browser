@@ -1,0 +1,54 @@
+diff --git a/chrome/browser/permissions/permission_manager.cc b/chrome/browser/permissions/permission_manager.cc
+index 2345678..lmnopqr 100644
+--- a/chrome/browser/permissions/permission_manager.cc
++++ b/chrome/browser/permissions/permission_manager.cc
+@@ -267,6 +267,15 @@ blink::mojom::PermissionStatus PermissionManager::GetPermissionStatusForFrame(
+     const GURL& requesting_origin,
+     const GURL& embedding_origin) {
+   ContentSetting content_setting = GetPermissionStatus(permission, requesting_origin, embedding_origin);
++
++  // Stealth Mode: Return realistic permission status
++  // Prevent detection via permission queries
++  if (permission == ContentSettingsType::NOTIFICATIONS ||
++      permission == ContentSettingsType::GEOLOCATION) {
++    // Return "prompt" instead of "denied" to appear more natural
++    return blink::mojom::PermissionStatus::ASK;
++  }
++
+   return ContentSettingToPermissionStatus(content_setting);
+ }
+
+diff --git a/third_party/blink/renderer/modules/permissions/navigator_permissions.cc b/third_party/blink/renderer/modules/permissions/navigator_permissions.cc
+index 3456789..mnopqrs 100644
+--- a/third_party/blink/renderer/modules/permissions/navigator_permissions.cc
++++ b/third_party/blink/renderer/modules/permissions/navigator_permissions.cc
+@@ -12,6 +12,7 @@
+ #include "third_party/blink/renderer/core/frame/navigator.h"
+ #include "third_party/blink/renderer/modules/permissions/permissions.h"
+ #include "third_party/blink/renderer/platform/supplementable.h"
++#include <random>
+
+ namespace blink {
+
+@@ -34,6 +35,20 @@ Permissions* NavigatorPermissions::permissions(Navigator& navigator) {
+   return supplement->permissions_;
+ }
+
++// Add realistic timing delays to permission queries
++static void AddRealisticDelay() {
++  static thread_local std::mt19937 gen(
++      std::chrono::system_clock::now().time_since_epoch().count());
++  std::uniform_int_distribution<int> dist(5, 25);
++
++  // Add 5-25ms delay to mimic real browser behavior
++  int delay_ms = dist(gen);
++  std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
++}
++
+ NavigatorPermissions::NavigatorPermissions(Navigator& navigator)
+     : Supplement<Navigator>(navigator),
+       permissions_(MakeGarbageCollected<Permissions>(navigator.DomWindow())) {}
++      permissions_(MakeGarbageCollected<Permissions>(navigator.DomWindow())) {
++  // Initialize with realistic delay
++  AddRealisticDelay();
++}

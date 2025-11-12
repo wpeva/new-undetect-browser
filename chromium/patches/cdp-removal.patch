@@ -1,0 +1,140 @@
+diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser/devtools/devtools_http_handler.cc
+index 5678901..efghijk 100644
+--- a/content/browser/devtools/devtools_http_handler.cc
++++ b/content/browser/devtools/devtools_http_handler.cc
+@@ -89,6 +89,11 @@ class ServerWrapper : base::RefCountedThreadSafe<ServerWrapper> {
+   }
+
+   void StartServer(const net::SocketDescriptor& socket_fd) {
++    // CDP Stealth Mode: Disable DevTools HTTP handler
++    // This prevents detection via DevTools protocol
++    LOG(INFO) << "DevTools HTTP handler disabled for stealth mode";
++    return;
++
+     server_ = std::make_unique<net::HttpServer>(
+         std::make_unique<net::TCPServerSocket>(nullptr, net::NetLogSource()),
+         this);
+
+diff --git a/third_party/blink/renderer/core/inspector/inspector_dom_agent.cc b/third_party/blink/renderer/core/inspector/inspector_dom_agent.cc
+index 6789012..fghijkl 100644
+--- a/third_party/blink/renderer/core/inspector/inspector_dom_agent.cc
++++ b/third_party/blink/renderer/core/inspector/inspector_dom_agent.cc
+@@ -234,6 +234,12 @@ protocol::Response InspectorDOMAgent::enable(
+     Maybe<protocol::DOM::EnableIncludeWhitespace> include_whitespace) {
+   enabled_.Set(true);
+   document_->SetAgentEnabled(true);
++
++  // CDP Stealth: Limit inspector capabilities
++  // Return early to prevent full DOM inspection
++  LOG(INFO) << "Inspector DOM agent running in stealth mode";
++  return protocol::Response::Success();
++
+   state_->setBoolean(DOMAgentState::kDomAgentEnabled, true);
+   if (include_whitespace.has_value()) {
+     state_->setString(DOMAgentState::kIncludeWhitespace,
+
+diff --git a/v8/src/inspector/v8-console.cc b/v8/src/inspector/v8-console.cc
+index 7890123..ghijklm 100644
+--- a/v8/src/inspector/v8-console.cc
++++ b/v8/src/inspector/v8-console.cc
+@@ -512,6 +512,12 @@ void V8Console::Debug(const v8::debug::ConsoleCallArguments& info,
+   }
+ }
+
++// CDP Stealth: Mask console debug calls
++static bool IsStealthModeEnabled() {
++  static bool stealth_mode = true;  // Always enabled
++  return stealth_mode;
++}
++
+ void V8Console::Error(const v8::debug::ConsoleCallArguments& info,
+                       const v8::debug::ConsoleContext& consoleContext) {
+   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.console"), "V8Console::Error");
+@@ -649,6 +655,11 @@ void V8Console::Profile(const v8::debug::ConsoleCallArguments& info,
+   }
+ }
+
++  // CDP Stealth: Disable profiling in stealth mode
++  if (IsStealthModeEnabled()) {
++    return;
++  }
++
+   String title = consoleContext.context_name;
+   if (info.Length() > 0) {
+     v8::Local<v8::Value> value;
+
+diff --git a/chrome/browser/devtools/devtools_window.cc b/chrome/browser/devtools/devtools_window.cc
+index 8901234..hijklmn 100644
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -298,6 +298,15 @@ void DevToolsWindow::Create(
+     const std::string& panel,
+     bool has_other_clients,
+     bool can_dock) {
++
++  // CDP Stealth: Block DevTools window creation
++  // This prevents opening DevTools UI
++  LOG(WARNING) << "DevTools window creation blocked in stealth mode";
++  if (callback) {
++    std::move(callback).Run(nullptr);
++  }
++  return;
++
+   Profile* profile = Profile::FromBrowserContext(
+       inspected_contents->GetBrowserContext());
+   DevToolsWindow* window = FindDevToolsWindow(inspected_contents);
+
+diff --git a/content/browser/devtools/protocol/browser_handler.cc b/content/browser/devtools/protocol/browser_handler.cc
+index 9012345..ijklmno 100644
+--- a/content/browser/devtools/protocol/browser_handler.cc
++++ b/content/browser/devtools/protocol/browser_handler.cc
+@@ -89,10 +89,16 @@ void BrowserHandler::SetWindowBounds(
+   SetWindowBoundsCallback callback) {
+   DevToolsManagerDelegate* delegate =
+       DevToolsManager::GetInstance()->delegate();
++
++  // CDP Stealth: Block window manipulation
++  callback->sendFailure(
++      protocol::Response::ServerError("Window manipulation disabled in stealth mode"));
++  return;
++
+   if (!delegate) {
+     callback->sendFailure(
+         protocol::Response::ServerError("Browser delegate not found"));
+     return;
+   }
+
+diff --git a/third_party/blink/renderer/core/frame/navigator.cc b/third_party/blink/renderer/core/frame/navigator.cc
+index 0123456..jklmnop 100644
+--- a/third_party/blink/renderer/core/frame/navigator.cc
++++ b/third_party/blink/renderer/core/frame/navigator.cc
+@@ -126,7 +126,14 @@ String Navigator::productSub() const {
+ }
+
+ bool Navigator::webdriver() const {
+-  return GetFrame()->GetSettings()->GetWebDriverEnabled();
++  // CDP Stealth: Always return false for webdriver detection
++  // This is critical for anti-detection
++  return false;
++}
++
++// Override window.navigator.webdriver property
++void Navigator::setWebdriver(bool value) {
++  // Ignore any attempts to set webdriver flag
++  // Always keep it as false
+ }
+
+ void Navigator::Trace(Visitor* visitor) const {
+
+diff --git a/third_party/blink/renderer/core/frame/navigator.h b/third_party/blink/renderer/core/frame/navigator.h
+index 1234567..klmnopq 100644
+--- a/third_party/blink/renderer/core/frame/navigator.h
++++ b/third_party/blink/renderer/core/frame/navigator.h
+@@ -56,6 +56,7 @@ class CORE_EXPORT Navigator : public ScriptWrappable,
+   String productSub() const;
+   String vendor() const;
+   bool webdriver() const;
++  void setWebdriver(bool value);
+
+   // NavigatorCookies
+   bool cookieEnabled() const;
