@@ -1,0 +1,123 @@
+diff --git a/chrome/test/chromedriver/chrome_launcher.cc b/chrome/test/chromedriver/chrome_launcher.cc
+index 4567890..nopqrst 100644
+--- a/chrome/test/chromedriver/chrome_launcher.cc
++++ b/chrome/test/chromedriver/chrome_launcher.cc
+@@ -567,9 +567,13 @@ Status LaunchDesktopChrome(
+   }
+
+   // Add automation switches
+-  if (capabilities.IsAndroid() || capabilities.IsRemoteBrowser()) {
+-    switches.SetSwitch("enable-automation");
+-  }
++  // REMOVED: Don't add enable-automation flag
++  // This is a key detection vector
++  //
++  // if (capabilities.IsAndroid() || capabilities.IsRemoteBrowser()) {
++  //   switches.SetSwitch("enable-automation");
++  // }
++
+
+   base::CommandLine command(base::CommandLine::NO_PROGRAM);
+   Status status = internal::PrepareCommandLine(port, capabilities,
+
+diff --git a/content/browser/renderer_host/render_frame_host_impl.cc b/content/browser/renderer_host/render_frame_host_impl.cc
+index 5678901..opqrstu 100644
+--- a/content/browser/renderer_host/render_frame_host_impl.cc
++++ b/content/browser/renderer_host/render_frame_host_impl.cc
+@@ -3456,7 +3456,10 @@ void RenderFrameHostImpl::GetInterfaceProvider(
+
+ void RenderFrameHostImpl::SetAutomationControlEnabled(bool enabled) {
+   // Prevent automation detection
+-  GetAssociatedLocalFrame()->SetAutomationControlEnabled(enabled);
++  // ALWAYS set to false regardless of actual state
++  // This hides automation from the renderer process
++  GetAssociatedLocalFrame()->SetAutomationControlEnabled(false);
++  // Original: GetAssociatedLocalFrame()->SetAutomationControlEnabled(enabled);
+ }
+
+ void RenderFrameHostImpl::PerformGetAssertionWebAuthSecurityChecks(
+
+diff --git a/third_party/blink/renderer/core/exported/web_view_impl.cc b/third_party/blink/renderer/core/exported/web_view_impl.cc
+index 6789012..pqrstuv 100644
+--- a/third_party/blink/renderer/core/exported/web_view_impl.cc
++++ b/third_party/blink/renderer/core/exported/web_view_impl.cc
+@@ -1834,8 +1834,12 @@ void WebViewImpl::DidAttachLocalMainFrame() {
+   dev_tools_emulator_->MainFrameScrollOrScaleChanged();
+ }
+
+-void WebViewImpl::SetAutomationControlEnabled(bool enabled) {
+-  automation_control_enabled_ = enabled;
++void WebViewImpl::SetAutomationControlEnabled(bool enabled) {
++  // Stealth Mode: Always report automation as disabled
++  // This prevents detection via automation control checks
++  automation_control_enabled_ = false;
++
++  // Original: automation_control_enabled_ = enabled;
+ }
+
+ bool WebViewImpl::AutomationControlEnabled() const {
+
+diff --git a/chrome/renderer/chrome_content_renderer_client.cc b/chrome/renderer/chrome_content_renderer_client.cc
+index 7890123..qrstuvw 100644
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -1567,6 +1567,12 @@ void ChromeContentRendererClient::DidCreateScriptContext(
+     return;
+   }
+
++  // Stealth Mode: Remove automation artifacts from window object
++  v8::Local<v8::Object> global = context->Global();
++  // Remove $cdc_, $wdc_ and other automation variables
++  global->Delete(context, v8::String::NewFromUtf8Literal(isolate, "$cdc_")).ToChecked();
++  global->Delete(context, v8::String::NewFromUtf8Literal(isolate, "$wdc_")).ToChecked();
++
+   const base::CommandLine& command_line =
+       *base::CommandLine::ForCurrentProcess();
+
+diff --git a/third_party/blink/renderer/bindings/core/v8/v8_initializer.cc b/third_party/blink/renderer/bindings/core/v8/v8_initializer.cc
+index 8901234..rstuvwx 100644
+--- a/third_party/blink/renderer/bindings/core/v8/v8_initializer.cc
++++ b/third_party/blink/renderer/bindings/core/v8/v8_initializer.cc
+@@ -445,6 +445,34 @@ static void InitializeV8Common(v8::Isolate* isolate) {
+   v8::V8::AddMessageListener(MessageHandlerInMainThread);
+ }
+
++// Remove automation detection variables
++static void RemoveAutomationVariables(v8::Local<v8::Context> context) {
++  v8::Isolate* isolate = context->GetIsolate();
++  v8::Local<v8::Object> global = context->Global();
++
++  // List of known automation variables to remove
++  const char* automation_vars[] = {
++    "$cdc_", "$chrome_", "__webdriver_",
++    "__selenium_", "__fxdriver_", "__driver_",
++    "__webdriver_script_fn", "__webdriver_script_func",
++    "__webdriver_unwrapped", "__webdriver_evaluate",
++    "__driver_evaluate", "__webdriver_script_function",
++    "calledSelenium", "_Selenium_", "_phantom",
++    "__nightmare", "callPhantom", "_phantom",
++    "phantom", "spawn"
++  };
++
++  v8::TryCatch try_catch(isolate);
++  for (const char* var : automation_vars) {
++    v8::Local<v8::String> key =
++        v8::String::NewFromUtf8(isolate, var).ToLocalChecked();
++    v8::Maybe<bool> result = global->Delete(context, key);
++    // Ignore failures silently
++  }
++}
++
+ void V8Initializer::InitializeMainThread(const intptr_t* reference_table) {
+   DCHECK(IsMainThread());
+
+@@ -458,6 +486,9 @@ void V8Initializer::InitializeMainThread(const intptr_t* reference_table) {
+
+   InitializeV8Common(isolate);
+
++  // Remove automation detection variables from all contexts
++  RemoveAutomationVariables(isolate->GetCurrentContext());
++
+   isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kScoped);
+   isolate->SetUseCounterCallback(&UseCounterCallback);
+   isolate->SetWasmAsyncResolvePromiseCallback(

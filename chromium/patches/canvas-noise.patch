@@ -1,0 +1,91 @@
+diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
+index 1234567..abcdefg 100644
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
+@@ -47,6 +47,7 @@
+ #include "third_party/blink/renderer/platform/graphics/paint/paint_canvas.h"
+ #include "third_party/blink/renderer/platform/graphics/paint/paint_flags.h"
+ #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
++#include <random>
+
+ namespace blink {
+
+@@ -1567,6 +1568,30 @@ ImageData* CanvasRenderingContext2D::getImageData(
+   return image_data;
+ }
+
++// Canvas Fingerprint Protection: Add subtle noise to canvas data
++static void AddCanvasNoise(uint8_t* data, size_t data_size, uint64_t session_seed) {
++  // Use session-based seed for consistency within a session
++  static uint64_t seed = session_seed;
++  std::mt19937_64 gen(seed);
++  std::uniform_int_distribution<int> dist(-2, 2);
++
++  // Add noise to approximately 0.1% of pixels
++  size_t pixel_count = data_size / 4;
++  size_t noise_count = pixel_count / 1000;
++
++  std::uniform_int_distribution<size_t> pixel_dist(0, pixel_count - 1);
++
++  for (size_t i = 0; i < noise_count; i++) {
++    size_t pixel_idx = pixel_dist(gen) * 4;
++    for (int j = 0; j < 3; j++) {  // RGB channels only
++      int noise = dist(gen);
++      int new_value = static_cast<int>(data[pixel_idx + j]) + noise;
++      data[pixel_idx + j] = static_cast<uint8_t>(
++          std::max(0, std::min(255, new_value)));
++    }
++  }
++}
++
+ void CanvasRenderingContext2D::putImageData(ImageData* data,
+                                             int dx,
+                                             int dy,
+@@ -1652,6 +1677,11 @@ String CanvasRenderingContext2D::toDataURL(const String& mime_type,
+     return String("data:,");
+   }
+
++  // Apply canvas noise for fingerprint protection
++  static uint64_t session_seed = std::chrono::system_clock::now().time_since_epoch().count();
++  uint8_t* pixel_data = static_cast<uint8_t*>(snapshot->peekPixels().writable_addr());
++  AddCanvasNoise(pixel_data, snapshot->peekPixels().computeByteSize(), session_seed);
++
+   return canvas()->ToDataURL(mime_type, quality, GetCanvasResourceProvider());
+ }
+
+diff --git a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+index 2345678..bcdefgh 100644
+--- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -34,6 +34,7 @@
+ #include "third_party/blink/renderer/platform/graphics/image_data_buffer.h"
+ #include "third_party/blink/renderer/platform/graphics/paint/paint_canvas.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
++#include <random>
+
+ namespace blink {
+
+@@ -724,6 +725,23 @@ String HTMLCanvasElement::ToDataURLInternal(
+     return String("data:,");
+   }
+
++  // Canvas noise injection for fingerprint protection
++  SkPixmap pixmap;
++  if (image->PaintImageForCurrentFrame().GetSwSkImage()->peekPixels(&pixmap)) {
++    static thread_local std::mt19937_64 gen(
++        std::chrono::system_clock::now().time_since_epoch().count());
++    std::uniform_int_distribution<int> dist(-1, 1);
++
++    uint8_t* pixels = static_cast<uint8_t*>(pixmap.writable_addr());
++    size_t size = pixmap.computeByteSize();
++
++    // Add minimal noise to 0.05% of pixels
++    for (size_t i = 0; i < size / 2000; i++) {
++      size_t idx = (gen() % (size / 4)) * 4;
++      pixels[idx] = std::max(0, std::min(255, static_cast<int>(pixels[idx]) + dist(gen)));
++    }
++  }
++
+   String data_url = ImageDataURL(*image, encoding_mime_type, quality);
+   return data_url;
+ }

@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Chromium Builder Service
+  chromium-builder:
+    build:
+      context: ..
+      dockerfile: chromium/docker/Dockerfile.build
+      args:
+        CHROMIUM_VERSION: ${CHROMIUM_VERSION:-122.0.6261.94}
+    image: chromium-antidetect-builder:latest
+    container_name: chromium-builder
+    volumes:
+      # Mount source code
+      - ./build:/workspace/chromium
+      # Mount output directory
+      - ./output:/output
+      # Mount patches
+      - ./patches:/workspace/chromium/patches:ro
+      # Optional: Mount ccache for faster rebuilds
+      - ccache-chromium:/home/builder/.ccache
+    environment:
+      - CHROMIUM_VERSION=${CHROMIUM_VERSION:-122.0.6261.94}
+      - CCACHE_DIR=/home/builder/.ccache
+      - CCACHE_MAXSIZE=20G
+      # Performance tuning
+      - NINJA_STATUS=[%f/%t %p]
+      - GN_NUM_JOBS=4
+    shm_size: 2gb
+    mem_limit: 16g
+    cpus: 4
+    restart: "no"
+    command: /workspace/build-internal.sh
+
+  # Quick Test Service (for testing built Chromium)
+  chromium-test:
+    image: ubuntu:22.04
+    container_name: chromium-test
+    volumes:
+      - ./output:/chromium:ro
+    environment:
+      - DISPLAY=:99
+    command: >
+      bash -c "
+        apt-get update &&
+        apt-get install -y libgtk-3-0 libnss3 libasound2 &&
+        /chromium/chrome --version &&
+        /chromium/chrome --headless --no-sandbox --disable-gpu --dump-dom https://example.com
+      "
+    depends_on:
+      - chromium-builder
+    restart: "no"
+
+volumes:
+  # Persistent cache for faster rebuilds
+  ccache-chromium:
+    driver: local
+
+networks:
+  default:
+    name: chromium-build-network
