@@ -1,0 +1,72 @@
+[
+  {
+    "id": "img-windows11-standard",
+    "name": "Windows 11 Pro",
+    "osType": "windows11",
+    "version": "23H2",
+    "imagePath": "/var/lib/undetect-browser/vm/images/windows11-23h2.qcow2",
+    "snapshotName": "clean_install",
+    "description": "Windows 11 Pro 23H2 with clean installation and basic drivers",
+    "minRamGB": 4,
+    "minDiskGB": 60,
+    "recommendedCPUCores": 4,
+    "created": "2024-01-01T00:00:00.000Z",
+    "size": 0
+  },
+  {
+    "id": "img-windows10-standard",
+    "name": "Windows 10 Enterprise",
+    "osType": "windows10",
+    "version": "22H2",
+    "imagePath": "/var/lib/undetect-browser/vm/images/windows10-22h2.qcow2",
+    "snapshotName": "clean_install",
+    "description": "Windows 10 Enterprise 22H2 with clean installation",
+    "minRamGB": 2,
+    "minDiskGB": 40,
+    "recommendedCPUCores": 2,
+    "created": "2024-01-01T00:00:00.000Z",
+    "size": 0
+  },
+  {
+    "id": "img-ubuntu22-standard",
+    "name": "Ubuntu 22.04 LTS",
+    "osType": "ubuntu22",
+    "version": "22.04",
+    "imagePath": "/var/lib/undetect-browser/vm/images/ubuntu-22.04.qcow2",
+    "snapshotName": "clean_install",
+    "description": "Ubuntu 22.04 LTS (Jammy Jellyfish) desktop with GNOME",
+    "minRamGB": 2,
+    "minDiskGB": 25,
+    "recommendedCPUCores": 2,
+    "created": "2024-01-01T00:00:00.000Z",
+    "size": 0
+  },
+  {
+    "id": "img-ubuntu20-standard",
+    "name": "Ubuntu 20.04 LTS",
+    "osType": "ubuntu20",
+    "version": "20.04",
+    "imagePath": "/var/lib/undetect-browser/vm/images/ubuntu-20.04.qcow2",
+    "snapshotName": "clean_install",
+    "description": "Ubuntu 20.04 LTS (Focal Fossa) desktop with GNOME",
+    "minRamGB": 2,
+    "minDiskGB": 25,
+    "recommendedCPUCores": 2,
+    "created": "2024-01-01T00:00:00.000Z",
+    "size": 0
+  },
+  {
+    "id": "img-macos-ventura",
+    "name": "macOS Ventura",
+    "osType": "macos-ventura",
+    "version": "13.6",
+    "imagePath": "/var/lib/undetect-browser/vm/images/macos-ventura.qcow2",
+    "snapshotName": "clean_install",
+    "description": "macOS Ventura 13.6 (Note: Requires special QEMU configuration)",
+    "minRamGB": 8,
+    "minDiskGB": 80,
+    "recommendedCPUCores": 4,
+    "created": "2024-01-01T00:00:00.000Z",
+    "size": 0
+  }
+]
