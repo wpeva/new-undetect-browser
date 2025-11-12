@@ -50,6 +50,27 @@ This custom Chromium build includes patches specifically designed to bypass soph
 
 ## 🚀 Quick Start
 
+### 🎯 **NEW: One-Command Build (Session 5)**
+
+The fastest way to get started:
+
+```bash
+cd chromium
+./quick-start.sh
+```
+
+This automated script will:
+- ✅ Check system requirements
+- ✅ Build Docker image
+- ✅ Compile Chromium with all patches
+- ✅ Run integration tests
+- ✅ Package the binary
+
+**Time:** 2-6 hours (automated)
+**Result:** Production-ready Chromium with all anti-detection patches
+
+---
+
 ### Option 1: Download Pre-built (Fastest)
 
 ```bash
@@ -57,7 +78,7 @@ cd chromium
 ./build.sh 2
 ```
 
-**Note:** Pre-built binaries don't include our anti-detection patches. For maximum protection, use Option 2 or 3.
+**Note:** Pre-built binaries don't include our anti-detection patches. For maximum protection, use the one-command build above or Option 2/3.
 
 ### Option 2: Build from Source (Recommended)
 
@@ -267,6 +288,28 @@ const browser = await launch({
 
 ## 🧪 Testing
 
+### 🎯 **NEW: Automated Integration Tests (Session 5)**
+
+Run comprehensive tests on your build:
+
+```bash
+./integration-test.sh output/chromium-*/chrome
+```
+
+This will test:
+- ✅ Binary integrity
+- ✅ Launch capability
+- ✅ CDP endpoint access
+- ✅ Automation flag removal
+- ✅ Automation variable cleanup
+- ✅ Canvas fingerprint protection
+- ✅ Version information
+- ✅ CDP detection removal
+
+**Expected Result:** 8/8 tests passing
+
+---
+
 ### Verify Anti-Detection Features
 
 1. **Bot Detection Tests:**
@@ -376,10 +419,20 @@ Typical build times and resource usage:
 
 ## 📚 Additional Resources
 
+### Project Documentation
+
+- **[Session 5: Complete Build Guide](../CHROMIUM_BUILD_SESSION_5.md)** - Comprehensive documentation
+- [Session 4: Chromium Integration](../CHROMIUM_INTEGRATION_SESSION_4.md)
+- [Session 3: Advanced Protection](../ADVANCED_PROTECTION_REPORT.md)
+- [Fingerprint Detection Methods](../DETECTION_METHODS_ANALYSIS.md)
+- [Main Project Documentation](../README.md)
+
+### External Resources
+
 - [Chromium Build Documentation](https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md)
 - [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium)
-- [Fingerprint Detection Methods](../../DETECTION_METHODS_ANALYSIS.md)
-- [Main Project Documentation](../../README.md)
+- [GN Build Configuration](https://gn.googlesource.com/gn/+/master/docs/reference.md)
+- [Ninja Build System](https://ninja-build.org/manual.html)
 
 ## 🤝 Contributing
 
