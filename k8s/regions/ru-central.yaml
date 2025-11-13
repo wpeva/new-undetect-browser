@@ -1,0 +1,115 @@
+# ==================================
+# Russia Central Region Configuration
+# Moscow, Russia
+# ==================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: antidetect-ru-central
+  labels:
+    region: ru-central
+    continent: europe
+
+---
+# API Gateway Deployment for RU-CENTRAL
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: antidetect-ru-central
+  labels:
+    app: api-gateway
+    tier: edge
+    region: ru-central
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+      region: ru-central
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: edge
+        region: ru-central
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - api-gateway
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gateway
+        image: antidetect-gateway:latest
+        imagePullPolicy: Always
+        env:
+        - name: REGION
+          value: "ru-central"
+        - name: REGION_LOCATION
+          value: "Moscow, Russia"
+        - name: REGION_LAT
+          value: "55.7"
+        - name: REGION_LON
+          value: "37.6"
+        - name: BACKEND_POOL
+          value: "http://browser-pool-service.antidetect-ru-central:3000"
+        - name: ENABLE_GEO_ROUTING
+          value: "true"
+        - name: FALLBACK_REGIONS
+          value: "eu-west,ap-south"
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8443
+          name: https
+        - containerPort: 9090
+          name: metrics
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Browser Pool Configuration for RU-CENTRAL
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: region-config
+  namespace: antidetect-ru-central
+data:
+  region: "ru-central"
+  timezone: "Europe/Moscow"
+  locale: "ru-RU"
+  currency: "RUB"
+  default-proxy-country: "RU"
