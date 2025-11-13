@@ -6,6 +6,11 @@ import { NetworkProtectionModule } from '../modules/network-protection';
 import { AdvancedEvasionsModule } from '../modules/advanced-evasions';
 import { HeadlessDetectionProtection } from '../modules/headless-detection-protection';
 import { AutomationDetectionProtection } from '../modules/automation-detection-protection';
+import { ClientRectsProtection } from '../modules/client-rects-protection';
+import { SpeechSynthesisProtection } from '../modules/speech-synthesis-protection';
+import { MediaCodecsProtection } from '../modules/media-codecs-protection';
+import { WebGL2Protection } from '../modules/webgl2-protection';
+import { PerformanceAPIProtection } from '../modules/performance-api-protection';
 import { logger } from '../utils/logger';
 import {
   FingerprintProfile,
@@ -21,6 +26,12 @@ export interface StealthConfig {
   advancedEvasions?: boolean;
   headlessProtection?: boolean;
   automationProtection?: boolean;
+  // New advanced protection modules (Session 1)
+  clientRectsProtection?: boolean;
+  speechSynthesisProtection?: boolean;
+  mediaCodecsProtection?: boolean;
+  webgl2Protection?: boolean;
+  performanceAPIProtection?: boolean;
   customFingerprint?: FingerprintProfile;
 }
 
@@ -37,6 +48,12 @@ export class StealthEngine {
   private headlessProtection: HeadlessDetectionProtection;
   private automationProtection: AutomationDetectionProtection;
   private networkProtection: NetworkProtectionModule | null = null;
+  // New protection modules (Session 1)
+  private clientRectsProtection: ClientRectsProtection;
+  private speechSynthesisProtection: SpeechSynthesisProtection;
+  private mediaCodecsProtection: MediaCodecsProtection;
+  private webgl2Protection: WebGL2Protection;
+  private performanceAPIProtection: PerformanceAPIProtection;
   private fingerprint: FingerprintProfile;
   private initialized: boolean = false;
 
@@ -53,6 +70,12 @@ export class StealthEngine {
       advancedEvasions: config.advancedEvasions ?? (level === 'paranoid'),
       headlessProtection: config.headlessProtection ?? true, // Always enable by default
       automationProtection: config.automationProtection ?? (level !== 'basic'),
+      // New protection modules - enabled for advanced and paranoid levels
+      clientRectsProtection: config.clientRectsProtection ?? (level !== 'basic'),
+      speechSynthesisProtection: config.speechSynthesisProtection ?? (level !== 'basic'),
+      mediaCodecsProtection: config.mediaCodecsProtection ?? (level !== 'basic'),
+      webgl2Protection: config.webgl2Protection ?? (level !== 'basic'),
+      performanceAPIProtection: config.performanceAPIProtection ?? (level === 'paranoid'),
       customFingerprint: config.customFingerprint,
     };
 
@@ -67,6 +90,30 @@ export class StealthEngine {
     this.advancedEvasions = new AdvancedEvasionsModule();
     this.headlessProtection = new HeadlessDetectionProtection();
     this.automationProtection = new AutomationDetectionProtection();
+
+    // Initialize new protection modules (Session 1)
+    this.clientRectsProtection = new ClientRectsProtection({
+      enabled: this.config.clientRectsProtection,
+      noiseLevel: level === 'paranoid' ? 'aggressive' : 'moderate',
+    });
+    this.speechSynthesisProtection = new SpeechSynthesisProtection({
+      enabled: this.config.speechSynthesisProtection,
+      platform: this.fingerprint.platform as any,
+    });
+    this.mediaCodecsProtection = new MediaCodecsProtection({
+      enabled: this.config.mediaCodecsProtection,
+      platform: this.fingerprint.platform as any,
+      browser: 'chrome',
+    });
+    this.webgl2Protection = new WebGL2Protection({
+      enabled: this.config.webgl2Protection,
+      vendor: this.fingerprint.webgl.vendor,
+      gpu: this.fingerprint.webgl.renderer,
+    });
+    this.performanceAPIProtection = new PerformanceAPIProtection({
+      enabled: this.config.performanceAPIProtection,
+      noiseLevel: level === 'paranoid' ? 'aggressive' : 'moderate',
+    });
 
     logger.info(`StealthEngine initialized with level: ${this.config.level}`);
   }
@@ -127,6 +174,27 @@ export class StealthEngine {
       // Apply behavioral simulation helpers
       if (this.config.behavioralSimulation) {
         await this.behavioralSimulation.injectHelpers(page);
+      }
+
+      // Apply new protection modules (Session 1)
+      if (this.config.clientRectsProtection) {
+        await this.clientRectsProtection.apply(page);
+      }
+
+      if (this.config.speechSynthesisProtection) {
+        await this.speechSynthesisProtection.apply(page);
+      }
+
+      if (this.config.mediaCodecsProtection) {
+        await this.mediaCodecsProtection.apply(page);
+      }
+
+      if (this.config.webgl2Protection) {
+        await this.webgl2Protection.apply(page);
+      }
+
+      if (this.config.performanceAPIProtection) {
+        await this.performanceAPIProtection.apply(page);
       }
 
       // Setup network protection (always last)
