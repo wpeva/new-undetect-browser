@@ -1,0 +1,234 @@
+# ==================================
+# Session 13: Multi-Region Deployment
+# Global Load Balancer Configuration
+# ==================================
+
+# Global Load Balancer Service
+# Routes traffic to the nearest regional cluster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: global-lb
+  namespace: antidetect
+  labels:
+    app: api-gateway
+    tier: edge
+    version: v1
+  annotations:
+    # External DNS configuration
+    external-dns.alpha.kubernetes.io/hostname: api.antidetect.io
+    external-dns.alpha.kubernetes.io/ttl: "60"
+
+    # AWS Configuration
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+    service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "3600"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+
+    # GCP Configuration
+    cloud.google.com/load-balancer-type: "External"
+    networking.gke.io/load-balancer-type: "External"
+
+    # Health check configuration
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "5"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "HTTP"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8080"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local  # Preserve client IP for geo-routing
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours session affinity
+
+  selector:
+    app: api-gateway
+    tier: edge
+
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+    protocol: TCP
+
+---
+# Regional Load Balancer for US-EAST
+apiVersion: v1
+kind: Service
+metadata:
+  name: regional-lb-us-east
+  namespace: antidetect
+  labels:
+    app: api-gateway
+    tier: edge
+    region: us-east
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: us-east.api.antidetect.io
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  selector:
+    app: api-gateway
+    region: us-east
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+
+---
+# Regional Load Balancer for EU-WEST
+apiVersion: v1
+kind: Service
+metadata:
+  name: regional-lb-eu-west
+  namespace: antidetect
+  labels:
+    app: api-gateway
+    tier: edge
+    region: eu-west
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: eu-west.api.antidetect.io
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  selector:
+    app: api-gateway
+    region: eu-west
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+
+---
+# Regional Load Balancer for AP-SOUTH
+apiVersion: v1
+kind: Service
+metadata:
+  name: regional-lb-ap-south
+  namespace: antidetect
+  labels:
+    app: api-gateway
+    tier: edge
+    region: ap-south
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: ap-south.api.antidetect.io
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  selector:
+    app: api-gateway
+    region: ap-south
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+
+---
+# Regional Load Balancer for RU-CENTRAL
+apiVersion: v1
+kind: Service
+metadata:
+  name: regional-lb-ru-central
+  namespace: antidetect
+  labels:
+    app: api-gateway
+    tier: edge
+    region: ru-central
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: ru-central.api.antidetect.io
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  selector:
+    app: api-gateway
+    region: ru-central
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+
+---
+# ClusterIP Service for internal communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-internal
+  namespace: antidetect
+  labels:
+    app: api-gateway
+    tier: edge
+spec:
+  type: ClusterIP
+  selector:
+    app: api-gateway
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: https
+    port: 8443
+    targetPort: 8443
+    protocol: TCP
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
