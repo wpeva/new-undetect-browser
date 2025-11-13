@@ -30,6 +30,13 @@ The collected data can be used for:
 ✅ **TypeScript API** - Easy-to-use API for Node.js/TypeScript
 ✅ **Consistency Validation** - Automatic validation of generated profiles
 
+### Session 11: Adaptive Detection System
+✅ **Detection Monitor** - Automated testing against 5 major detection sites
+✅ **RL Agent** - PPO-based reinforcement learning for optimization
+✅ **Auto-Updater** - Automatic deployment of improved configurations
+✅ **Dashboard** - Real-time monitoring and visualization
+✅ **Self-Improving** - Continuous optimization through RL
+
 ## Architecture
 
 ```
@@ -48,11 +55,19 @@ ml/
 │   └── generate.py          # Inference script
 ├── api/                     # Session 10: TypeScript API
 │   └── generate.ts          # Profile generator API
+├── detection/               # Session 11: Adaptive Detection System
+│   ├── monitor.ts           # Detection testing across multiple sites
+│   ├── rl-agent.py          # Reinforcement learning agent (PPO)
+│   ├── auto-updater.ts      # Automatic configuration updates
+│   ├── dashboard.ts         # Real-time monitoring dashboard
+│   ├── demo.ts              # Demo scripts
+│   ├── index.ts             # Module exports
+│   └── README.md            # Session 11 documentation
 ├── types/
 │   └── fingerprint.ts       # TypeScript types
 ├── scripts/
 │   └── generate-sample-dataset.js  # Quick dataset generator
-├── requirements.txt         # Python dependencies
+├── requirements.txt         # Python dependencies (including RL)
 └── README.md               # This file
 ```
 
@@ -605,14 +620,90 @@ python train.py --epochs 10
 python train.py --epochs 200 --max-samples 10000
 ```
 
+## Session 11: Adaptive Detection System
+
+### Overview
+
+Self-improving anti-detection system that uses Reinforcement Learning to continuously optimize protection settings.
+
+### Components
+
+1. **Detection Monitor** (`detection/monitor.ts`)
+   - Tests against 5 major detection sites
+   - Weighted scoring system
+   - Historical tracking and trends
+   - Actionable recommendations
+
+2. **RL Agent** (`detection/rl-agent.py`)
+   - PPO (Proximal Policy Optimization)
+   - Custom Gym environment
+   - 10D action space (protection levels)
+   - 5D observation space (detector scores)
+
+3. **Auto-Updater** (`detection/auto-updater.ts`)
+   - Automated testing cycles
+   - RL-based optimization
+   - Smart deployment with thresholds
+   - Comprehensive tracking
+
+4. **Dashboard** (`detection/dashboard.ts`)
+   - Real-time visualization
+   - Historical trends
+   - Configuration management
+   - REST API
+
+### Quick Start
+
+```typescript
+import { DetectionMonitor, createAutoUpdater, createDashboard } from './ml/detection';
+
+// Setup adaptive system
+const monitor = new DetectionMonitor();
+const updater = createAutoUpdater({
+  minImprovement: 5,
+  testInterval: 24,
+  enableAutoUpdate: true,
+});
+
+// Start dashboard
+const dashboard = await createDashboard(monitor, updater, { port: 3000 });
+
+// Enable auto-updates
+const browserFactory = async () => {
+  const browser = new UndetectBrowser({ headless: true });
+  return await browser.launch();
+};
+
+updater.startAutoUpdate(browserFactory);
+
+// System now runs autonomously!
+```
+
+### Training RL Agent
+
+```bash
+cd ml/detection
+
+# Train agent
+python3 rl-agent.py --timesteps 100000 --episodes 20
+
+# Evaluate
+python3 rl-agent.py --eval-only --model anti_detection_agent
+```
+
+### Usage
+
+See `ml/detection/README.md` for complete documentation.
+
 ## Next Steps
 
 1. ✅ **Dataset Collection** (Session 9)
 2. ✅ **ML Model Training** (Session 10)
-3. **Production Deployment**: Deploy model as API service
-4. **Fine-tuning**: Train on larger datasets (10,000+ samples)
-5. **Integration**: Full integration with anti-detection browser
-6. **GAN Training**: Implement GAN for more realistic generation
+3. ✅ **Adaptive Detection System** (Session 11)
+4. **Production Deployment**: Deploy as full service
+5. **Fine-tuning**: Train on larger datasets (10,000+ samples)
+6. **Advanced RL**: Implement multi-objective optimization
+7. **Cloud Integration**: Deploy to cloud infrastructure
 
 ## Files Generated
 
@@ -625,6 +716,13 @@ python train.py --epochs 200 --max-samples 10000
 ### Session 10
 - `fingerprint_generator.pth` - Trained ML model (~500MB)
 - `profile.json` - Generated profile examples
+
+### Session 11
+- `current-config.json` - Active protection configuration
+- `update-history.json` - All adaptive cycles
+- `detection-history.json` - All detection test results
+- `rl_model.zip` - Trained RL model
+- `rl_model_best_config.json` - Best configuration found
 
 ## License
 
