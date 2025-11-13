@@ -1,0 +1,155 @@
+# ==================================
+# Persistent Volume Claims (PVC)
+# Storage for browser profiles and data
+# ==================================
+
+---
+# Storage Class for Fast SSD
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  labels:
+    app: browser
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+
+---
+# Storage Class for Standard HDD (for logs and backups)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard-hdd
+  labels:
+    app: browser
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+
+---
+# PVC for Browser Profiles
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: browser-profiles-pvc
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# PVC for Logs
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logs-pvc
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: standard-hdd
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# PVC for Backups
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backups-pvc
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: standard-hdd
+  resources:
+    requests:
+      storage: 200Gi
+
+---
+# Example Persistent Volume (for on-premise deployments)
+# For cloud providers, PVs are automatically created
+
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: browser-profiles-pv
+#   labels:
+#     app: browser
+# spec:
+#   capacity:
+#     storage: 100Gi
+#   accessModes:
+#   - ReadWriteMany
+#   persistentVolumeReclaimPolicy: Retain
+#   storageClassName: fast-ssd
+#   nfs:
+#     server: nfs-server.example.com
+#     path: /exports/browser-profiles
+
+---
+# Cloud Provider Specific Storage Classes
+
+# AWS EBS (Elastic Block Store)
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: aws-ebs-gp3
+# provisioner: ebs.csi.aws.com
+# parameters:
+#   type: gp3
+#   iops: "3000"
+#   throughput: "125"
+#   encrypted: "true"
+# volumeBindingMode: WaitForFirstConsumer
+# allowVolumeExpansion: true
+
+# DigitalOcean Block Storage
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: do-block-storage
+# provisioner: dobs.csi.digitalocean.com
+# allowVolumeExpansion: true
+# volumeBindingMode: WaitForFirstConsumer
+
+# GCP Persistent Disk
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: gcp-pd-ssd
+# provisioner: pd.csi.storage.gke.io
+# parameters:
+#   type: pd-ssd
+#   replication-type: regional-pd
+# volumeBindingMode: WaitForFirstConsumer
+# allowVolumeExpansion: true
+
+# Azure Disk
+# apiVersion: storage.k8s.io/v1
+# kind: StorageClass
+# metadata:
+#   name: azure-disk-premium
+# provisioner: disk.csi.azure.com
+# parameters:
+#   storageaccounttype: Premium_LRS
+#   kind: Managed
+# volumeBindingMode: WaitForFirstConsumer
+# allowVolumeExpansion: true

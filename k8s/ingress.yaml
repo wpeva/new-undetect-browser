@@ -1,0 +1,170 @@
+# ==================================
+# Ingress Configuration
+# External access with SSL/TLS termination
+# ==================================
+
+---
+# Nginx Ingress Controller (if not already installed)
+# Install with: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+
+---
+# Main Ingress Resource
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: browser-pool-ingress
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+  annotations:
+    # Ingress class
+    kubernetes.io/ingress.class: "nginx"
+
+    # SSL/TLS configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+
+    # Body size
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+
+    # WebSocket support
+    nginx.ingress.kubernetes.io/websocket-services: "browser-pool-internal"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: no-referrer-when-downgrade";
+
+    # CORS (if needed)
+    # nginx.ingress.kubernetes.io/enable-cors: "true"
+    # nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+
+spec:
+  # TLS configuration
+  tls:
+  - hosts:
+    - antidetect.example.com
+    - api.antidetect.example.com
+    secretName: tls-secret
+
+  rules:
+  # Main API endpoint
+  - host: antidetect.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: browser-pool-internal
+            port:
+              number: 3000
+
+  # API subdomain
+  - host: api.antidetect.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: browser-pool-internal
+            port:
+              number: 3000
+
+---
+# Ingress for CDP (Chrome DevTools Protocol)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: browser-pool-cdp-ingress
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/websocket-services: "browser-pool-internal"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+spec:
+  tls:
+  - hosts:
+    - cdp.antidetect.example.com
+    secretName: tls-secret
+
+  rules:
+  - host: cdp.antidetect.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: browser-pool-internal
+            port:
+              number: 9222
+
+---
+# ClusterIssuer for Let's Encrypt (requires cert-manager)
+# Install cert-manager first:
+# kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Let's Encrypt production server
+    server: https://acme-v02.api.letsencrypt.org/directory
+
+    # Email for certificate expiration notices
+    email: admin@example.com
+
+    # Private key secret
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+
+    # HTTP-01 challenge
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+
+---
+# ClusterIssuer for Let's Encrypt Staging (for testing)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    # Let's Encrypt staging server
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+
+    email: admin@example.com
+
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
