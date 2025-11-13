@@ -1,0 +1,90 @@
+# ==================================
+# Service Configuration
+# Load Balancer for Browser Pool
+# ==================================
+
+---
+# Main Browser Pool Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: browser-pool-service
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
+    service.beta.kubernetes.io/do-loadbalancer-healthcheck-path: "/health"
+    service.beta.kubernetes.io/do-loadbalancer-healthcheck-interval-seconds: "10"
+spec:
+  type: LoadBalancer
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours
+  selector:
+    app: browser
+  ports:
+  - name: api
+    port: 80
+    targetPort: 3000
+    protocol: TCP
+  - name: api-secure
+    port: 443
+    targetPort: 3000
+    protocol: TCP
+  - name: cdp
+    port: 9222
+    targetPort: 9222
+    protocol: TCP
+
+---
+# Internal ClusterIP Service for inter-pod communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: browser-pool-internal
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+spec:
+  type: ClusterIP
+  selector:
+    app: browser
+  ports:
+  - name: api
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  - name: cdp
+    port: 9222
+    targetPort: 9222
+    protocol: TCP
+
+---
+# Headless Service for StatefulSet Discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: browser-pool-headless
+  namespace: antidetect
+  labels:
+    app: browser
+    tier: application
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: browser
+  ports:
+  - name: api
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  - name: cdp
+    port: 9222
+    targetPort: 9222
+    protocol: TCP

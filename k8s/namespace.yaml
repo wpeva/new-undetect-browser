@@ -1,0 +1,14 @@
+# ==================================
+# Namespace Configuration
+# Isolate antidetect browser resources
+# ==================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: antidetect
+  labels:
+    name: antidetect
+    environment: production
+    app: browser-pool
+  annotations:
+    description: "Antidetect Browser Pool Namespace"
