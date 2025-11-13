@@ -1,0 +1,205 @@
+# Prometheus Alert Rules for Anti-Detect Browser
+#
+# Alerts for critical issues that require immediate attention
+
+groups:
+  - name: detection_alerts
+    interval: 1m
+    rules:
+      - alert: DetectionScoreLow
+        expr: detection_score < 9.0
+        for: 5m
+        labels:
+          severity: critical
+          component: detection
+        annotations:
+          summary: "Detection score dropped below 9.0"
+          description: "Detection score is {{ $value }}, which is below the acceptable threshold of 9.0. This indicates our protections may have been compromised."
+
+      - alert: DetectionScoreCriticallyLow
+        expr: detection_score < 8.0
+        for: 1m
+        labels:
+          severity: critical
+          component: detection
+        annotations:
+          summary: "CRITICAL: Detection score below 8.0"
+          description: "Detection score is {{ $value }}, critically low! Immediate action required."
+
+      - alert: DetectionTestsFailing
+        expr: detection_tests_failed > 3
+        for: 10m
+        labels:
+          severity: warning
+          component: detection
+        annotations:
+          summary: "Multiple detection tests failing"
+          description: "{{ $value }} detection tests are currently failing."
+
+  - name: browser_alerts
+    interval: 30s
+    rules:
+      - alert: HighSessionCount
+        expr: browser_sessions_active > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: browser
+        annotations:
+          summary: "High number of active sessions"
+          description: "There are {{ $value }} active sessions, approaching the limit of 100."
+
+      - alert: SessionCreationFailed
+        expr: rate(browser_session_creation_failures_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: browser
+        annotations:
+          summary: "Session creation failures detected"
+          description: "Session creation is failing at a rate of {{ $value }} per second."
+
+      - alert: SessionMemoryHigh
+        expr: browser_memory_bytes > 500000000  # 500MB
+        for: 10m
+        labels:
+          severity: warning
+          component: browser
+        annotations:
+          summary: "Session memory usage high"
+          description: "A browser session is using {{ $value | humanize }}B of memory."
+
+  - name: system_alerts
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value }}% disk space remaining on {{ $labels.instance }}"
+
+      - alert: CriticalDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 5
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "CRITICAL: Very low disk space"
+          description: "Only {{ $value }}% disk space remaining on {{ $labels.instance }}"
+
+  - name: performance_alerts
+    interval: 1m
+    rules:
+      - alert: HighPerformanceOverhead
+        expr: performance_overhead_percent > 10
+        for: 15m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "Performance overhead too high"
+          description: "Performance overhead is {{ $value }}%, exceeding the 10% threshold."
+
+      - alert: SlowPageLoad
+        expr: histogram_quantile(0.95, rate(browser_page_load_time_seconds_bucket[5m])) > 3
+        for: 10m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "Slow page load times"
+          description: "95th percentile page load time is {{ $value }}s, exceeding 3s threshold."
+
+  - name: service_alerts
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: service
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} is down."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: service
+        annotations:
+          summary: "High error rate"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+
+  - name: redis_alerts
+    interval: 1m
+    rules:
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis service is not responding."
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis is using {{ $value | humanizePercentage }} of available memory."
+
+  - name: postgres_alerts
+    interval: 1m
+    rules:
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: postgres
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database is not responding."
+
+      - alert: PostgresConnectionsHigh
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: postgres
+        annotations:
+          summary: "PostgreSQL connections high"
+          description: "PostgreSQL is using {{ $value | humanizePercentage }} of max connections."
