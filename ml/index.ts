@@ -2,6 +2,7 @@
  * ML Dataset Collection & Profile Generation Module
  * Session 9: Machine Learning Dataset Collection
  * Session 10: ML Profile Generation
+ * Session 11: Adaptive Detection System
  *
  * Export all components
  */
@@ -25,3 +26,23 @@ export {
   type GeneratedProfile,
   type ValidationResult,
 } from './api/generate';
+
+// Adaptive Detection System (Session 11)
+export {
+  DetectionMonitor,
+  AutoUpdater,
+  AdaptiveDashboard,
+  createAutoUpdater,
+  createDashboard,
+  AdaptiveDetectionSystem,
+} from './detection';
+
+export type {
+  DetectorConfig,
+  DetectionScore,
+  DetectionReport,
+  ProtectionConfig,
+  UpdateResult,
+  AutoUpdaterConfig,
+  DashboardConfig,
+} from './detection';
