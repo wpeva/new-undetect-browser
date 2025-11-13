@@ -33,7 +33,8 @@
   },
   "include": [
     "src/**/*",
-    "server/**/*"
+    "server/**/*",
+    "cloud/**/*"
   ],
   "exclude": [
     "node_modules",

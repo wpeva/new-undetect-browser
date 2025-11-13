@@ -1,0 +1,192 @@
+version: '3.8'
+
+services:
+  # ========== Browser Pool ==========
+  # Scalable browser instances
+  browser-pool:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cloud
+    image: antidetect-cloud:latest
+    deploy:
+      replicas: 5  # Scale to 5 instances
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://antidetect:password@postgres:5432/antidetect
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MAX_CONCURRENT_SESSIONS=20  # Max sessions per instance
+      - SESSION_TIMEOUT=3600000  # 1 hour
+    ports:
+      - "3000-3004:3000"  # API ports for 5 instances
+    depends_on:
+      - redis
+      - postgres
+      - minio
+    networks:
+      - antidetect-network
+    volumes:
+      - browser-data:/home/browser/.local/share
+      - /dev/shm:/dev/shm  # Shared memory for better performance
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ========== API Gateway ==========
+  # NGINX load balancer for browser pool
+  api-gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./cloud/config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./cloud/config/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - browser-pool
+    networks:
+      - antidetect-network
+    restart: unless-stopped
+
+  # ========== Redis ==========
+  # Session state and caching
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - antidetect-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ========== PostgreSQL ==========
+  # Profiles and persistent data
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=antidetect
+      - POSTGRES_USER=antidetect
+      - POSTGRES_PASSWORD=password  # Change in production!
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./cloud/config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - antidetect-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U antidetect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== MinIO ==========
+  # Object storage for profiles, screenshots, recordings
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin  # Change in production!
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    volumes:
+      - minio-data:/data
+    networks:
+      - antidetect-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========== Prometheus (Optional) ==========
+  # Metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./cloud/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - antidetect-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # ========== Grafana (Optional) ==========
+  # Metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Change in production!
+      - GF_INSTALL_PLUGINS=redis-datasource
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./cloud/config/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/dashboard.json:ro
+    depends_on:
+      - prometheus
+    networks:
+      - antidetect-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+# ========== Networks ==========
+networks:
+  antidetect-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# ========== Volumes ==========
+volumes:
+  browser-data:
+    driver: local
+  redis-data:
+    driver: local
+  postgres-data:
+    driver: local
+  minio-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
