@@ -11,6 +11,9 @@ import { SpeechSynthesisProtection } from '../modules/speech-synthesis-protectio
 import { MediaCodecsProtection } from '../modules/media-codecs-protection';
 import { WebGL2Protection } from '../modules/webgl2-protection';
 import { PerformanceAPIProtection } from '../modules/performance-api-protection';
+import { DeviceOrientationProtection } from '../modules/device-orientation-protection';
+import { WebAuthnProtection } from '../modules/webauthn-protection';
+import { BluetoothUSBProtection } from '../modules/bluetooth-usb-protection';
 import { logger } from '../utils/logger';
 import {
   FingerprintProfile,
@@ -32,6 +35,10 @@ export interface StealthConfig {
   mediaCodecsProtection?: boolean;
   webgl2Protection?: boolean;
   performanceAPIProtection?: boolean;
+  // Session 2 protection modules
+  deviceOrientationProtection?: boolean;
+  webauthnProtection?: boolean;
+  bluetoothUSBProtection?: boolean;
   customFingerprint?: FingerprintProfile;
 }
 
@@ -54,6 +61,10 @@ export class StealthEngine {
   private mediaCodecsProtection: MediaCodecsProtection;
   private webgl2Protection: WebGL2Protection;
   private performanceAPIProtection: PerformanceAPIProtection;
+  // Session 2 protection modules
+  private deviceOrientationProtection: DeviceOrientationProtection;
+  private webauthnProtection: WebAuthnProtection;
+  private bluetoothUSBProtection: BluetoothUSBProtection;
   private fingerprint: FingerprintProfile;
   private initialized: boolean = false;
 
@@ -76,6 +87,10 @@ export class StealthEngine {
       mediaCodecsProtection: config.mediaCodecsProtection ?? (level !== 'basic'),
       webgl2Protection: config.webgl2Protection ?? (level !== 'basic'),
       performanceAPIProtection: config.performanceAPIProtection ?? (level === 'paranoid'),
+      // Session 2 modules - enabled for advanced and paranoid levels
+      deviceOrientationProtection: config.deviceOrientationProtection ?? (level !== 'basic'),
+      webauthnProtection: config.webauthnProtection ?? (level !== 'basic'),
+      bluetoothUSBProtection: config.bluetoothUSBProtection ?? (level !== 'basic'),
       customFingerprint: config.customFingerprint,
     };
 
@@ -113,6 +128,21 @@ export class StealthEngine {
     this.performanceAPIProtection = new PerformanceAPIProtection({
       enabled: this.config.performanceAPIProtection,
       noiseLevel: level === 'paranoid' ? 'aggressive' : 'moderate',
+    });
+
+    // Initialize Session 2 protection modules
+    this.deviceOrientationProtection = new DeviceOrientationProtection({
+      enabled: this.config.deviceOrientationProtection,
+      deviceType: this.fingerprint.isMobile ? 'mobile' : 'desktop',
+    });
+    this.webauthnProtection = new WebAuthnProtection({
+      enabled: this.config.webauthnProtection,
+      platform: this.fingerprint.platform as any,
+    });
+    this.bluetoothUSBProtection = new BluetoothUSBProtection({
+      enabled: this.config.bluetoothUSBProtection,
+      platform: this.fingerprint.platform as any,
+      browser: 'chrome', // Default to chrome
     });
 
     logger.info(`StealthEngine initialized with level: ${this.config.level}`);
@@ -195,6 +225,19 @@ export class StealthEngine {
 
       if (this.config.performanceAPIProtection) {
         await this.performanceAPIProtection.apply(page);
+      }
+
+      // Apply Session 2 protection modules
+      if (this.config.deviceOrientationProtection) {
+        await this.deviceOrientationProtection.apply(page);
+      }
+
+      if (this.config.webauthnProtection) {
+        await this.webauthnProtection.apply(page);
+      }
+
+      if (this.config.bluetoothUSBProtection) {
+        await this.bluetoothUSBProtection.apply(page);
       }
 
       // Setup network protection (always last)
