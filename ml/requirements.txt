@@ -1,0 +1,17 @@
+# ML Profile Generator Requirements
+# Session 10: Training Profile Generator ML Model
+
+# Core ML frameworks
+torch>=2.0.0
+transformers>=4.30.0
+
+# Data processing
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Utilities
+tqdm>=4.65.0
+
+# Optional: GPU support
+# If you want to use CUDA for GPU acceleration, install torch with CUDA support:
+# pip install torch --index-url https://download.pytorch.org/whl/cu118
