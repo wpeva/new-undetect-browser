@@ -1,0 +1,275 @@
+# Default values for antidetect-browser
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "fast-ssd"
+
+# API deployment
+api:
+  enabled: true
+  replicaCount: 3
+
+  image:
+    repository: antidetect/api
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 3000
+    metricsPort: 9090
+    annotations: {}
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+    hosts:
+      - host: api.antidetect.example.com
+        paths:
+          - path: /api
+            pathType: Prefix
+    tls:
+      - secretName: antidetect-tls
+        hosts:
+          - api.antidetect.example.com
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: antidetect-api
+            topologyKey: kubernetes.io/hostname
+
+  nodeSelector: {}
+  tolerations: []
+
+  env:
+    LOG_LEVEL: "info"
+    MAX_SESSIONS_PER_POD: "10"
+    SESSION_TIMEOUT: "3600000"
+    PROFILE_ROTATION_INTERVAL: "86400000"
+
+# Browser pool deployment
+browserPool:
+  enabled: true
+  replicaCount: 5
+
+  image:
+    repository: antidetect/browser
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    clusterIP: None  # Headless service
+    port: 9222
+    metricsPort: 9091
+
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 85
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 3
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: browser-pool
+            topologyKey: kubernetes.io/hostname
+
+  nodeSelector: {}
+  tolerations: []
+
+  env:
+    MAX_BROWSERS: "10"
+    CHROME_PATH: "/opt/chromium/chrome"
+    HEADLESS: "true"
+
+  volumes:
+    shm:
+      enabled: true
+      sizeLimit: "2Gi"
+    profiles:
+      enabled: true
+      sizeLimit: "10Gi"
+    cache:
+      enabled: true
+      sizeLimit: "5Gi"
+
+# Redis cluster (for session storage)
+redis:
+  enabled: true
+  architecture: cluster
+  cluster:
+    nodes: 3
+    replicas: 1
+  auth:
+    enabled: true
+    password: "change-me-in-production"
+  master:
+    persistence:
+      enabled: true
+      storageClass: "fast-ssd"
+      size: 20Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      storageClass: "fast-ssd"
+      size: 20Gi
+
+# PostgreSQL database (for metadata storage)
+postgresql:
+  enabled: true
+  auth:
+    username: antidetect
+    password: "change-me-in-production"
+    database: antidetect
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "fast-ssd"
+      size: 50Gi
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      storageClass: "fast-ssd"
+      size: 50Gi
+
+# Prometheus monitoring
+prometheus:
+  enabled: true
+  alertmanager:
+    enabled: true
+  pushgateway:
+    enabled: false
+  server:
+    persistentVolume:
+      enabled: true
+      storageClass: "fast-ssd"
+      size: 50Gi
+    retention: "30d"
+
+# Grafana dashboards
+grafana:
+  enabled: true
+  adminPassword: "change-me-in-production"
+  persistence:
+    enabled: true
+    storageClass: "fast-ssd"
+    size: 10Gi
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'antidetect'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/antidetect
+  dashboards:
+    antidetect:
+      overview:
+        file: dashboards/overview.json
+
+# Service mesh (Istio)
+serviceMesh:
+  enabled: false
+  istio:
+    enabled: false
+    mtls:
+      mode: STRICT
+    tracing:
+      enabled: true
+      sampling: 10
+
+# Network policies
+networkPolicies:
+  enabled: true
+
+# RBAC
+rbac:
+  create: true
+  serviceAccount:
+    create: true
+    name: antidetect-api
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# ConfigMap data
+config:
+  logLevel: "info"
+  logFormat: "json"
+  maxSessionsPerPod: 10
+  sessionTimeout: 3600000
+  profileRotationPolicy: "hybrid"
+  profileRotationInterval: 86400000
+  profileMaxAge: 604800000
+  detectionScoreThreshold: 0.8
+
+# Secrets (override in production)
+secrets:
+  redisPassword: "change-me-in-production"
+  postgresPassword: "change-me-in-production"
+  apiSecretKey: "change-me-in-production"
+  jwtSecret: "change-me-in-production"
+  encryptionKey: "change-me-in-production"

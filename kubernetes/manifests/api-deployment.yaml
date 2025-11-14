@@ -1,0 +1,173 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: antidetect-api
+  labels:
+    app: antidetect-api
+    component: api
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: antidetect-api
+  template:
+    metadata:
+      labels:
+        app: antidetect-api
+        component: api
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: antidetect-api
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: antidetect-api
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: api
+        image: antidetect/api:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: antidetect-config
+              key: LOG_LEVEL
+        - name: REDIS_URL
+          value: "redis://redis-cluster:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: antidetect-secrets
+              key: REDIS_PASSWORD
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "antidetect"
+        - name: POSTGRES_USER
+          value: "antidetect"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: antidetect-secrets
+              key: POSTGRES_PASSWORD
+        - name: API_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: antidetect-secrets
+              key: API_SECRET_KEY
+        - name: MAX_SESSIONS_PER_POD
+          valueFrom:
+            configMapKeyRef:
+              name: antidetect-config
+              key: MAX_SESSIONS_PER_POD
+        - name: SESSION_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: antidetect-config
+              key: SESSION_TIMEOUT
+        - name: PROFILE_ROTATION_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: antidetect-config
+              key: PROFILE_ROTATION_INTERVAL
+        - name: BROWSER_POOL_SERVICE
+          value: "browser-pool:9222"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: antidetect-api
+  labels:
+    app: antidetect-api
+spec:
+  type: ClusterIP
+  selector:
+    app: antidetect-api
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600

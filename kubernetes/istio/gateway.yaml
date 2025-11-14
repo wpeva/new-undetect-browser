@@ -1,0 +1,178 @@
+# Istio Gateway for external traffic
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: antidetect-gateway
+  namespace: antidetect
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  # HTTPS traffic
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: antidetect-tls
+    hosts:
+    - "api.antidetect.example.com"
+  # HTTP traffic (redirect to HTTPS)
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    tls:
+      httpsRedirect: true
+    hosts:
+    - "api.antidetect.example.com"
+---
+# VirtualService for API routing
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: antidetect-api
+  namespace: antidetect
+spec:
+  hosts:
+  - "api.antidetect.example.com"
+  gateways:
+  - antidetect-gateway
+  http:
+  # API routes
+  - match:
+    - uri:
+        prefix: "/api"
+    route:
+    - destination:
+        host: antidetect-api.antidetect.svc.cluster.local
+        port:
+          number: 3000
+        subset: v1
+      weight: 100
+    timeout: 60s
+    retries:
+      attempts: 3
+      perTryTimeout: 20s
+      retryOn: 5xx,reset,connect-failure,refused-stream
+  # Metrics routes (internal only)
+  - match:
+    - uri:
+        prefix: "/metrics"
+    route:
+    - destination:
+        host: antidetect-api.antidetect.svc.cluster.local
+        port:
+          number: 9090
+    timeout: 10s
+---
+# DestinationRule for API
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: antidetect-api
+  namespace: antidetect
+spec:
+  host: antidetect-api.antidetect.svc.cluster.local
+  trafficPolicy:
+    loadBalancer:
+      consistentHash:
+        httpCookie:
+          name: session
+          ttl: 3600s
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 40
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+---
+# DestinationRule for Browser Pool
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: browser-pool
+  namespace: antidetect
+spec:
+  host: browser-pool.antidetect.svc.cluster.local
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 50
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 1
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 60s
+---
+# PeerAuthentication for mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: antidetect
+spec:
+  mtls:
+    mode: STRICT
+---
+# AuthorizationPolicy for API access
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: api-access
+  namespace: antidetect
+spec:
+  selector:
+    matchLabels:
+      app: antidetect-api
+  action: ALLOW
+  rules:
+  # Allow from ingress gateway
+  - from:
+    - source:
+        principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+        paths: ["/api/*"]
+  # Allow metrics scraping from Prometheus
+  - from:
+    - source:
+        namespaces: ["monitoring"]
+    to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/metrics"]
+---
+# AuthorizationPolicy for browser pool
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: browser-pool-access
+  namespace: antidetect
+spec:
+  selector:
+    matchLabels:
+      app: browser-pool
+  action: ALLOW
+  rules:
+  # Only allow from API pods
+  - from:
+    - source:
+        principals: ["cluster.local/ns/antidetect/sa/antidetect-api"]

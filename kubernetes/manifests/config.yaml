@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antidetect-config
+data:
+  # Logging
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # API Configuration
+  MAX_SESSIONS_PER_POD: "10"
+  SESSION_TIMEOUT: "3600000"
+  API_RATE_LIMIT: "100"
+
+  # Browser Configuration
+  MAX_BROWSERS: "10"
+  BROWSER_TIMEOUT: "300000"
+  PAGE_LOAD_TIMEOUT: "30000"
+
+  # Profile Configuration
+  PROFILE_ROTATION_POLICY: "hybrid"
+  PROFILE_ROTATION_INTERVAL: "86400000"
+  PROFILE_MAX_AGE: "604800000"
+  PROFILE_ANTI_CORRELATION: "true"
+  PROFILE_MIN_DISSIMILARITY: "0.7"
+
+  # Detection Configuration
+  DETECTION_SCORE_THRESHOLD: "0.8"
+  DETECTION_AUTO_ROTATE: "true"
+
+  # Performance
+  ENABLE_CACHING: "true"
+  CACHE_TTL: "3600"
+  CONNECTION_POOL_SIZE: "20"
+
+  # Monitoring
+  METRICS_ENABLED: "true"
+  TRACING_ENABLED: "true"
+  TRACING_SAMPLE_RATE: "0.1"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: antidetect-secrets
+type: Opaque
+stringData:
+  # Redis
+  REDIS_PASSWORD: "change-me-in-production-redis-password-min-32-chars"
+
+  # PostgreSQL
+  POSTGRES_PASSWORD: "change-me-in-production-postgres-password-min-32-chars"
+
+  # API
+  API_SECRET_KEY: "change-me-in-production-api-secret-key-min-64-chars"
+  JWT_SECRET: "change-me-in-production-jwt-secret-min-64-chars"
+
+  # Encryption
+  ENCRYPTION_KEY: "change-me-in-production-encryption-key-32-chars"
+
+  # External Services
+  LICENSE_KEY: "your-license-key-here"
+  SENTRY_DSN: ""
+
+  # Proxy (optional)
+  PROXY_USERNAME: ""
+  PROXY_PASSWORD: ""
