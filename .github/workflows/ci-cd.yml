@@ -1,0 +1,56 @@
+# CI/CD Pipeline
+# Session 13 of 15 - Deployment Automation
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20.x'
+  DOCKER_REGISTRY: ghcr.io
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Coverage
+        uses: codecov/codecov-action@v3
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Docker images
+        run: |
+          docker build -t antidetect/api:latest -f docker/Dockerfile.api .
+          docker build -t antidetect/browser:latest -f docker/Dockerfile.browser .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to Kubernetes
+        run: kubectl apply -f kubernetes/manifests/
