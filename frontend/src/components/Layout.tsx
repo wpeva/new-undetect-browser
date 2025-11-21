@@ -4,6 +4,7 @@ import {
   Users,
   Globe,
   Zap,
+  Shield,
   Settings,
   Menu,
   X,
@@ -15,6 +16,7 @@ const navigation = [
   { name: 'Profiles', href: '/profiles', icon: Users },
   { name: 'Proxies', href: '/proxies', icon: Globe },
   { name: 'Automation', href: '/automation', icon: Zap },
+  { name: 'Browser Emulation', href: '/browser-emulation', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

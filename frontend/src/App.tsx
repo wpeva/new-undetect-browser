@@ -6,6 +6,7 @@ import Profiles from './pages/Profiles';
 import Proxies from './pages/Proxies';
 import Automation from './pages/Automation';
 import Settings from './pages/Settings';
+import BrowserEmulation from './pages/BrowserEmulation';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="profiles" element={<Profiles />} />
           <Route path="proxies" element={<Proxies />} />
           <Route path="automation" element={<Automation />} />
+          <Route path="browser-emulation" element={<BrowserEmulation />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
