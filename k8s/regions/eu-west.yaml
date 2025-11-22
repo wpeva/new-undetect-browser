@@ -1,0 +1,118 @@
+# ==================================
+# EU West Region Configuration
+# Ireland, Europe
+# ==================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: antidetect-eu-west
+  labels:
+    region: eu-west
+    continent: europe
+
+---
+# API Gateway Deployment for EU-WEST
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: antidetect-eu-west
+  labels:
+    app: api-gateway
+    tier: edge
+    region: eu-west
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+      region: eu-west
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: edge
+        region: eu-west
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - api-gateway
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gateway
+        image: antidetect-gateway:latest
+        imagePullPolicy: Always
+        env:
+        - name: REGION
+          value: "eu-west"
+        - name: REGION_LOCATION
+          value: "Ireland, EU"
+        - name: REGION_LAT
+          value: "53.3"
+        - name: REGION_LON
+          value: "-6.2"
+        - name: BACKEND_POOL
+          value: "http://browser-pool-service.antidetect-eu-west:3000"
+        - name: ENABLE_GEO_ROUTING
+          value: "true"
+        - name: FALLBACK_REGIONS
+          value: "ru-central,us-east"
+        - name: ENABLE_GDPR
+          value: "true"
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8443
+          name: https
+        - containerPort: 9090
+          name: metrics
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Browser Pool Configuration for EU-WEST
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: region-config
+  namespace: antidetect-eu-west
+data:
+  region: "eu-west"
+  timezone: "Europe/Dublin"
+  locale: "en-GB"
+  currency: "EUR"
+  default-proxy-country: "IE"
+  gdpr-compliant: "true"

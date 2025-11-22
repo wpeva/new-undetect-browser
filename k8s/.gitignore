@@ -1,0 +1,20 @@
+# Never commit actual secrets!
+secrets.yaml
+
+# Ignore generated files
+*.log
+*.tmp
+*.bak
+
+# Ignore local development files
+.env
+.env.local
+
+# Ignore TLS certificates
+*.crt
+*.key
+*.pem
+
+# Ignore backup files
+backup.sql
+*.rdb

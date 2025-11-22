@@ -1,0 +1,115 @@
+# ==================================
+# US East Region Configuration
+# Virginia, USA
+# ==================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: antidetect-us-east
+  labels:
+    region: us-east
+    continent: north-america
+
+---
+# API Gateway Deployment for US-EAST
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: antidetect-us-east
+  labels:
+    app: api-gateway
+    tier: edge
+    region: us-east
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+      region: us-east
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: edge
+        region: us-east
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - api-gateway
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gateway
+        image: antidetect-gateway:latest
+        imagePullPolicy: Always
+        env:
+        - name: REGION
+          value: "us-east"
+        - name: REGION_LOCATION
+          value: "Virginia, USA"
+        - name: REGION_LAT
+          value: "37.5"
+        - name: REGION_LON
+          value: "-77.5"
+        - name: BACKEND_POOL
+          value: "http://browser-pool-service.antidetect-us-east:3000"
+        - name: ENABLE_GEO_ROUTING
+          value: "true"
+        - name: FALLBACK_REGIONS
+          value: "eu-west,ru-central"
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8443
+          name: https
+        - containerPort: 9090
+          name: metrics
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Browser Pool Configuration for US-EAST
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: region-config
+  namespace: antidetect-us-east
+data:
+  region: "us-east"
+  timezone: "America/New_York"
+  locale: "en-US"
+  currency: "USD"
+  default-proxy-country: "US"
