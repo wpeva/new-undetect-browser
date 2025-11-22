@@ -1,357 +1,401 @@
-import { Page } from 'puppeteer';
-import { logger } from '../utils/logger';
-
 /**
  * WebGL2 Protection Module
- * Spoofs WebGL2 parameters, extensions, and capabilities
- * Provides 60+ parameter spoofing for advanced anti-detection
+ *
+ * Spoofs WebGL2 parameters, extensions, and shader precision
+ * to prevent advanced fingerprinting.
+ *
+ * This builds on top of basic WebGL protection with WebGL2-specific parameters.
+ *
+ * CRITICAL for passing:
+ * - pixelscan.net (advanced WebGL tests)
+ * - browserleaks.com/webgl
+ * - creepjs.com
  */
-export class WebGL2ProtectionModule {
-  private vendor: string;
-  private renderer: string;
-  private extensions: string[];
-  private parameters: Record<number, any>;
 
-  constructor(config?: {
-    vendor?: string;
-    renderer?: string;
-    extensions?: string[];
-    parameters?: Record<number, any>;
-  }) {
-    // Default to Intel HD Graphics (common configuration)
-    this.vendor = config?.vendor || 'Intel Inc.';
-    this.renderer = config?.renderer || 'Intel(R) HD Graphics 620';
+import type { Page } from 'puppeteer';
 
-    // Common WebGL2 extensions
-    this.extensions = config?.extensions || [
-      'ANGLE_instanced_arrays',
-      'EXT_blend_minmax',
-      'EXT_color_buffer_half_float',
-      'EXT_disjoint_timer_query',
-      'EXT_float_blend',
-      'EXT_frag_depth',
-      'EXT_shader_texture_lod',
-      'EXT_texture_compression_bptc',
-      'EXT_texture_compression_rgtc',
-      'EXT_texture_filter_anisotropic',
-      'EXT_sRGB',
-      'KHR_parallel_shader_compile',
-      'OES_element_index_uint',
-      'OES_fbo_render_mipmap',
-      'OES_standard_derivatives',
-      'OES_texture_float',
-      'OES_texture_float_linear',
-      'OES_texture_half_float',
-      'OES_texture_half_float_linear',
-      'OES_vertex_array_object',
-      'WEBGL_color_buffer_float',
-      'WEBGL_compressed_texture_s3tc',
-      'WEBGL_compressed_texture_s3tc_srgb',
-      'WEBGL_debug_renderer_info',
-      'WEBGL_debug_shaders',
-      'WEBGL_depth_texture',
-      'WEBGL_draw_buffers',
-      'WEBGL_lose_context',
-      'WEBGL_multi_draw',
-    ];
+export interface WebGL2Config {
+  enabled: boolean;
+  gpu: string; // e.g., "NVIDIA GeForce RTX 3080"
+  vendor: string; // e.g., "NVIDIA Corporation"
+  customParameters?: Record<number, any>;
+  customExtensions?: string[];
+}
 
-    // WebGL2 parameter defaults (60+ parameters)
-    this.parameters = config?.parameters || this.getDefaultParameters();
-  }
+/**
+ * Realistic WebGL2 parameters for different GPUs
+ */
+const GPU_PROFILES: Record<string, any> = {
+  'NVIDIA GeForce RTX 3080': {
+    MAX_TEXTURE_SIZE: 32768,
+    MAX_CUBE_MAP_TEXTURE_SIZE: 32768,
+    MAX_RENDERBUFFER_SIZE: 16384,
+    MAX_VIEWPORT_DIMS: [32768, 32768],
+    MAX_TEXTURE_IMAGE_UNITS: 32,
+    MAX_VERTEX_TEXTURE_IMAGE_UNITS: 32,
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS: 80,
+    MAX_VERTEX_ATTRIBS: 16,
+    MAX_VARYING_VECTORS: 31,
+    MAX_VERTEX_UNIFORM_VECTORS: 4096,
+    MAX_FRAGMENT_UNIFORM_VECTORS: 4096,
+    MAX_SAMPLES: 16,
+    MAX_COLOR_ATTACHMENTS: 8,
+    MAX_DRAW_BUFFERS: 8,
+    MAX_3D_TEXTURE_SIZE: 16384,
+    MAX_ARRAY_TEXTURE_LAYERS: 2048,
+    MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS: 4,
+    MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS: 128,
+    MAX_UNIFORM_BUFFER_BINDINGS: 84,
+    MAX_UNIFORM_BLOCK_SIZE: 65536,
+  },
+  'NVIDIA GeForce RTX 4090': {
+    MAX_TEXTURE_SIZE: 32768,
+    MAX_CUBE_MAP_TEXTURE_SIZE: 32768,
+    MAX_RENDERBUFFER_SIZE: 16384,
+    MAX_VIEWPORT_DIMS: [32768, 32768],
+    MAX_TEXTURE_IMAGE_UNITS: 32,
+    MAX_VERTEX_TEXTURE_IMAGE_UNITS: 32,
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS: 96,
+    MAX_VERTEX_ATTRIBS: 16,
+    MAX_VARYING_VECTORS: 31,
+    MAX_VERTEX_UNIFORM_VECTORS: 4096,
+    MAX_FRAGMENT_UNIFORM_VECTORS: 4096,
+    MAX_SAMPLES: 16,
+    MAX_COLOR_ATTACHMENTS: 8,
+    MAX_DRAW_BUFFERS: 8,
+    MAX_3D_TEXTURE_SIZE: 16384,
+    MAX_ARRAY_TEXTURE_LAYERS: 2048,
+  },
+  'Intel UHD Graphics 630': {
+    MAX_TEXTURE_SIZE: 16384,
+    MAX_CUBE_MAP_TEXTURE_SIZE: 16384,
+    MAX_RENDERBUFFER_SIZE: 16384,
+    MAX_VIEWPORT_DIMS: [16384, 16384],
+    MAX_TEXTURE_IMAGE_UNITS: 16,
+    MAX_VERTEX_TEXTURE_IMAGE_UNITS: 16,
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS: 80,
+    MAX_VERTEX_ATTRIBS: 16,
+    MAX_VARYING_VECTORS: 30,
+    MAX_VERTEX_UNIFORM_VECTORS: 1024,
+    MAX_FRAGMENT_UNIFORM_VECTORS: 1024,
+    MAX_SAMPLES: 8,
+    MAX_COLOR_ATTACHMENTS: 8,
+    MAX_DRAW_BUFFERS: 8,
+    MAX_3D_TEXTURE_SIZE: 2048,
+    MAX_ARRAY_TEXTURE_LAYERS: 2048,
+  },
+  'AMD Radeon RX 6900 XT': {
+    MAX_TEXTURE_SIZE: 16384,
+    MAX_CUBE_MAP_TEXTURE_SIZE: 16384,
+    MAX_RENDERBUFFER_SIZE: 16384,
+    MAX_VIEWPORT_DIMS: [16384, 16384],
+    MAX_TEXTURE_IMAGE_UNITS: 32,
+    MAX_VERTEX_TEXTURE_IMAGE_UNITS: 16,
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS: 80,
+    MAX_VERTEX_ATTRIBS: 16,
+    MAX_VARYING_VECTORS: 32,
+    MAX_VERTEX_UNIFORM_VECTORS: 4096,
+    MAX_FRAGMENT_UNIFORM_VECTORS: 4096,
+    MAX_SAMPLES: 16,
+    MAX_COLOR_ATTACHMENTS: 8,
+    MAX_DRAW_BUFFERS: 8,
+    MAX_3D_TEXTURE_SIZE: 16384,
+    MAX_ARRAY_TEXTURE_LAYERS: 2048,
+  },
+  'Apple M2': {
+    MAX_TEXTURE_SIZE: 16384,
+    MAX_CUBE_MAP_TEXTURE_SIZE: 16384,
+    MAX_RENDERBUFFER_SIZE: 16384,
+    MAX_VIEWPORT_DIMS: [16384, 16384],
+    MAX_TEXTURE_IMAGE_UNITS: 16,
+    MAX_VERTEX_TEXTURE_IMAGE_UNITS: 16,
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS: 32,
+    MAX_VERTEX_ATTRIBS: 16,
+    MAX_VARYING_VECTORS: 31,
+    MAX_VERTEX_UNIFORM_VECTORS: 1024,
+    MAX_FRAGMENT_UNIFORM_VECTORS: 1024,
+    MAX_SAMPLES: 4,
+    MAX_COLOR_ATTACHMENTS: 8,
+    MAX_DRAW_BUFFERS: 8,
+    MAX_3D_TEXTURE_SIZE: 2048,
+    MAX_ARRAY_TEXTURE_LAYERS: 2048,
+  },
+};
 
-  /**
-   * Get default WebGL2 parameters that match Intel HD Graphics 620
-   */
-  private getDefaultParameters(): Record<number, any> {
-    return {
-      // WebGL 1.0 parameters
-      2849: 8, // SUBPIXEL_BITS
-      3379: 16384, // MAX_TEXTURE_SIZE
-      3386: new Int32Array([16384, 16384]), // MAX_VIEWPORT_DIMS
-      3410: 8, // RED_BITS
-      3411: 8, // GREEN_BITS
-      3412: 8, // BLUE_BITS
-      3413: 8, // ALPHA_BITS
-      3414: 24, // DEPTH_BITS
-      3415: 8, // STENCIL_BITS
+/**
+ * Realistic WebGL2 extensions
+ */
+const WEBGL2_EXTENSIONS = [
+  'EXT_color_buffer_float',
+  'EXT_color_buffer_half_float',
+  'EXT_disjoint_timer_query_webgl2',
+  'EXT_float_blend',
+  'EXT_texture_compression_bptc',
+  'EXT_texture_compression_rgtc',
+  'EXT_texture_filter_anisotropic',
+  'EXT_texture_norm16',
+  'KHR_parallel_shader_compile',
+  'OES_draw_buffers_indexed',
+  'OES_texture_float_linear',
+  'OVR_multiview2',
+  'WEBGL_clip_cull_distance',
+  'WEBGL_compressed_texture_s3tc',
+  'WEBGL_compressed_texture_s3tc_srgb',
+  'WEBGL_debug_renderer_info',
+  'WEBGL_debug_shaders',
+  'WEBGL_lose_context',
+  'WEBGL_multi_draw',
+];
 
-      // Aliasing ranges
-      33901: new Float32Array([1, 8192]), // ALIASED_POINT_SIZE_RANGE
-      33902: new Float32Array([1, 1]), // ALIASED_LINE_WIDTH_RANGE
+export class WebGL2Protection {
+  private config: WebGL2Config;
 
-      // Texture parameters
-      34024: 16384, // MAX_CUBE_MAP_TEXTURE_SIZE / MAX_RENDERBUFFER_SIZE
-      34076: 16, // MAX_TEXTURE_IMAGE_UNITS
-      34930: 16, // MAX_TEXTURE_MAX_ANISOTROPY_EXT
-
-      // Vertex parameters
-      34921: 16, // MAX_VERTEX_ATTRIBS
-      35658: 31, // MAX_VARYING_VECTORS
-      35659: 1024, // MAX_VERTEX_UNIFORM_VECTORS
-      35660: 32, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
-      35661: 16, // MAX_VERTEX_TEXTURE_IMAGE_UNITS
-
-      // Fragment parameters
-      35657: 16, // MAX_FRAGMENT_UNIFORM_BLOCKS
-      36338: 1024, // MAX_FRAGMENT_UNIFORM_VECTORS
-
-      // Varying and other limits
-      35371: 31, // MAX_VARYING_VECTORS
-      35374: 16, // MAX_VERTEX_ATTRIBS
-      35375: 124, // MAX_VARYING_COMPONENTS
-      35376: 32, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
-      35379: 1024, // MAX_FRAGMENT_UNIFORM_VECTORS
-      35380: 1024, // MAX_VERTEX_UNIFORM_VECTORS
-
-      // Framebuffer
-      36063: 8, // MAX_COLOR_ATTACHMENTS
-      36183: 8, // MAX_DRAW_BUFFERS
-
-      // Uniform parameters
-      36347: 4096, // MAX_VERTEX_UNIFORM_COMPONENTS
-      36348: 16, // MAX_VERTEX_UNIFORM_BLOCKS
-      36349: 64, // MAX_VERTEX_OUTPUT_COMPONENTS
-      36350: 60, // MAX_FRAGMENT_INPUT_COMPONENTS
-
-      // WebGL2 specific parameters
-      35071: 2048, // MAX_3D_TEXTURE_SIZE
-      35373: 2048, // MAX_ARRAY_TEXTURE_LAYERS
-      35968: 8, // MAX_SAMPLES
-      36006: 4, // MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS
-      36007: 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
-      36008: 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS
-      36203: 72, // MAX_UNIFORM_BUFFER_BINDINGS
-      36204: 65536, // MAX_UNIFORM_BLOCK_SIZE
-      36205: 84, // MAX_COMBINED_UNIFORM_BLOCKS
-      36208: 16, // MAX_VERTEX_UNIFORM_BLOCKS
-      36209: 16, // MAX_FRAGMENT_UNIFORM_BLOCKS
-
-      // Additional WebGL2 parameters
-      32773: 4294967295, // MAX_ELEMENT_INDEX
-      32823: 16384, // MAX_ELEMENTS_INDICES
-      32824: 16384, // MAX_ELEMENTS_VERTICES
-      32937: 64, // MAX_VERTEX_OUTPUT_COMPONENTS
-      32938: 60, // MAX_FRAGMENT_INPUT_COMPONENTS
-      32939: -8, // MIN_PROGRAM_TEXEL_OFFSET
-      32940: 7, // MAX_PROGRAM_TEXEL_OFFSET
-
-      // Precision formats
-      35632: { precision: 23, rangeMin: 127, rangeMax: 127 }, // VERTEX_SHADER HIGH_FLOAT
-      35633: { precision: 23, rangeMin: 127, rangeMax: 127 }, // FRAGMENT_SHADER HIGH_FLOAT
+  constructor(config: Partial<WebGL2Config> = {}) {
+    this.config = {
+      enabled: true,
+      gpu: 'NVIDIA GeForce RTX 3080',
+      vendor: 'NVIDIA Corporation',
+      ...config,
     };
   }
 
   /**
-   * Inject WebGL2 protection scripts
+   * Apply WebGL2 protection to a page
    */
-  async inject(page: Page): Promise<void> {
-    logger.debug('Injecting WebGL2 protection scripts');
+  async apply(page: Page): Promise<void> {
+    if (!this.config.enabled) {
+      return;
+    }
 
-    await page.evaluateOnNewDocument((config: {
-      vendor: string;
-      renderer: string;
-      extensions: string[];
-      parameters: Record<number, any>;
-    }) => {
-      // ========================================
-      // WebGL2 Parameter Spoofing
-      // ========================================
+    const parameters = this.getParametersForGPU();
+    const extensions = this.config.customExtensions || WEBGL2_EXTENSIONS;
 
-      const spoofWebGL = (context: WebGLRenderingContext | WebGL2RenderingContext) => {
-        const originalGetParameter = context.getParameter.bind(context);
-        const originalGetExtension = context.getExtension.bind(context);
-        const originalGetSupportedExtensions = context.getSupportedExtensions.bind(context);
-        const originalGetShaderPrecisionFormat = context.getShaderPrecisionFormat.bind(context);
+    await page.evaluateOnNewDocument(
+      this.getInjectionScript(),
+      this.config.vendor,
+      this.config.gpu,
+      parameters,
+      extensions
+    );
+  }
 
-        // Spoof getParameter
-        context.getParameter = function(parameter: number) {
-          // UNMASKED_VENDOR_WEBGL (37445)
-          if (parameter === 37445) {
-            return config.vendor;
-          }
-          // UNMASKED_RENDERER_WEBGL (37446)
-          if (parameter === 37446) {
-            return config.renderer;
-          }
-
-          // Check if we have a spoofed value for this parameter
-          if (config.parameters.hasOwnProperty(parameter)) {
-            const value = config.parameters[parameter];
-            // Return arrays as typed arrays
-            if (Array.isArray(value)) {
-              return new Int32Array(value);
-            }
-            return value;
-          }
-
-          // Call original for unspoofed parameters
-          return originalGetParameter(parameter);
-        };
-
-        // Spoof getSupportedExtensions
-        context.getSupportedExtensions = function() {
-          return config.extensions;
-        };
-
-        // Spoof getExtension
-        context.getExtension = function(name: string) {
-          // Only return extension if it's in our supported list
-          if (config.extensions.includes(name)) {
-            return originalGetExtension(name);
-          }
-          return null;
-        };
-
-        // Spoof getShaderPrecisionFormat
-        context.getShaderPrecisionFormat = function(shaderType: number, precisionType: number) {
-          // Return realistic precision formats
-          const formats: Record<number, any> = {
-            // HIGH_FLOAT
-            36338: {
-              precision: 23,
-              rangeMin: 127,
-              rangeMax: 127
-            },
-            // MEDIUM_FLOAT
-            36337: {
-              precision: 10,
-              rangeMin: 62,
-              rangeMax: 62
-            },
-            // LOW_FLOAT
-            36336: {
-              precision: 10,
-              rangeMin: 62,
-              rangeMax: 62
-            },
-            // HIGH_INT
-            36341: {
-              precision: 0,
-              rangeMin: 16,
-              rangeMax: 16
-            },
-            // MEDIUM_INT
-            36340: {
-              precision: 0,
-              rangeMin: 10,
-              rangeMax: 10
-            },
-            // LOW_INT
-            36339: {
-              precision: 0,
-              rangeMin: 8,
-              rangeMax: 8
-            }
-          };
-
-          const format = formats[precisionType];
-          if (format) {
-            return {
-              precision: format.precision,
-              rangeMin: format.rangeMin,
-              rangeMax: format.rangeMax
-            };
-          }
-
-          return originalGetShaderPrecisionFormat(shaderType, precisionType);
-        };
-      };
-
-      // ========================================
-      // Apply to WebGL contexts
-      // ========================================
-
-      // Hook HTMLCanvasElement.getContext
+  /**
+   * Get the injection script
+   */
+  private getInjectionScript() {
+    return (
+      vendor: string,
+      renderer: string,
+      parameters: Record<number, any>,
+      allowedExtensions: string[]
+    ) => {
+      // Store original methods
       const originalGetContext = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function(contextType: string, ...args: any[]) {
-        const context = originalGetContext.apply(this, [contextType, ...args] as any);
+      const originalGetParameter = WebGL2RenderingContext.prototype.getParameter;
+      const originalGetExtension = WebGL2RenderingContext.prototype.getExtension;
+      const originalGetSupportedExtensions =
+        WebGL2RenderingContext.prototype.getSupportedExtensions;
 
-        if (context && (contextType === 'webgl' || contextType === 'experimental-webgl' || contextType === 'webgl2')) {
-          spoofWebGL(context as WebGLRenderingContext | WebGL2RenderingContext);
+      /**
+       * Override getContext to intercept WebGL2 contexts
+       */
+      HTMLCanvasElement.prototype.getContext = function (
+        contextType: string,
+        ...args: any[]
+      ) {
+        const context = originalGetContext.call(this, contextType, ...args);
+
+        if (
+          context &&
+          (contextType === 'webgl2' || contextType === 'experimental-webgl2')
+        ) {
+          return patchWebGL2Context(context as WebGL2RenderingContext);
         }
 
         return context;
       };
 
-      // ========================================
-      // WebGL Renderer Consistency
-      // ========================================
-
-      // Store canvas fingerprint per domain for consistency
-      const canvasFingerprints = new Map<string, string>();
-
-      const getCanvasFingerprint = (canvas: HTMLCanvasElement): string => {
-        const domain = window.location.hostname;
-
-        if (!canvasFingerprints.has(domain)) {
-          // Generate deterministic fingerprint based on domain
-          let hash = 0;
-          for (let i = 0; i < domain.length; i++) {
-            const char = domain.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Convert to 32bit integer
+      /**
+       * Patch WebGL2 context
+       */
+      function patchWebGL2Context(gl: WebGL2RenderingContext): WebGL2RenderingContext {
+        // Override getParameter
+        gl.getParameter = function (pname: number) {
+          // Vendor and renderer
+          if (pname === 0x1f00) {
+            // VENDOR
+            return vendor;
           }
-          canvasFingerprints.set(domain, hash.toString(36));
-        }
+          if (pname === 0x1f01) {
+            // RENDERER
+            return renderer;
+          }
 
-        return canvasFingerprints.get(domain)!;
-      };
+          // Unmasked vendor/renderer (from WEBGL_debug_renderer_info)
+          if (pname === 0x9245) {
+            // UNMASKED_VENDOR_WEBGL
+            return vendor;
+          }
+          if (pname === 0x9246) {
+            // UNMASKED_RENDERER_WEBGL
+            return renderer;
+          }
 
-      // Add subtle noise to WebGL rendering
-      const originalTexImage2D = WebGLRenderingContext.prototype.texImage2D;
-      WebGLRenderingContext.prototype.texImage2D = function(...args: any[]) {
-        return originalTexImage2D.apply(this, args as any);
-      };
+          // Custom parameters
+          if (pname in parameters) {
+            return parameters[pname];
+          }
 
-      if (typeof WebGL2RenderingContext !== 'undefined') {
-        const originalTexImage2D2 = WebGL2RenderingContext.prototype.texImage2D;
-        WebGL2RenderingContext.prototype.texImage2D = function(...args: any[]) {
-          return originalTexImage2D2.apply(this, args as any);
+          // WebGL2-specific parameters
+          const webgl2Params: Record<number, any> = {
+            0x8073: parameters.MAX_3D_TEXTURE_SIZE || 16384, // MAX_3D_TEXTURE_SIZE
+            0x88ff: parameters.MAX_ARRAY_TEXTURE_LAYERS || 2048, // MAX_ARRAY_TEXTURE_LAYERS
+            0x8c29: parameters.MAX_COLOR_ATTACHMENTS || 8, // MAX_COLOR_ATTACHMENTS
+            0x8824: parameters.MAX_DRAW_BUFFERS || 8, // MAX_DRAW_BUFFERS
+            0x8cdf: parameters.MAX_SAMPLES || 16, // MAX_SAMPLES
+            0x8c8a:
+              parameters.MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS || 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
+            0x8c8b:
+              parameters.MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS || 128,
+            0x8a2f: parameters.MAX_UNIFORM_BUFFER_BINDINGS || 84,
+            0x8a30: parameters.MAX_UNIFORM_BLOCK_SIZE || 65536,
+            0x8dfb: parameters.MAX_VERTEX_UNIFORM_BLOCKS || 16,
+            0x8dfa: parameters.MAX_FRAGMENT_UNIFORM_BLOCKS || 16,
+            0x8a34: parameters.MAX_COMBINED_UNIFORM_BLOCKS || 84,
+          };
+
+          if (pname in webgl2Params) {
+            return webgl2Params[pname];
+          }
+
+          // Call original
+          return originalGetParameter.call(gl, pname);
         };
+
+        // Override getExtension
+        gl.getExtension = function (name: string) {
+          // Only allow whitelisted extensions
+          if (!allowedExtensions.includes(name)) {
+            return null;
+          }
+
+          return originalGetExtension.call(gl, name);
+        };
+
+        // Override getSupportedExtensions
+        gl.getSupportedExtensions = function () {
+          // Return only allowed extensions
+          const supported = originalGetSupportedExtensions.call(gl) || [];
+          return supported.filter((ext: string) => allowedExtensions.includes(ext));
+        };
+
+        // Override getShaderPrecisionFormat for consistency
+        const originalGetShaderPrecisionFormat = gl.getShaderPrecisionFormat;
+        gl.getShaderPrecisionFormat = function (
+          shaderType: number,
+          precisionType: number
+        ) {
+          const result = originalGetShaderPrecisionFormat.call(
+            gl,
+            shaderType,
+            precisionType
+          );
+
+          if (!result) return result;
+
+          // Return consistent precision values
+          return {
+            rangeMin: 127,
+            rangeMax: 127,
+            precision: 23,
+          } as WebGLShaderPrecisionFormat;
+        };
+
+        return gl;
       }
 
-      logger.debug?.('WebGL2 protection applied');
-    }, {
-      vendor: this.vendor,
-      renderer: this.renderer,
-      extensions: this.extensions,
-      parameters: this.parameters,
-    });
+      // Fix toString
+      const originalToString = Function.prototype.toString;
+      Function.prototype.toString = function () {
+        if (this === HTMLCanvasElement.prototype.getContext) {
+          return 'function getContext() { [native code] }';
+        }
+        if (this === WebGL2RenderingContext.prototype.getParameter) {
+          return 'function getParameter() { [native code] }';
+        }
+        if (this === WebGL2RenderingContext.prototype.getExtension) {
+          return 'function getExtension() { [native code] }';
+        }
+        if (this === WebGL2RenderingContext.prototype.getSupportedExtensions) {
+          return 'function getSupportedExtensions() { [native code] }';
+        }
+        return originalToString.call(this);
+      };
 
-    logger.debug('WebGL2 protection scripts injected successfully');
+      // Log for debugging
+      if (typeof console !== 'undefined' && console.log) {
+        console.log(
+          `[WebGL2 Protection] Applied for ${renderer} (${allowedExtensions.length} extensions)`
+        );
+      }
+    };
+  }
+
+  /**
+   * Get parameters for the configured GPU
+   */
+  private getParametersForGPU(): Record<number, any> {
+    if (this.config.customParameters) {
+      return this.config.customParameters;
+    }
+
+    const profile = GPU_PROFILES[this.config.gpu];
+    if (!profile) {
+      return GPU_PROFILES['NVIDIA GeForce RTX 3080'];
+    }
+
+    // Convert to WebGL2 constant values
+    const params: Record<number, any> = {
+      0x0d33: profile.MAX_TEXTURE_SIZE, // MAX_TEXTURE_SIZE
+      0x851c: profile.MAX_CUBE_MAP_TEXTURE_SIZE, // MAX_CUBE_MAP_TEXTURE_SIZE
+      0x84e8: profile.MAX_RENDERBUFFER_SIZE, // MAX_RENDERBUFFER_SIZE
+      0x0d3a: profile.MAX_VIEWPORT_DIMS, // MAX_VIEWPORT_DIMS
+      0x8872: profile.MAX_VERTEX_ATTRIBS, // MAX_VERTEX_ATTRIBS
+      0x8869: profile.MAX_VARYING_VECTORS, // MAX_VARYING_VECTORS
+      0x8dfb: profile.MAX_VERTEX_UNIFORM_VECTORS, // MAX_VERTEX_UNIFORM_VECTORS
+      0x8dfd: profile.MAX_FRAGMENT_UNIFORM_VECTORS, // MAX_FRAGMENT_UNIFORM_VECTORS
+      0x8b4d: profile.MAX_TEXTURE_IMAGE_UNITS, // MAX_TEXTURE_IMAGE_UNITS
+      0x8b4c: profile.MAX_VERTEX_TEXTURE_IMAGE_UNITS, // MAX_VERTEX_TEXTURE_IMAGE_UNITS
+      0x8b4d: profile.MAX_COMBINED_TEXTURE_IMAGE_UNITS, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+    };
+
+    return params;
   }
 
   /**
    * Update configuration
    */
-  setConfig(config: {
-    vendor?: string;
-    renderer?: string;
-    extensions?: string[];
-    parameters?: Record<number, any>;
-  }): void {
-    if (config.vendor) this.vendor = config.vendor;
-    if (config.renderer) this.renderer = config.renderer;
-    if (config.extensions) this.extensions = config.extensions;
-    if (config.parameters) this.parameters = config.parameters;
+  updateConfig(config: Partial<WebGL2Config>): void {
+    this.config = { ...this.config, ...config };
   }
+}
 
-  /**
-   * Get current configuration
-   */
-  getConfig() {
-    return {
-      vendor: this.vendor,
-      renderer: this.renderer,
-      extensions: this.extensions,
-      parameters: this.parameters,
-    };
-  }
+/**
+ * Factory function
+ */
+export function createWebGL2Protection(
+  config?: Partial<WebGL2Config>
+): WebGL2Protection {
+  return new WebGL2Protection(config);
+}
 
-  /**
-   * Get the name of this module
-   */
-  getName(): string {
-    return 'WebGL2Protection';
-  }
+/**
+ * Apply to multiple pages
+ */
+export async function applyWebGL2ProtectionToPages(
+  pages: Page[],
+  config?: Partial<WebGL2Config>
+): Promise<void> {
+  const protection = new WebGL2Protection(config);
+  await Promise.all(pages.map((page) => protection.apply(page)));
 }

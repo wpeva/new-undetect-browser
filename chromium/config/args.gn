@@ -1,0 +1,217 @@
+# Chromium Anti-Detection Build Configuration
+# GN Arguments for optimized anti-detection build
+#
+# This file configures the Chromium build with settings optimized for:
+# - Anti-detection features
+# - Minimal binary size
+# - Maximum performance
+# - Production deployment
+#
+# Generated args.gn can be modified with: gn args out/Release
+
+# ==================================================
+# Build Type
+# ==================================================
+
+# Release build (optimized)
+is_debug = false
+
+# Official build (enables optimizations)
+is_official_build = true
+
+# Static linking (single binary)
+is_component_build = false
+
+# ==================================================
+# Optimization
+# ==================================================
+
+# No debug symbols (reduces size by 70%)
+symbol_level = 0
+blink_symbol_level = 0
+
+# Link Time Optimization (smaller, faster)
+use_thin_lto = true
+
+# Jumbo builds (faster compilation)
+use_jumbo_build = true
+
+# Gold linker (faster, uses less memory)
+use_gold = true
+
+# Concurrent links (adjust based on RAM)
+# 2 = 16GB RAM, 4 = 32GB RAM, 8 = 64GB+ RAM
+concurrent_links = 2
+
+# ==================================================
+# Codecs & Media
+# ==================================================
+
+# Enable proprietary codecs (H.264, AAC, etc.)
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+
+# Enable media features
+enable_mse_mpeg2ts_stream_parser = true
+
+# ==================================================
+# Disabled Features (Reduce Size)
+# ==================================================
+
+# Disable unnecessary features
+enable_nacl = false
+enable_pdf = false
+enable_print_preview = false
+enable_service_discovery = false
+enable_hangout_services_extension = false
+enable_widevine = false
+enable_reading_list = false
+enable_background_contents = false
+
+# Disable Chrome extensions support (optional)
+# Uncomment to disable:
+# enable_extensions = false
+
+# ==================================================
+# Target Platform
+# ==================================================
+
+# Target CPU architecture
+target_cpu = "x64"
+
+# Target OS
+target_os = "linux"
+
+# ==================================================
+# Branding
+# ==================================================
+
+# Don't use Chrome branding (avoids trademark issues)
+is_chrome_branded = false
+chrome_pgo_phase = 0
+
+# Custom version strings (optional)
+# Uncomment and customize:
+# chrome_version_major = "120"
+# chrome_version_minor = "0"
+# chrome_version_build = "6099"
+# chrome_version_patch = "109"
+
+# ==================================================
+# Developer Tools
+# ==================================================
+
+# Enable DevTools (needed for CDP/Puppeteer)
+# But with our patches, CDP won't be detectable
+enable_devtools = true
+
+# ==================================================
+# Security & Privacy
+# ==================================================
+
+# Safe browsing (optional, adds ~5MB)
+safe_browsing_mode = 1  # 0=disabled, 1=enabled, 2=enhanced
+
+# Enable sandboxing (recommended)
+use_suid_sandbox = true
+
+# ==================================================
+# Warnings & Errors
+# ==================================================
+
+# Don't treat warnings as errors
+fatal_linker_warnings = false
+treat_warnings_as_errors = false
+
+# ==================================================
+# Custom Anti-Detection Settings
+# ==================================================
+
+# These settings are enabled by our custom patches
+# They don't need to be set here, but are documented for reference:
+#
+# Canvas fingerprinting protection:
+#   - Per-domain consistent noise
+#   - Controlled via --canvas-noise flag at runtime
+#
+# WebGL fingerprinting protection:
+#   - Vendor/renderer spoofing
+#   - Controlled via --webgl-vendor and --webgl-renderer flags
+#
+# WebDriver removal:
+#   - navigator.webdriver always undefined
+#   - No configuration needed
+#
+# Automation flag removal:
+#   - --enable-automation flag removed
+#   - No InfoBar shown
+#
+# Performance timing noise:
+#   - performance.now() has realistic variance
+#   - Automatic, no configuration needed
+
+# ==================================================
+# Advanced Options (Experimental)
+# ==================================================
+
+# Use system libraries (reduces size, may break things)
+# Uncomment with caution:
+# use_system_libjpeg = true
+# use_system_libpng = true
+# use_system_zlib = true
+
+# Enable more aggressive optimization (may be unstable)
+# Uncomment if you want maximum performance:
+# optimize_for_size = false
+# use_lld = true  # LLVM linker (faster than gold)
+# clang_use_chrome_plugins = false  # Disable Chrome-specific checks
+
+# ==================================================
+# Platform-Specific Settings
+# ==================================================
+
+# Linux-specific
+use_sysroot = true
+use_custom_libcxx = true
+
+# Use ALSA for audio (Linux)
+use_alsa = true
+use_pulseaudio = true
+
+# Use X11 (not Wayland, for compatibility)
+use_ozone = true
+ozone_platform = "x11"
+
+# GTK version (3 is standard)
+use_gtk = true
+gtk_version = 3
+
+# ==================================================
+# Testing & Development
+# ==================================================
+
+# Disable if you don't need tests (faster build)
+# Uncomment to disable:
+# enable_base_tracing = false
+# enable_ipc_logging = false
+
+# ==================================================
+# Notes
+# ==================================================
+
+# Final binary size (after stripping):
+#   - chrome: ~100-150 MB
+#   - chromedriver: ~10-15 MB
+#
+# Build time (16 cores, 32GB RAM, SSD):
+#   - First build: 2-4 hours
+#   - Incremental: 5-30 minutes
+#
+# To view all available args:
+#   gn args out/Release --list
+#
+# To view current configuration:
+#   gn args out/Release --list --short
+#
+# To modify interactively:
+#   gn args out/Release

@@ -1,521 +1,410 @@
-import { Page } from 'puppeteer';
-import { logger } from '../utils/logger';
+/**
+ * Bluetooth & USB APIs Protection Module
+ *
+ * Protects against fingerprinting through Bluetooth and USB Web APIs.
+ * These APIs have limited browser/platform support and can be used
+ * for device fingerprinting.
+ *
+ * Provides platform-appropriate behavior.
+ *
+ * CRITICAL for:
+ * - Platform consistency
+ * - API surface fingerprinting
+ * - Advanced detection evasion
+ */
 
-export interface DeviceAPIProfile {
-  hasBluetooth: boolean;
-  hasUSB: boolean;
-  hasSerial: boolean;
-  hasHID: boolean;
-  hasNFC: boolean;
-  platformType: 'desktop' | 'mobile' | 'tablet';
+import type { Page } from 'puppeteer';
+
+export interface BluetoothUSBConfig {
+  enabled: boolean;
+  platform: 'Win32' | 'MacIntel' | 'Linux x86_64' | 'iPhone' | 'iPad' | 'Android';
+  browser: 'chrome' | 'firefox' | 'safari' | 'edge';
+  // Bluetooth API
+  bluetoothAvailable: boolean;
+  // USB API (WebUSB)
+  usbAvailable: boolean;
+  // Serial API
+  serialAvailable: boolean;
+  // HID API
+  hidAvailable: boolean;
 }
 
 /**
- * Bluetooth/USB Protection Module
- * Protects against detection via Web Bluetooth, WebUSB, Web Serial, WebHID, and Web NFC APIs
- * Hides or emulates device APIs based on platform type
+ * Platform and browser-specific API availability
  */
-export class BluetoothUSBProtectionModule {
-  private profile: DeviceAPIProfile;
+const API_SUPPORT: Record<
+  string,
+  Record<string, Partial<BluetoothUSBConfig>>
+> = {
+  Win32: {
+    chrome: {
+      bluetoothAvailable: true,
+      usbAvailable: true,
+      serialAvailable: true,
+      hidAvailable: true,
+    },
+    edge: {
+      bluetoothAvailable: true,
+      usbAvailable: true,
+      serialAvailable: true,
+      hidAvailable: true,
+    },
+    firefox: {
+      bluetoothAvailable: false, // Firefox doesn't support Web Bluetooth on desktop
+      usbAvailable: false,
+      serialAvailable: false,
+      hidAvailable: false,
+    },
+  },
+  MacIntel: {
+    chrome: {
+      bluetoothAvailable: true,
+      usbAvailable: true,
+      serialAvailable: true,
+      hidAvailable: true,
+    },
+    safari: {
+      bluetoothAvailable: false, // Safari doesn't support Web Bluetooth
+      usbAvailable: false,
+      serialAvailable: false,
+      hidAvailable: false,
+    },
+    firefox: {
+      bluetoothAvailable: false,
+      usbAvailable: false,
+      serialAvailable: false,
+      hidAvailable: false,
+    },
+  },
+  'Linux x86_64': {
+    chrome: {
+      bluetoothAvailable: true,
+      usbAvailable: true,
+      serialAvailable: true,
+      hidAvailable: true,
+    },
+    firefox: {
+      bluetoothAvailable: false,
+      usbAvailable: false,
+      serialAvailable: false,
+      hidAvailable: false,
+    },
+  },
+  Android: {
+    chrome: {
+      bluetoothAvailable: true,
+      usbAvailable: false, // No USB on mobile
+      serialAvailable: false,
+      hidAvailable: false,
+    },
+  },
+  iPhone: {
+    safari: {
+      bluetoothAvailable: false,
+      usbAvailable: false,
+      serialAvailable: false,
+      hidAvailable: false,
+    },
+  },
+  iPad: {
+    safari: {
+      bluetoothAvailable: false,
+      usbAvailable: false,
+      serialAvailable: false,
+      hidAvailable: false,
+    },
+  },
+};
 
-  constructor(profile: DeviceAPIProfile) {
-    this.profile = profile;
+export class BluetoothUSBProtection {
+  private config: BluetoothUSBConfig;
+
+  constructor(config: Partial<BluetoothUSBConfig> = {}) {
+    const platform = config.platform || 'Win32';
+    const browser = config.browser || 'chrome';
+    const platformSupport = API_SUPPORT[platform] || API_SUPPORT.Win32;
+    const browserSupport = platformSupport[browser] || platformSupport.chrome;
+
+    this.config = {
+      enabled: true,
+      platform,
+      browser,
+      bluetoothAvailable: false,
+      usbAvailable: false,
+      serialAvailable: false,
+      hidAvailable: false,
+      ...browserSupport,
+      ...config,
+    };
   }
 
   /**
-   * Inject Bluetooth/USB protection scripts
+   * Apply Bluetooth/USB protection to a page
    */
-  async inject(page: Page): Promise<void> {
-    logger.debug('Injecting Bluetooth/USB protection scripts');
+  async apply(page: Page): Promise<void> {
+    if (!this.config.enabled) {
+      return;
+    }
 
-    await page.evaluateOnNewDocument((profile: DeviceAPIProfile) => {
-      // ========================================
-      // 1. Web Bluetooth API Protection
-      // ========================================
+    await page.evaluateOnNewDocument(this.getInjectionScript(), this.config);
+  }
 
-      if (!profile.hasBluetooth) {
-        // Remove Bluetooth API entirely
-        if ((navigator as any).bluetooth) {
-          delete (navigator as any).bluetooth;
-        }
-
-        // Remove Bluetooth-related events
-        if ((window as any).BluetoothDevice) {
-          delete (window as any).BluetoothDevice;
-        }
-        if ((window as any).BluetoothRemoteGATTServer) {
-          delete (window as any).BluetoothRemoteGATTServer;
-        }
-        if ((window as any).BluetoothRemoteGATTService) {
-          delete (window as any).BluetoothRemoteGATTService;
-        }
-        if ((window as any).BluetoothRemoteGATTCharacteristic) {
-          delete (window as any).BluetoothRemoteGATTCharacteristic;
-        }
-        if ((window as any).BluetoothCharacteristicProperties) {
-          delete (window as any).BluetoothCharacteristicProperties;
-        }
-        if ((window as any).BluetoothRemoteGATTDescriptor) {
-          delete (window as any).BluetoothRemoteGATTDescriptor;
-        }
-
-        logger.debug('Bluetooth API removed');
-      } else {
-        // Bluetooth is available - add realistic protection
-        if ((navigator as any).bluetooth) {
-          const originalRequestDevice = (navigator as any).bluetooth.requestDevice.bind(
-            (navigator as any).bluetooth
-          );
-
-          (navigator as any).bluetooth.requestDevice = async function (options?: any) {
-            // Add realistic delay for device scanning
-            await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-            // Simulate user cancellation (15% chance)
-            if (Math.random() < 0.15) {
+  /**
+   * Get the injection script
+   */
+  private getInjectionScript() {
+    return (config: BluetoothUSBConfig) => {
+      // ========== Bluetooth API ==========
+      if (config.bluetoothAvailable) {
+        // Ensure navigator.bluetooth exists with realistic behavior
+        if (!navigator.bluetooth) {
+          (navigator as any).bluetooth = {
+            getAvailability: async () => {
+              // Simulate checking Bluetooth adapter
+              await new Promise((resolve) =>
+                setTimeout(resolve, 50 + Math.random() * 100)
+              );
+              return true; // Bluetooth adapter available
+            },
+            requestDevice: async (options: any) => {
+              // Simulate user prompt delay
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 + Math.random() * 2000)
+              );
+              // Usually user cancels or no device found
               throw new DOMException(
-                'User cancelled the requestDevice() chooser',
+                'User cancelled the requestDevice() chooser.',
                 'NotFoundError'
               );
-            }
-
-            // Simulate no devices found (10% chance)
-            if (Math.random() < 0.1) {
-              throw new DOMException('No Bluetooth devices found', 'NotFoundError');
-            }
-
-            return originalRequestDevice(options);
-          };
-
-          // Override getAvailability to return consistent state
-          if ((navigator as any).bluetooth.getAvailability) {
-            (navigator as any).bluetooth.getAvailability = async function () {
-              return Promise.resolve(true);
-            };
-          }
-
-          // Add getDevices method if missing (Chrome 85+)
-          if (!(navigator as any).bluetooth.getDevices) {
-            (navigator as any).bluetooth.getDevices = async function () {
+            },
+            getDevices: async () => {
               // Return empty array (no previously paired devices)
-              return Promise.resolve([]);
-            };
-          }
+              return [];
+            },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          };
+        }
+
+        // Fix toString
+        if (navigator.bluetooth) {
+          const methods = ['getAvailability', 'requestDevice', 'getDevices'];
+          const originalToString = Function.prototype.toString;
+
+          Function.prototype.toString = function () {
+            const methodName = methods.find(
+              (m) => this === (navigator.bluetooth as any)[m]
+            );
+            if (methodName) {
+              return `function ${methodName}() { [native code] }`;
+            }
+            return originalToString.call(this);
+          };
+        }
+      } else {
+        // Remove Bluetooth API if not available
+        if (navigator.bluetooth) {
+          (navigator as any).bluetooth = undefined;
+          delete (navigator as any).bluetooth;
         }
       }
 
-      // ========================================
-      // 2. WebUSB API Protection
-      // ========================================
+      // ========== USB API (WebUSB) ==========
+      if (config.usbAvailable) {
+        // Ensure navigator.usb exists with realistic behavior
+        if (!navigator.usb) {
+          (navigator as any).usb = {
+            getDevices: async () => {
+              // Return empty array (no previously authorized devices)
+              return [];
+            },
+            requestDevice: async (options: any) => {
+              // Simulate user prompt delay
+              await new Promise((resolve) =>
+                setTimeout(resolve, 500 + Math.random() * 1000)
+              );
+              // Usually user cancels or no device found
+              throw new DOMException(
+                'No device selected.',
+                'NotFoundError'
+              );
+            },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          };
+        }
 
-      if (!profile.hasUSB) {
-        // Remove USB API entirely
-        if ((navigator as any).usb) {
+        // Fix toString
+        if (navigator.usb) {
+          const methods = ['getDevices', 'requestDevice'];
+          const originalToString = Function.prototype.toString;
+
+          Function.prototype.toString = function () {
+            const methodName = methods.find(
+              (m) => this === (navigator.usb as any)[m]
+            );
+            if (methodName) {
+              return `function ${methodName}() { [native code] }`;
+            }
+            return originalToString.call(this);
+          };
+        }
+      } else {
+        // Remove USB API if not available
+        if (navigator.usb) {
+          (navigator as any).usb = undefined;
           delete (navigator as any).usb;
         }
-
-        // Remove USB-related classes
-        if ((window as any).USB) {
-          delete (window as any).USB;
-        }
-        if ((window as any).USBDevice) {
-          delete (window as any).USBDevice;
-        }
-        if ((window as any).USBConfiguration) {
-          delete (window as any).USBConfiguration;
-        }
-        if ((window as any).USBInterface) {
-          delete (window as any).USBInterface;
-        }
-        if ((window as any).USBAlternateInterface) {
-          delete (window as any).USBAlternateInterface;
-        }
-        if ((window as any).USBEndpoint) {
-          delete (window as any).USBEndpoint;
-        }
-        if ((window as any).USBInTransferResult) {
-          delete (window as any).USBInTransferResult;
-        }
-        if ((window as any).USBOutTransferResult) {
-          delete (window as any).USBOutTransferResult;
-        }
-        if ((window as any).USBIsochronousInTransferResult) {
-          delete (window as any).USBIsochronousInTransferResult;
-        }
-        if ((window as any).USBIsochronousOutTransferResult) {
-          delete (window as any).USBIsochronousOutTransferResult;
-        }
-        if ((window as any).USBConnectionEvent) {
-          delete (window as any).USBConnectionEvent;
-        }
-
-        logger.debug('USB API removed');
-      } else {
-        // USB is available - add realistic protection
-        if ((navigator as any).usb) {
-          const originalRequestDevice = (navigator as any).usb.requestDevice.bind(
-            (navigator as any).usb
-          );
-
-          (navigator as any).usb.requestDevice = async function (options?: any) {
-            // Add realistic delay for device scanning
-            await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 1500));
-
-            // Simulate user cancellation (20% chance)
-            if (Math.random() < 0.2) {
-              throw new DOMException(
-                'User cancelled the requestDevice() chooser',
-                'NotFoundError'
-              );
-            }
-
-            // Simulate no devices found (15% chance)
-            if (Math.random() < 0.15) {
-              throw new DOMException('No USB devices found', 'NotFoundError');
-            }
-
-            return originalRequestDevice(options);
-          };
-
-          // Override getDevices to return consistent state
-          const originalGetDevices = (navigator as any).usb.getDevices.bind(
-            (navigator as any).usb
-          );
-
-          (navigator as any).usb.getDevices = async function () {
-            // Return empty array (no previously authorized devices)
-            return Promise.resolve([]);
-          };
-        }
       }
 
-      // ========================================
-      // 3. Web Serial API Protection
-      // ========================================
+      // ========== Serial API ==========
+      if (config.serialAvailable) {
+        // Ensure navigator.serial exists with realistic behavior
+        if (!(navigator as any).serial) {
+          (navigator as any).serial = {
+            getPorts: async () => {
+              // Return empty array (no previously authorized ports)
+              return [];
+            },
+            requestPort: async (options: any) => {
+              // Simulate user prompt delay
+              await new Promise((resolve) =>
+                setTimeout(resolve, 500 + Math.random() * 1000)
+              );
+              // Usually user cancels
+              throw new DOMException(
+                'No port selected.',
+                'NotFoundError'
+              );
+            },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          };
+        }
 
-      if (!profile.hasSerial) {
-        // Remove Serial API entirely
+        // Fix toString
         if ((navigator as any).serial) {
+          const methods = ['getPorts', 'requestPort'];
+          const originalToString = Function.prototype.toString;
+
+          Function.prototype.toString = function () {
+            const methodName = methods.find(
+              (m) => this === (navigator as any).serial[m]
+            );
+            if (methodName) {
+              return `function ${methodName}() { [native code] }`;
+            }
+            return originalToString.call(this);
+          };
+        }
+      } else {
+        // Remove Serial API if not available
+        if ((navigator as any).serial) {
+          (navigator as any).serial = undefined;
           delete (navigator as any).serial;
         }
-
-        // Remove Serial-related classes
-        if ((window as any).Serial) {
-          delete (window as any).Serial;
-        }
-        if ((window as any).SerialPort) {
-          delete (window as any).SerialPort;
-        }
-
-        logger.debug('Serial API removed');
-      } else {
-        // Serial is available - add realistic protection
-        if ((navigator as any).serial) {
-          const originalRequestPort = (navigator as any).serial.requestPort.bind(
-            (navigator as any).serial
-          );
-
-          (navigator as any).serial.requestPort = async function (options?: any) {
-            // Add realistic delay
-            await new Promise((resolve) => setTimeout(resolve, 600 + Math.random() * 1200));
-
-            // Simulate user cancellation (25% chance)
-            if (Math.random() < 0.25) {
-              throw new DOMException(
-                'User cancelled the requestPort() chooser',
-                'NotFoundError'
-              );
-            }
-
-            return originalRequestPort(options);
-          };
-
-          // Override getPorts
-          if ((navigator as any).serial.getPorts) {
-            (navigator as any).serial.getPorts = async function () {
-              return Promise.resolve([]);
-            };
-          }
-        }
       }
 
-      // ========================================
-      // 4. WebHID API Protection
-      // ========================================
+      // ========== HID API ==========
+      if (config.hidAvailable) {
+        // Ensure navigator.hid exists with realistic behavior
+        if (!(navigator as any).hid) {
+          (navigator as any).hid = {
+            getDevices: async () => {
+              // Return empty array (no previously authorized devices)
+              return [];
+            },
+            requestDevice: async (options: any) => {
+              // Simulate user prompt delay
+              await new Promise((resolve) =>
+                setTimeout(resolve, 500 + Math.random() * 1000)
+              );
+              // Usually user cancels
+              throw new DOMException(
+                'No device selected.',
+                'NotFoundError'
+              );
+            },
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          };
+        }
 
-      if (!profile.hasHID) {
-        // Remove HID API entirely
+        // Fix toString
         if ((navigator as any).hid) {
+          const methods = ['getDevices', 'requestDevice'];
+          const originalToString = Function.prototype.toString;
+
+          Function.prototype.toString = function () {
+            const methodName = methods.find(
+              (m) => this === (navigator as any).hid[m]
+            );
+            if (methodName) {
+              return `function ${methodName}() { [native code] }`;
+            }
+            return originalToString.call(this);
+          };
+        }
+      } else {
+        // Remove HID API if not available
+        if ((navigator as any).hid) {
+          (navigator as any).hid = undefined;
           delete (navigator as any).hid;
         }
-
-        // Remove HID-related classes
-        if ((window as any).HID) {
-          delete (window as any).HID;
-        }
-        if ((window as any).HIDDevice) {
-          delete (window as any).HIDDevice;
-        }
-        if ((window as any).HIDConnectionEvent) {
-          delete (window as any).HIDConnectionEvent;
-        }
-        if ((window as any).HIDInputReportEvent) {
-          delete (window as any).HIDInputReportEvent;
-        }
-
-        logger.debug('HID API removed');
-      } else {
-        // HID is available - add realistic protection
-        if ((navigator as any).hid) {
-          const originalRequestDevice = (navigator as any).hid.requestDevice.bind(
-            (navigator as any).hid
-          );
-
-          (navigator as any).hid.requestDevice = async function (options?: any) {
-            // Add realistic delay
-            await new Promise((resolve) => setTimeout(resolve, 700 + Math.random() * 1400));
-
-            // Simulate user cancellation (20% chance)
-            if (Math.random() < 0.2) {
-              throw new DOMException(
-                'User cancelled the requestDevice() chooser',
-                'NotFoundError'
-              );
-            }
-
-            return originalRequestDevice(options);
-          };
-
-          // Override getDevices
-          if ((navigator as any).hid.getDevices) {
-            (navigator as any).hid.getDevices = async function () {
-              return Promise.resolve([]);
-            };
-          }
-        }
       }
 
-      // ========================================
-      // 5. Web NFC API Protection
-      // ========================================
-
-      if (!profile.hasNFC) {
-        // Remove NFC API entirely (mostly mobile)
-        if ((window as any).NDEFReader) {
-          delete (window as any).NDEFReader;
-        }
-        if ((window as any).NDEFRecord) {
-          delete (window as any).NDEFRecord;
-        }
-        if ((window as any).NDEFReadingEvent) {
-          delete (window as any).NDEFReadingEvent;
-        }
-
-        logger.debug('NFC API removed');
-      } else {
-        // NFC is available (mobile devices) - add realistic protection
-        if ((window as any).NDEFReader) {
-          const OriginalNDEFReader = (window as any).NDEFReader;
-
-          (window as any).NDEFReader = class NDEFReader extends OriginalNDEFReader {
-            async scan(options?: any) {
-              // Add realistic delay
-              await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000));
-
-              // Simulate permission denial (10% chance)
-              if (Math.random() < 0.1) {
-                throw new DOMException('NFC permission denied', 'NotAllowedError');
-              }
-
-              return super.scan(options);
-            }
-
-            async write(message: any, options?: any) {
-              // Add realistic delay
-              await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 1500));
-
-              // Simulate write failure (5% chance)
-              if (Math.random() < 0.05) {
-                throw new DOMException('NFC write failed', 'NetworkError');
-              }
-
-              return super.write(message, options);
-            }
-          };
-        }
+      // ========== Additional cleanup ==========
+      // Remove NFC API (rarely used, good fingerprinting signal)
+      if ((navigator as any).nfc) {
+        (navigator as any).nfc = undefined;
+        delete (navigator as any).nfc;
       }
 
-      // ========================================
-      // 6. Permissions API Consistency
-      // ========================================
-
-      if (navigator.permissions && navigator.permissions.query) {
-        const originalQuery = navigator.permissions.query.bind(navigator.permissions);
-
-        navigator.permissions.query = function (permissionDesc: any) {
-          const name = permissionDesc.name;
-
-          // Bluetooth
-          if (name === 'bluetooth') {
-            const state = profile.hasBluetooth ? 'prompt' : 'denied';
-            return Promise.resolve({
-              state,
-              onchange: null,
-              addEventListener: () => {},
-              removeEventListener: () => {},
-              dispatchEvent: () => true,
-            } as PermissionStatus);
-          }
-
-          // USB (no permission API yet, but future-proofing)
-          if (name === 'usb') {
-            const state = profile.hasUSB ? 'prompt' : 'denied';
-            return Promise.resolve({
-              state,
-              onchange: null,
-              addEventListener: () => {},
-              removeEventListener: () => {},
-              dispatchEvent: () => true,
-            } as PermissionStatus);
-          }
-
-          // Serial
-          if (name === 'serial') {
-            const state = profile.hasSerial ? 'prompt' : 'denied';
-            return Promise.resolve({
-              state,
-              onchange: null,
-              addEventListener: () => {},
-              removeEventListener: () => {},
-              dispatchEvent: () => true,
-            } as PermissionStatus);
-          }
-
-          // HID
-          if (name === 'hid') {
-            const state = profile.hasHID ? 'prompt' : 'denied';
-            return Promise.resolve({
-              state,
-              onchange: null,
-              addEventListener: () => {},
-              removeEventListener: () => {},
-              dispatchEvent: () => true,
-            } as PermissionStatus);
-          }
-
-          // NFC
-          if (name === 'nfc') {
-            const state = profile.hasNFC ? 'prompt' : 'denied';
-            return Promise.resolve({
-              state,
-              onchange: null,
-              addEventListener: () => {},
-              removeEventListener: () => {},
-              dispatchEvent: () => true,
-            } as PermissionStatus);
-          }
-
-          return originalQuery(permissionDesc);
-        };
+      // Remove Presentation API (rarely used)
+      if ((navigator as any).presentation) {
+        (navigator as any).presentation = undefined;
+        delete (navigator as any).presentation;
       }
 
-      // ========================================
-      // 7. Feature Detection Consistency
-      // ========================================
+      // Log for debugging
+      if (typeof console !== 'undefined' && console.log) {
+        const apis = [];
+        if (config.bluetoothAvailable) apis.push('Bluetooth');
+        if (config.usbAvailable) apis.push('USB');
+        if (config.serialAvailable) apis.push('Serial');
+        if (config.hidAvailable) apis.push('HID');
 
-      // Ensure feature policy is consistent
-      if (document.featurePolicy || (document as any).permissionsPolicy) {
-        const policy = document.featurePolicy || (document as any).permissionsPolicy;
-
-        if (policy.features) {
-          const originalFeatures = policy.features.bind(policy);
-
-          policy.features = function () {
-            const features = originalFeatures();
-
-            // Remove device APIs from feature list if not supported
-            const filteredFeatures = features.filter((feature: string) => {
-              if (!profile.hasBluetooth && feature === 'bluetooth') return false;
-              if (!profile.hasUSB && feature === 'usb') return false;
-              if (!profile.hasSerial && feature === 'serial') return false;
-              if (!profile.hasHID && feature === 'hid') return false;
-              if (!profile.hasNFC && feature === 'nfc') return false;
-              return true;
-            });
-
-            return filteredFeatures;
-          };
-        }
-
-        // Override allowsFeature checks
-        if (policy.allowsFeature) {
-          const originalAllowsFeature = policy.allowsFeature.bind(policy);
-
-          policy.allowsFeature = function (feature: string, origin?: string) {
-            // Return false for unsupported device APIs
-            if (!profile.hasBluetooth && feature === 'bluetooth') return false;
-            if (!profile.hasUSB && feature === 'usb') return false;
-            if (!profile.hasSerial && feature === 'serial') return false;
-            if (!profile.hasHID && feature === 'hid') return false;
-            if (!profile.hasNFC && feature === 'nfc') return false;
-
-            return originalAllowsFeature(feature, origin);
-          };
-        }
+        console.log(
+          `[Bluetooth/USB Protection] Applied for ${config.platform}/${config.browser} (${apis.length > 0 ? apis.join(', ') : 'No APIs'})`
+        );
       }
-
-      // ========================================
-      // 8. Platform-Specific Adjustments
-      // ========================================
-
-      // Mobile devices typically don't have USB/Serial/HID
-      if (profile.platformType === 'mobile' || profile.platformType === 'tablet') {
-        // Ensure these APIs are removed on mobile
-        if ((navigator as any).usb) delete (navigator as any).usb;
-        if ((navigator as any).serial) delete (navigator as any).serial;
-        if ((navigator as any).hid) delete (navigator as any).hid;
-
-        // But Bluetooth and NFC are common on mobile
-        if (!profile.hasBluetooth && (navigator as any).bluetooth) {
-          delete (navigator as any).bluetooth;
-        }
-        if (!profile.hasNFC && (window as any).NDEFReader) {
-          delete (window as any).NDEFReader;
-        }
-      }
-
-      // Desktop devices typically have USB/Serial/HID but not NFC
-      if (profile.platformType === 'desktop') {
-        // NFC is rare on desktop
-        if ((window as any).NDEFReader) {
-          delete (window as any).NDEFReader;
-        }
-      }
-
-      logger.debug('Bluetooth/USB/Device API protection applied successfully');
-    }, this.profile);
-
-    logger.debug('Bluetooth/USB protection scripts injected successfully');
+    };
   }
 
   /**
-   * Update device API profile
+   * Update configuration
    */
-  setProfile(profile: DeviceAPIProfile): void {
-    this.profile = profile;
+  updateConfig(config: Partial<BluetoothUSBConfig>): void {
+    this.config = { ...this.config, ...config };
   }
+}
 
-  /**
-   * Get current profile
-   */
-  getProfile(): DeviceAPIProfile {
-    return this.profile;
-  }
+/**
+ * Factory function
+ */
+export function createBluetoothUSBProtection(
+  config?: Partial<BluetoothUSBConfig>
+): BluetoothUSBProtection {
+  return new BluetoothUSBProtection(config);
+}
 
-  /**
-   * Get module name
-   */
-  getName(): string {
-    return 'BluetoothUSBProtection';
-  }
+/**
+ * Apply to multiple pages
+ */
+export async function applyBluetoothUSBProtectionToPages(
+  pages: Page[],
+  config?: Partial<BluetoothUSBConfig>
+): Promise<void> {
+  const protection = new BluetoothUSBProtection(config);
+  await Promise.all(pages.map((page) => protection.apply(page)));
 }

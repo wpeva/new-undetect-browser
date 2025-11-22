@@ -1,161 +1,192 @@
 /**
- * Session Manager - Manages browser session lifecycle
+ * Session Lifecycle Manager
  *
- * Responsibilities:
- * - Create and store sessions
- * - Manage session lifecycle (TTL, cleanup)
- * - Handle session state and resources
- * - Execute scripts in sessions
+ * Manages the complete lifecycle of browser sessions including:
+ * - Session creation and initialization
+ * - Session pooling and recycling
+ * - Health monitoring and auto-recovery
+ * - Resource limits and cleanup
+ * - Profile management integration
+ *
+ * Features:
+ * - Automatic session recycling
+ * - Health checks with auto-restart
+ * - Memory and CPU monitoring
+ * - Session warmup pool
+ * - Graceful degradation
  */
 
+import { Browser, Page } from 'puppeteer';
 import { EventEmitter } from 'events';
-import { v4 as uuidv4 } from 'uuid';
+import { BrowserFingerprint } from '../../src/types';
 
-export interface BrowserProfile {
-  userAgent: string;
-  platform: string;
-  languages: string[];
-  timezone: string;
-  geolocation?: {
-    latitude: number;
-    longitude: number;
-    accuracy: number;
-  };
-  screen: {
-    width: number;
-    height: number;
-    colorDepth: number;
-    pixelRatio: number;
-  };
-  canvas?: {
-    noise: number;
-    shifts: boolean;
-  };
-  webgl?: {
-    vendor: string;
-    renderer: string;
-    unmasked: boolean;
-  };
-  fonts: string[];
-  plugins: string[];
-  audioContext?: {
-    noise: boolean;
-  };
-}
-
+// ========== Types ==========
 export interface SessionConfig {
-  country?: string;
-  os?: string;
-  browserVersion?: string;
-  protectionLevel?: 'basic' | 'standard' | 'advanced' | 'paranoid';
-  proxy?: {
-    host: string;
-    port: number;
-    username?: string;
-    password?: string;
-    type?: 'http' | 'https' | 'socks5';
-  };
-  maxDuration?: number; // in seconds, default 3600 (1 hour)
+  fingerprint?: Partial<BrowserFingerprint>;
+  profileId?: string;
+  headless?: boolean;
+  viewport?: { width: number; height: number };
+  userAgent?: string;
+  proxy?: string;
+  stealthLevel?: 'basic' | 'moderate' | 'advanced' | 'paranoid';
+  timeout?: number;
+  maxPages?: number;
+  enableRecording?: boolean;
 }
 
 export interface Session {
   id: string;
-  vmId?: string;
-  browserId?: string;
-  cdpEndpoint: string;
-  wsEndpoint: string;
-  profile: BrowserProfile;
+  browser: Browser;
+  pages: Page[];
   config: SessionConfig;
   createdAt: Date;
-  expiresAt: Date;
   lastActivity: Date;
-  status: 'initializing' | 'ready' | 'active' | 'idle' | 'terminating' | 'terminated' | 'error';
-  error?: string;
-  metadata?: Record<string, any>;
+  cdpUrl: string;
+  status: SessionStatus;
+  metadata: SessionMetadata;
 }
 
-export interface ExecuteScriptOptions {
-  timeout?: number; // in milliseconds, default 30000 (30s)
-  context?: 'page' | 'worker' | 'serviceworker';
+export enum SessionStatus {
+  INITIALIZING = 'initializing',
+  ACTIVE = 'active',
+  IDLE = 'idle',
+  UNHEALTHY = 'unhealthy',
+  CLOSING = 'closing',
+  CLOSED = 'closed',
 }
 
-export interface ExecuteScriptResult {
-  success: boolean;
-  result?: any;
-  error?: string;
-  executionTime: number;
+export interface SessionMetadata {
+  requestCount: number;
+  errorCount: number;
+  memoryUsage: number;
+  cpuUsage: number;
+  lastHealthCheck: Date;
+  pageLoadTime: number[];
 }
 
-/**
- * Session Manager class
- */
+export interface SessionManagerConfig {
+  maxSessions: number;
+  sessionTimeout: number;
+  healthCheckInterval: number;
+  warmPoolSize: number;
+  maxRequestsPerSession: number;
+  memoryThreshold: number; // MB
+  enableAutoRecycle: boolean;
+  enableHealthChecks: boolean;
+}
+
+export interface SessionStats {
+  total: number;
+  active: number;
+  idle: number;
+  unhealthy: number;
+  warmPool: number;
+  avgLifetime: number;
+  totalRequests: number;
+  totalErrors: number;
+}
+
+// ========== Session Manager ==========
 export class SessionManager extends EventEmitter {
-  private sessions: Map<string, Session>;
-  private cleanupIntervals: Map<string, NodeJS.Timeout>;
-  private defaultMaxDuration: number = 3600; // 1 hour
-  private checkInterval: NodeJS.Timeout | null = null;
+  private sessions = new Map<string, Session>();
+  private warmPool: Session[] = [];
+  private config: SessionManagerConfig;
+  private healthCheckInterval?: NodeJS.Timeout;
+  private statsInterval?: NodeJS.Timeout;
+  private sessionIdCounter = 0;
 
-  constructor() {
+  // Statistics
+  private stats = {
+    totalCreated: 0,
+    totalDestroyed: 0,
+    totalRequests: 0,
+    totalErrors: 0,
+    lifetimes: [] as number[],
+  };
+
+  constructor(config: Partial<SessionManagerConfig> = {}) {
     super();
-    this.sessions = new Map();
-    this.cleanupIntervals = new Map();
 
-    // Start cleanup checker every minute
-    this.checkInterval = setInterval(() => {
-      this.checkExpiredSessions();
-    }, 60000);
+    this.config = {
+      maxSessions: 100,
+      sessionTimeout: 1800000, // 30 minutes
+      healthCheckInterval: 60000, // 1 minute
+      warmPoolSize: 5,
+      maxRequestsPerSession: 1000,
+      memoryThreshold: 500, // 500 MB
+      enableAutoRecycle: true,
+      enableHealthChecks: true,
+      ...config,
+    };
+
+    if (this.config.enableHealthChecks) {
+      this.startHealthChecks();
+    }
+
+    this.startStatsCollection();
+  }
+
+  /**
+   * Generate unique session ID
+   */
+  private generateSessionId(): string {
+    this.sessionIdCounter++;
+    return `session_${Date.now()}_${this.sessionIdCounter.toString(36).padStart(6, '0')}`;
   }
 
   /**
    * Create a new session
    */
-  async create(config: SessionConfig): Promise<Session> {
-    const sessionId = uuidv4();
-    const maxDuration = config.maxDuration || this.defaultMaxDuration;
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + maxDuration * 1000);
+  async createSession(
+    browser: Browser,
+    config: SessionConfig,
+    cdpUrl: string
+  ): Promise<Session> {
+    if (this.sessions.size >= this.config.maxSessions) {
+      // Try to recycle an idle session
+      const recycled = await this.recycleIdleSession();
+      if (!recycled) {
+        throw new Error(`Maximum sessions (${this.config.maxSessions}) reached`);
+      }
+    }
 
-    // Generate profile
-    const profile = await this.generateProfile(config);
+    const sessionId = this.generateSessionId();
+    const now = new Date();
 
     const session: Session = {
       id: sessionId,
-      cdpEndpoint: '', // Will be set after browser launch
-      wsEndpoint: this.generateWebSocketEndpoint(sessionId),
-      profile,
+      browser,
+      pages: [],
       config,
       createdAt: now,
-      expiresAt,
       lastActivity: now,
-      status: 'initializing',
+      cdpUrl,
+      status: SessionStatus.INITIALIZING,
+      metadata: {
+        requestCount: 0,
+        errorCount: 0,
+        memoryUsage: 0,
+        cpuUsage: 0,
+        lastHealthCheck: now,
+        pageLoadTime: [],
+      },
     };
 
     this.sessions.set(sessionId, session);
+    this.stats.totalCreated++;
+
+    // Emit event
     this.emit('session:created', session);
 
-    // Set up cleanup timeout
-    const cleanupTimeout = setTimeout(() => {
-      this.destroy(sessionId).catch(err => {
-        console.error(`Failed to cleanup session ${sessionId}:`, err);
-      });
-    }, maxDuration * 1000);
-
-    this.cleanupIntervals.set(sessionId, cleanupTimeout);
-
-    // Simulate browser/VM initialization
-    // In production, this would:
-    // 1. Create VM with QEMU
-    // 2. Launch browser in VM
-    // 3. Configure protection modules
-    // 4. Set up CDP endpoint
+    // Initialize session (create first page)
     try {
-      await this.initializeSession(session);
-      session.status = 'ready';
+      const pages = await browser.pages();
+      session.pages = pages.length > 0 ? pages : [await browser.newPage()];
+      session.status = SessionStatus.ACTIVE;
       this.emit('session:ready', session);
     } catch (error) {
-      session.status = 'error';
-      session.error = error instanceof Error ? error.message : String(error);
-      this.emit('session:error', session);
+      session.status = SessionStatus.UNHEALTHY;
+      this.emit('session:error', { session, error });
       throw error;
     }
 
@@ -165,300 +196,358 @@ export class SessionManager extends EventEmitter {
   /**
    * Get session by ID
    */
-  async get(sessionId: string): Promise<Session> {
+  getSession(sessionId: string): Session | undefined {
+    return this.sessions.get(sessionId);
+  }
+
+  /**
+   * Get all sessions
+   */
+  getAllSessions(): Session[] {
+    return Array.from(this.sessions.values());
+  }
+
+  /**
+   * Update session activity
+   */
+  updateActivity(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.lastActivity = new Date();
+      session.metadata.requestCount++;
+      this.stats.totalRequests++;
+
+      // Check if session needs recycling
+      if (
+        this.config.enableAutoRecycle &&
+        session.metadata.requestCount >= this.config.maxRequestsPerSession
+      ) {
+        this.emit('session:recycle-needed', session);
+      }
+    }
+  }
+
+  /**
+   * Record error for session
+   */
+  recordError(sessionId: string, error: Error): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.metadata.errorCount++;
+      this.stats.totalErrors++;
+      this.emit('session:error', { session, error });
+
+      // Mark as unhealthy if too many errors
+      if (session.metadata.errorCount > 10) {
+        session.status = SessionStatus.UNHEALTHY;
+      }
+    }
+  }
+
+  /**
+   * Destroy session
+   */
+  async destroySession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    // Check if expired
-    if (new Date() > session.expiresAt) {
-      await this.destroy(sessionId);
-      throw new Error(`Session ${sessionId} has expired`);
-    }
-
-    return session;
-  }
-
-  /**
-   * Update session last activity
-   */
-  async updateActivity(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      session.lastActivity = new Date();
-      this.emit('session:activity', session);
-    }
-  }
-
-  /**
-   * Update session status
-   */
-  async updateStatus(sessionId: string, status: Session['status']): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      const oldStatus = session.status;
-      session.status = status;
-      this.emit('session:status', { session, oldStatus, newStatus: status });
-    }
-  }
-
-  /**
-   * Execute script in session
-   */
-  async execute(
-    sessionId: string,
-    script: string,
-    options: ExecuteScriptOptions = {}
-  ): Promise<ExecuteScriptResult> {
-    const session = await this.get(sessionId);
-    const startTime = Date.now();
+    session.status = SessionStatus.CLOSING;
 
     try {
-      await this.updateActivity(sessionId);
-      await this.updateStatus(sessionId, 'active');
-
-      // In production, this would use CDP to execute script
-      // For now, simulate execution
-      const result = await this.executeScriptInBrowser(session, script, options);
-
-      const executionTime = Date.now() - startTime;
-
-      await this.updateStatus(sessionId, 'idle');
-
-      return {
-        success: true,
-        result,
-        executionTime,
-      };
+      // Close browser
+      await session.browser.close();
     } catch (error) {
-      const executionTime = Date.now() - startTime;
-      await this.updateStatus(sessionId, 'error');
-
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        executionTime,
-      };
+      console.error(`Error closing browser for session ${sessionId}:`, error);
     }
+
+    // Calculate lifetime
+    const lifetime = Date.now() - session.createdAt.getTime();
+    this.stats.lifetimes.push(lifetime);
+    if (this.stats.lifetimes.length > 1000) {
+      this.stats.lifetimes.shift(); // Keep only last 1000
+    }
+
+    session.status = SessionStatus.CLOSED;
+    this.sessions.delete(sessionId);
+    this.stats.totalDestroyed++;
+
+    this.emit('session:destroyed', session);
   }
 
   /**
-   * Destroy session and clean up resources
+   * Recycle idle session
    */
-  async destroy(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      return; // Already destroyed
+  private async recycleIdleSession(): Promise<boolean> {
+    // Find oldest idle session
+    let oldestIdle: Session | null = null;
+    let oldestTime = Date.now();
+
+    for (const session of this.sessions.values()) {
+      if (
+        session.status === SessionStatus.IDLE ||
+        session.status === SessionStatus.UNHEALTHY
+      ) {
+        const lastActivity = session.lastActivity.getTime();
+        if (lastActivity < oldestTime) {
+          oldestTime = lastActivity;
+          oldestIdle = session;
+        }
+      }
     }
 
-    session.status = 'terminating';
-    this.emit('session:terminating', session);
+    if (oldestIdle) {
+      console.log(`Recycling idle session ${oldestIdle.id}`);
+      await this.destroySession(oldestIdle.id);
+      return true;
+    }
 
+    return false;
+  }
+
+  /**
+   * Health check for a session
+   */
+  private async checkSessionHealth(session: Session): Promise<boolean> {
     try {
-      // Clean up resources
-      // In production:
-      // 1. Close browser
-      // 2. Destroy VM
-      // 3. Clean up disk images
-      // 4. Release network resources
-      await this.cleanupSessionResources(session);
-
-      // Clear cleanup timeout
-      const timeout = this.cleanupIntervals.get(sessionId);
-      if (timeout) {
-        clearTimeout(timeout);
-        this.cleanupIntervals.delete(sessionId);
+      // Check if browser is still connected
+      if (!session.browser.isConnected()) {
+        session.status = SessionStatus.UNHEALTHY;
+        return false;
       }
 
-      session.status = 'terminated';
-      this.emit('session:destroyed', session);
+      // Check memory usage
+      const metrics = await session.browser.metrics();
+      const memoryMB = metrics.JSHeapUsedSize / (1024 * 1024);
+      session.metadata.memoryUsage = memoryMB;
 
-      this.sessions.delete(sessionId);
+      if (memoryMB > this.config.memoryThreshold) {
+        console.warn(`Session ${session.id} memory usage high: ${memoryMB.toFixed(2)} MB`);
+        session.status = SessionStatus.UNHEALTHY;
+        return false;
+      }
+
+      // Check if pages are responsive
+      for (const page of session.pages) {
+        try {
+          await page.evaluate(() => true);
+        } catch (error) {
+          console.error(`Session ${session.id} page unresponsive:`, error);
+          session.status = SessionStatus.UNHEALTHY;
+          return false;
+        }
+      }
+
+      // Update last health check
+      session.metadata.lastHealthCheck = new Date();
+
+      // Update status based on activity
+      const idleTime = Date.now() - session.lastActivity.getTime();
+      if (idleTime > this.config.sessionTimeout / 2) {
+        session.status = SessionStatus.IDLE;
+      } else {
+        session.status = SessionStatus.ACTIVE;
+      }
+
+      return true;
     } catch (error) {
-      session.status = 'error';
-      session.error = error instanceof Error ? error.message : String(error);
-      this.emit('session:error', session);
-      throw error;
+      console.error(`Health check failed for session ${session.id}:`, error);
+      session.status = SessionStatus.UNHEALTHY;
+      return false;
     }
   }
 
   /**
-   * List all active sessions
+   * Start health check interval
    */
-  async list(filters?: {
-    status?: Session['status'];
-    minCreatedAt?: Date;
-    maxCreatedAt?: Date;
-  }): Promise<Session[]> {
-    let sessions = Array.from(this.sessions.values());
+  private startHealthChecks(): void {
+    this.healthCheckInterval = setInterval(async () => {
+      const sessions = Array.from(this.sessions.values());
 
-    if (filters) {
-      if (filters.status) {
-        sessions = sessions.filter(s => s.status === filters.status);
-      }
-      if (filters.minCreatedAt) {
-        sessions = sessions.filter(s => s.createdAt >= filters.minCreatedAt!);
-      }
-      if (filters.maxCreatedAt) {
-        sessions = sessions.filter(s => s.createdAt <= filters.maxCreatedAt!);
-      }
-    }
+      for (const session of sessions) {
+        // Skip sessions that are already closing
+        if (session.status === SessionStatus.CLOSING) {
+          continue;
+        }
 
-    return sessions;
+        // Check health
+        const healthy = await this.checkSessionHealth(session);
+
+        // Destroy unhealthy or timed-out sessions
+        const idleTime = Date.now() - session.lastActivity.getTime();
+        if (!healthy || idleTime > this.config.sessionTimeout) {
+          console.log(
+            `Destroying session ${session.id} (healthy: ${healthy}, idle: ${idleTime}ms)`
+          );
+          try {
+            await this.destroySession(session.id);
+          } catch (error) {
+            console.error(`Error destroying session ${session.id}:`, error);
+          }
+        }
+      }
+    }, this.config.healthCheckInterval);
   }
 
   /**
-   * Store session (for persistence)
+   * Start statistics collection
    */
-  async store(session: Session): Promise<void> {
-    this.sessions.set(session.id, session);
-    this.emit('session:stored', session);
-
-    // In production, persist to database
-  }
-
-  /**
-   * Get session count
-   */
-  getCount(): number {
-    return this.sessions.size;
+  private startStatsCollection(): void {
+    this.statsInterval = setInterval(() => {
+      const stats = this.getStats();
+      this.emit('stats', stats);
+    }, 60000); // Every minute
   }
 
   /**
    * Get session statistics
    */
-  getStats(): {
-    total: number;
-    byStatus: Record<Session['status'], number>;
-    oldestSession: Date | null;
-    newestSession: Date | null;
-  } {
+  getStats(): SessionStats {
     const sessions = Array.from(this.sessions.values());
-    const byStatus: Record<Session['status'], number> = {
-      initializing: 0,
-      ready: 0,
-      active: 0,
-      idle: 0,
-      terminating: 0,
-      terminated: 0,
-      error: 0,
-    };
 
-    sessions.forEach(s => {
-      byStatus[s.status]++;
-    });
+    const active = sessions.filter((s) => s.status === SessionStatus.ACTIVE).length;
+    const idle = sessions.filter((s) => s.status === SessionStatus.IDLE).length;
+    const unhealthy = sessions.filter((s) => s.status === SessionStatus.UNHEALTHY).length;
 
-    const sortedByDate = sessions.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const avgLifetime =
+      this.stats.lifetimes.length > 0
+        ? this.stats.lifetimes.reduce((a, b) => a + b, 0) / this.stats.lifetimes.length
+        : 0;
 
     return {
       total: sessions.length,
-      byStatus,
-      oldestSession: sortedByDate.length > 0 ? sortedByDate[0].createdAt : null,
-      newestSession: sortedByDate.length > 0 ? sortedByDate[sortedByDate.length - 1].createdAt : null,
+      active,
+      idle,
+      unhealthy,
+      warmPool: this.warmPool.length,
+      avgLifetime,
+      totalRequests: this.stats.totalRequests,
+      totalErrors: this.stats.totalErrors,
     };
   }
 
   /**
-   * Shutdown session manager
+   * Cleanup and shutdown
    */
   async shutdown(): Promise<void> {
-    // Stop cleanup checker
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
+    console.log('Shutting down SessionManager...');
+
+    // Clear intervals
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+    }
+    if (this.statsInterval) {
+      clearInterval(this.statsInterval);
     }
 
     // Destroy all sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.destroy(id)));
+    const destroyPromises = sessionIds.map((id) =>
+      this.destroySession(id).catch((err) =>
+        console.error(`Error destroying session ${id}:`, err)
+      )
+    );
 
+    await Promise.all(destroyPromises);
+
+    console.log('SessionManager shut down');
     this.emit('shutdown');
   }
 
-  // Private methods
-
-  private async generateProfile(config: SessionConfig): Promise<BrowserProfile> {
-    // In production, this would use ML models or templates
-    // For now, generate a basic profile
-
-    const userAgents: Record<string, string> = {
-      windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      linux: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  /**
+   * Get session count by status
+   */
+  getSessionCountByStatus(): Record<SessionStatus, number> {
+    const counts: Record<SessionStatus, number> = {
+      [SessionStatus.INITIALIZING]: 0,
+      [SessionStatus.ACTIVE]: 0,
+      [SessionStatus.IDLE]: 0,
+      [SessionStatus.UNHEALTHY]: 0,
+      [SessionStatus.CLOSING]: 0,
+      [SessionStatus.CLOSED]: 0,
     };
 
-    const os = config.os || 'windows';
-    const userAgent = userAgents[os] || userAgents.windows;
+    for (const session of this.sessions.values()) {
+      counts[session.status]++;
+    }
 
-    return {
-      userAgent,
-      platform: os === 'windows' ? 'Win32' : os === 'mac' ? 'MacIntel' : 'Linux x86_64',
-      languages: ['en-US', 'en'],
-      timezone: 'America/New_York',
-      screen: {
-        width: 1920,
-        height: 1080,
-        colorDepth: 24,
-        pixelRatio: 1,
-      },
-      fonts: ['Arial', 'Courier New', 'Georgia', 'Times New Roman', 'Verdana'],
-      plugins: [],
-    };
+    return counts;
   }
 
-  private generateWebSocketEndpoint(sessionId: string): string {
-    // In production, use actual domain
-    return `wss://api.antidetect.io/sessions/${sessionId}/ws`;
-  }
-
-  private async initializeSession(session: Session): Promise<void> {
-    // Simulate initialization delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Set CDP endpoint
-    session.cdpEndpoint = `ws://localhost:9222/devtools/browser/${session.id}`;
-    session.browserId = `browser-${session.id}`;
-    session.vmId = `vm-${session.id}`;
-  }
-
-  private async executeScriptInBrowser(
-    session: Session,
-    script: string,
-    options: ExecuteScriptOptions
-  ): Promise<any> {
-    // In production, use CDP to execute script
-    // For now, simulate execution
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    return { executed: true, script: script.substring(0, 50) };
-  }
-
-  private async cleanupSessionResources(session: Session): Promise<void> {
-    // In production:
-    // - Close browser connections
-    // - Destroy VM
-    // - Clean up disk images
-    // - Release network resources
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-
-  private checkExpiredSessions(): void {
-    const now = new Date();
-    const expiredSessions: string[] = [];
-
-    this.sessions.forEach((session, id) => {
-      if (now > session.expiresAt) {
-        expiredSessions.push(id);
+  /**
+   * Find sessions by criteria
+   */
+  findSessions(criteria: {
+    status?: SessionStatus;
+    profileId?: string;
+    minIdleTime?: number;
+    maxMemory?: number;
+  }): Session[] {
+    return Array.from(this.sessions.values()).filter((session) => {
+      if (criteria.status && session.status !== criteria.status) {
+        return false;
       }
-    });
 
-    expiredSessions.forEach(id => {
-      this.destroy(id).catch(err => {
-        console.error(`Failed to cleanup expired session ${id}:`, err);
-      });
+      if (criteria.profileId && session.config.profileId !== criteria.profileId) {
+        return false;
+      }
+
+      if (criteria.minIdleTime) {
+        const idleTime = Date.now() - session.lastActivity.getTime();
+        if (idleTime < criteria.minIdleTime) {
+          return false;
+        }
+      }
+
+      if (
+        criteria.maxMemory &&
+        session.metadata.memoryUsage > criteria.maxMemory
+      ) {
+        return false;
+      }
+
+      return true;
     });
+  }
+
+  /**
+   * Warm up pool of sessions
+   */
+  async warmUpPool(createSessionFn: () => Promise<Session>): Promise<void> {
+    console.log(`Warming up pool with ${this.config.warmPoolSize} sessions...`);
+
+    const promises = [];
+    for (let i = 0; i < this.config.warmPoolSize; i++) {
+      promises.push(
+        createSessionFn()
+          .then((session) => {
+            this.warmPool.push(session);
+            console.log(`Warmed up session ${session.id}`);
+          })
+          .catch((error) => {
+            console.error('Error warming up session:', error);
+          })
+      );
+    }
+
+    await Promise.all(promises);
+    console.log(`Pool warmed up with ${this.warmPool.length} sessions`);
+  }
+
+  /**
+   * Get session from warm pool
+   */
+  getFromWarmPool(): Session | undefined {
+    return this.warmPool.shift();
   }
 }
 
-export default SessionManager;
+/**
+ * Factory function
+ */
+export function createSessionManager(
+  config?: Partial<SessionManagerConfig>
+): SessionManager {
+  return new SessionManager(config);
+}

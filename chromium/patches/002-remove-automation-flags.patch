@@ -1,0 +1,65 @@
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 4567890..defghij 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -1234,15 +1234,6 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
+   }
+ #endif
+
+-  // If we're in automation mode, don't add the infobar saying Chrome is being
+-  // controlled by automated test software.
+-  if (command_line->HasSwitch(switches::kEnableAutomation)) {
+-    base::CommandLine::ForCurrentProcess()->AppendSwitch(
+-        switches::kDisableInfoBars);
+-    // Set automation mode in the renderer
+-    command_line->AppendSwitch(switches::kForceDevToolsAvailable);
+-  }
+-
+   // If this is a Web App launch and its display mode is 'standalone', then
+   // add a switch to the renderer process. This will prevent the toolbar from
+   // showing up.
+
+diff --git a/content/public/common/content_switches.cc b/content/public/common/content_switches.cc
+index 5678901..efghijk 100644
+--- a/content/public/common/content_switches.cc
++++ b/content/public/common/content_switches.cc
+@@ -156,10 +156,6 @@ const char kEnableAccessibilityObjectModel[] =
+ const char kEnableAggressiveDOMStorageFlushing[] =
+     "enable-aggressive-domstorage-flushing";
+
+-// Enable automation mode for testing. This will add an infobar to pages being
+-// controlled by automated test software.
+-const char kEnableAutomation[] = "enable-automation";
+-
+ // Enables user-initiated background HTML5 canvas 2D context's transfer to
+ // ImageBitmap.
+ const char kEnableCanvas2DImageChromium[] = "enable-canvas-2d-image-chromium";
+
+diff --git a/content/public/common/content_switches.h b/content/public/common/content_switches.h
+index 6789012..fghijkl 100644
+--- a/content/public/common/content_switches.h
++++ b/content/public/common/content_switches.h
+@@ -68,7 +68,6 @@ CONTENT_EXPORT extern const char kEnableAccessibilityObjectModel[];
+ CONTENT_EXPORT extern const char kEnableAggressiveDOMStorageFlushing[];
+-CONTENT_EXPORT extern const char kEnableAutomation[];
+ CONTENT_EXPORT extern const char kEnableCanvas2DImageChromium[];
+ CONTENT_EXPORT extern const char kEnableColorCorrectedRendering[];
+ CONTENT_EXPORT extern const char kEnableCrashReporter[];
+
+diff --git a/chrome/renderer/chrome_content_renderer_client.cc b/chrome/renderer/chrome_content_renderer_client.cc
+index 7890123..ghijklm 100644
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -876,11 +876,6 @@ void ChromeContentRendererClient::RenderFrameCreated(
+   RenderFrame* render_frame) {
+   new ChromeRenderFrameObserver(render_frame);
+
+-  // Check for automation mode
+-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+-          switches::kEnableAutomation)) {
+-    new AutomationRenderFrameObserver(render_frame);
+-  }
+-
+   // Install WebView plugin if enabled.
+   bool enable_plugins = true;
+ #if BUILDFLAG(IS_ANDROID)

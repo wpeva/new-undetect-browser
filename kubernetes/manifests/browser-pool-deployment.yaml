@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browser-pool
+  labels:
+    app: browser-pool
+    component: browser
+    version: v1
+spec:
+  replicas: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: browser-pool
+  template:
+    metadata:
+      labels:
+        app: browser-pool
+        component: browser
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: browser-pool
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: browser
+        image: antidetect/browser:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9222
+          name: devtools
+          protocol: TCP
+        - containerPort: 9091
+          name: metrics
+          protocol: TCP
+        env:
+        - name: MAX_BROWSERS
+          valueFrom:
+            configMapKeyRef:
+              name: antidetect-config
+              key: MAX_BROWSERS
+              optional: true
+        - name: CHROME_PATH
+          value: "/opt/chromium/chrome"
+        - name: PROTECTION_MODULES_PATH
+          value: "/app/protections"
+        - name: DISABLE_GPU
+          value: "false"
+        - name: ENABLE_WEBGL
+          value: "true"
+        - name: HEADLESS
+          value: "true"
+        - name: NO_SANDBOX
+          value: "true"
+        - name: DISABLE_DEV_SHM_USAGE
+          value: "false"
+        - name: SHM_SIZE
+          value: "2gb"
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9091
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 9091
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "pkill -TERM chrome && sleep 10"]
+        securityContext:
+          runAsNonRoot: false
+          runAsUser: 0
+          allowPrivilegeEscalation: true
+          capabilities:
+            add:
+            - SYS_ADMIN
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+        - name: browser-profiles
+          mountPath: /tmp/profiles
+        - name: browser-cache
+          mountPath: /tmp/cache
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi
+      - name: browser-profiles
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: browser-cache
+        emptyDir:
+          sizeLimit: 5Gi
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: browser-pool
+  labels:
+    app: browser-pool
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: browser-pool
+  ports:
+  - name: devtools
+    port: 9222
+    targetPort: 9222
+    protocol: TCP
+  - name: metrics
+    port: 9091
+    targetPort: 9091
+    protocol: TCP

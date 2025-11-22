@@ -1,0 +1,456 @@
+{
+  "comment": "Real-world browser usage distributions from StatCounter, Can I Use, W3Counter (2024 data)",
+
+  "browsers": {
+    "desktop": {
+      "Chrome": 0.652,
+      "Edge": 0.113,
+      "Safari": 0.088,
+      "Firefox": 0.074,
+      "Opera": 0.038,
+      "Brave": 0.022,
+      "Other": 0.013
+    },
+    "mobile": {
+      "Chrome": 0.628,
+      "Safari": 0.258,
+      "Samsung Internet": 0.067,
+      "Opera": 0.028,
+      "Firefox": 0.012,
+      "Other": 0.007
+    }
+  },
+
+  "operatingSystems": {
+    "desktop": {
+      "Windows": 0.712,
+      "macOS": 0.174,
+      "Linux": 0.042,
+      "Chrome OS": 0.072
+    },
+    "mobile": {
+      "Android": 0.714,
+      "iOS": 0.284,
+      "Other": 0.002
+    }
+  },
+
+  "screenResolutions": {
+    "desktop": {
+      "1920x1080": 0.224,
+      "1366x768": 0.108,
+      "2560x1440": 0.082,
+      "1536x864": 0.071,
+      "1440x900": 0.065,
+      "1680x1050": 0.038,
+      "3840x2160": 0.034,
+      "2560x1080": 0.028,
+      "1600x900": 0.026,
+      "1280x1024": 0.022,
+      "2880x1800": 0.019,
+      "1280x800": 0.017,
+      "1920x1200": 0.015,
+      "3440x1440": 0.012,
+      "Other": 0.239
+    },
+    "mobile": {
+      "393x852": 0.142,
+      "360x800": 0.128,
+      "414x896": 0.098,
+      "390x844": 0.087,
+      "412x915": 0.076,
+      "375x667": 0.065,
+      "360x780": 0.054,
+      "428x926": 0.043,
+      "412x892": 0.039,
+      "384x854": 0.031,
+      "Other": 0.237
+    },
+    "tablet": {
+      "1024x768": 0.198,
+      "810x1080": 0.156,
+      "834x1194": 0.142,
+      "820x1180": 0.128,
+      "800x1280": 0.097,
+      "768x1024": 0.089,
+      "Other": 0.190
+    }
+  },
+
+  "hardwareConcurrency": {
+    "desktop": {
+      "4": 0.187,
+      "6": 0.156,
+      "8": 0.298,
+      "12": 0.176,
+      "16": 0.142,
+      "20": 0.024,
+      "24": 0.012,
+      "32": 0.005
+    },
+    "mobile": {
+      "4": 0.224,
+      "6": 0.187,
+      "8": 0.489,
+      "10": 0.087,
+      "12": 0.013
+    }
+  },
+
+  "deviceMemory": {
+    "desktop": {
+      "4": 0.142,
+      "8": 0.498,
+      "16": 0.287,
+      "32": 0.062,
+      "64": 0.011
+    },
+    "mobile": {
+      "2": 0.098,
+      "4": 0.387,
+      "6": 0.298,
+      "8": 0.198,
+      "12": 0.019
+    }
+  },
+
+  "gpuVendors": {
+    "desktop": {
+      "NVIDIA": 0.762,
+      "AMD": 0.148,
+      "Intel": 0.087,
+      "Other": 0.003
+    },
+    "mac": {
+      "Apple": 0.687,
+      "AMD": 0.298,
+      "Intel": 0.015
+    }
+  },
+
+  "gpuModels": {
+    "NVIDIA": {
+      "GeForce RTX 3060": 0.142,
+      "GeForce RTX 3070": 0.128,
+      "GeForce RTX 4060": 0.098,
+      "GeForce RTX 3050": 0.087,
+      "GeForce RTX 4070": 0.076,
+      "GeForce GTX 1660": 0.065,
+      "GeForce RTX 3080": 0.054,
+      "GeForce GTX 1650": 0.048,
+      "GeForce RTX 4080": 0.039,
+      "GeForce RTX 2060": 0.037,
+      "GeForce GTX 1060": 0.032,
+      "GeForce RTX 3060 Ti": 0.028,
+      "GeForce RTX 4090": 0.024,
+      "Other": 0.142
+    },
+    "AMD": {
+      "Radeon RX 6600": 0.187,
+      "Radeon RX 6700 XT": 0.156,
+      "Radeon RX 7600": 0.142,
+      "Radeon RX 6800": 0.128,
+      "Radeon RX 5700 XT": 0.098,
+      "Radeon RX 7900 XTX": 0.076,
+      "Radeon RX 580": 0.065,
+      "Other": 0.148
+    },
+    "Intel": {
+      "UHD Graphics 630": 0.298,
+      "Iris Xe Graphics": 0.387,
+      "UHD Graphics 770": 0.187,
+      "Arc A770": 0.042,
+      "Other": 0.086
+    },
+    "Apple": {
+      "M1": 0.224,
+      "M1 Pro": 0.187,
+      "M1 Max": 0.098,
+      "M2": 0.298,
+      "M2 Pro": 0.128,
+      "M2 Max": 0.042,
+      "M3": 0.023
+    }
+  },
+
+  "languages": {
+    "US": ["en-US", "en"],
+    "GB": ["en-GB", "en-US", "en"],
+    "DE": ["de-DE", "de", "en-US"],
+    "FR": ["fr-FR", "fr", "en-US"],
+    "ES": ["es-ES", "es", "en-US"],
+    "IT": ["it-IT", "it", "en-US"],
+    "JP": ["ja-JP", "ja", "en-US"],
+    "CN": ["zh-CN", "zh", "en-US"],
+    "RU": ["ru-RU", "ru", "en-US"],
+    "BR": ["pt-BR", "pt", "en-US"]
+  },
+
+  "timezones": {
+    "US": [
+      "America/New_York",
+      "America/Chicago",
+      "America/Denver",
+      "America/Los_Angeles",
+      "America/Phoenix",
+      "America/Anchorage",
+      "Pacific/Honolulu"
+    ],
+    "GB": ["Europe/London"],
+    "DE": ["Europe/Berlin"],
+    "FR": ["Europe/Paris"],
+    "ES": ["Europe/Madrid"],
+    "IT": ["Europe/Rome"],
+    "JP": ["Asia/Tokyo"],
+    "CN": ["Asia/Shanghai"],
+    "RU": [
+      "Europe/Moscow",
+      "Asia/Yekaterinburg",
+      "Asia/Novosibirsk",
+      "Asia/Vladivostok"
+    ],
+    "BR": [
+      "America/Sao_Paulo",
+      "America/Manaus",
+      "America/Recife"
+    ]
+  },
+
+  "colorDepths": {
+    "24": 0.892,
+    "30": 0.098,
+    "32": 0.010
+  },
+
+  "pixelRatios": {
+    "desktop": {
+      "1": 0.612,
+      "1.25": 0.087,
+      "1.5": 0.128,
+      "2": 0.173
+    },
+    "mobile": {
+      "2": 0.387,
+      "2.5": 0.098,
+      "2.625": 0.142,
+      "2.75": 0.087,
+      "3": 0.286
+    }
+  },
+
+  "platforms": {
+    "Windows": [
+      "Win32"
+    ],
+    "macOS": [
+      "MacIntel"
+    ],
+    "Linux": [
+      "Linux x86_64",
+      "Linux aarch64"
+    ],
+    "Android": [
+      "Linux armv8l",
+      "Linux aarch64"
+    ],
+    "iOS": [
+      "iPhone",
+      "iPad"
+    ]
+  },
+
+  "fonts": {
+    "windows": [
+      "Arial",
+      "Arial Black",
+      "Bahnschrift",
+      "Calibri",
+      "Cambria",
+      "Cambria Math",
+      "Candara",
+      "Comic Sans MS",
+      "Consolas",
+      "Constantia",
+      "Corbel",
+      "Courier New",
+      "Ebrima",
+      "Franklin Gothic Medium",
+      "Gabriola",
+      "Gadugi",
+      "Georgia",
+      "Impact",
+      "Ink Free",
+      "Javanese Text",
+      "Leelawadee UI",
+      "Lucida Console",
+      "Lucida Sans Unicode",
+      "Malgun Gothic",
+      "Microsoft Himalaya",
+      "Microsoft JhengHei",
+      "Microsoft New Tai Lue",
+      "Microsoft PhagsPa",
+      "Microsoft Sans Serif",
+      "Microsoft Tai Le",
+      "Microsoft YaHei",
+      "Microsoft Yi Baiti",
+      "MingLiU-ExtB",
+      "Mongolian Baiti",
+      "MS Gothic",
+      "MV Boli",
+      "Myanmar Text",
+      "Nirmala UI",
+      "Palatino Linotype",
+      "Segoe MDL2 Assets",
+      "Segoe Print",
+      "Segoe Script",
+      "Segoe UI",
+      "Segoe UI Emoji",
+      "Segoe UI Historic",
+      "Segoe UI Symbol",
+      "SimSun",
+      "Sitka",
+      "Sylfaen",
+      "Symbol",
+      "Tahoma",
+      "Times New Roman",
+      "Trebuchet MS",
+      "Verdana",
+      "Webdings",
+      "Wingdings",
+      "Yu Gothic"
+    ],
+    "macos": [
+      "American Typewriter",
+      "Andale Mono",
+      "Arial",
+      "Arial Black",
+      "Arial Narrow",
+      "Arial Rounded MT Bold",
+      "Arial Unicode MS",
+      "Avenir",
+      "Avenir Next",
+      "Avenir Next Condensed",
+      "Baskerville",
+      "Big Caslon",
+      "Bodoni 72",
+      "Bodoni 72 Oldstyle",
+      "Bodoni 72 Smallcaps",
+      "Bradley Hand",
+      "Brush Script MT",
+      "Chalkboard",
+      "Chalkboard SE",
+      "Chalkduster",
+      "Charter",
+      "Cochin",
+      "Comic Sans MS",
+      "Copperplate",
+      "Courier",
+      "Courier New",
+      "Didot",
+      "Futura",
+      "Geneva",
+      "Georgia",
+      "Gill Sans",
+      "Helvetica",
+      "Helvetica Neue",
+      "Herculanum",
+      "Hoefler Text",
+      "Impact",
+      "Lucida Grande",
+      "Luminari",
+      "Marker Felt",
+      "Menlo",
+      "Monaco",
+      "Noteworthy",
+      "Optima",
+      "Palatino",
+      "Papyrus",
+      "Phosphate",
+      "Rockwell",
+      "Savoye LET",
+      "SignPainter",
+      "Skia",
+      "Snell Roundhand",
+      "Tahoma",
+      "Times",
+      "Times New Roman",
+      "Trebuchet MS",
+      "Verdana",
+      "Zapfino"
+    ],
+    "linux": [
+      "Abyssinica SIL",
+      "C059",
+      "Cantarell",
+      "D050000L",
+      "DejaVu Sans",
+      "DejaVu Sans Mono",
+      "DejaVu Serif",
+      "Droid Sans Fallback",
+      "FreeMono",
+      "FreeSans",
+      "FreeSerif",
+      "Liberation Mono",
+      "Liberation Sans",
+      "Liberation Serif",
+      "Nimbus Mono PS",
+      "Nimbus Roman",
+      "Nimbus Sans",
+      "Noto Color Emoji",
+      "Noto Mono",
+      "Noto Sans",
+      "Noto Sans CJK JP",
+      "Noto Sans Mono",
+      "Noto Serif",
+      "P052",
+      "Standard Symbols PS",
+      "Ubuntu",
+      "Ubuntu Condensed",
+      "Ubuntu Mono",
+      "URW Bookman",
+      "URW Gothic",
+      "Z003"
+    ]
+  },
+
+  "plugins": {
+    "chrome": [],
+    "firefox": [
+      "PDF Viewer"
+    ],
+    "safari": []
+  },
+
+  "webglExtensions": {
+    "common": [
+      "ANGLE_instanced_arrays",
+      "EXT_blend_minmax",
+      "EXT_color_buffer_half_float",
+      "EXT_float_blend",
+      "EXT_frag_depth",
+      "EXT_shader_texture_lod",
+      "EXT_sRGB",
+      "EXT_texture_compression_bptc",
+      "EXT_texture_compression_rgtc",
+      "EXT_texture_filter_anisotropic",
+      "KHR_parallel_shader_compile",
+      "OES_element_index_uint",
+      "OES_fbo_render_mipmap",
+      "OES_standard_derivatives",
+      "OES_texture_float",
+      "OES_texture_float_linear",
+      "OES_texture_half_float",
+      "OES_texture_half_float_linear",
+      "OES_vertex_array_object",
+      "WEBGL_color_buffer_float",
+      "WEBGL_compressed_texture_s3tc",
+      "WEBGL_compressed_texture_s3tc_srgb",
+      "WEBGL_debug_renderer_info",
+      "WEBGL_debug_shaders",
+      "WEBGL_depth_texture",
+      "WEBGL_draw_buffers",
+      "WEBGL_lose_context",
+      "WEBGL_multi_draw"
+    ]
+  }
+}

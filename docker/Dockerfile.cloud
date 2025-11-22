@@ -1,0 +1,116 @@
+# Multi-stage Dockerfile for Cloud Anti-Detect Browser
+# Optimized for production deployment with minimal size
+
+# Stage 1: Build stage
+FROM node:20-bullseye-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install ALL dependencies (including devDependencies for build)
+RUN npm ci
+
+# Copy source code
+COPY src/ ./src/
+COPY server/ ./server/
+COPY tests/ ./tests/
+
+# Build TypeScript
+RUN npm run build
+
+# Remove dev dependencies
+RUN npm prune --production
+
+# Stage 2: Runtime stage
+FROM node:20-bullseye-slim
+
+# Install runtime dependencies for Chromium
+RUN apt-get update && apt-get install -y \
+    # Chromium dependencies
+    chromium \
+    chromium-driver \
+    # X11 and graphics
+    xvfb \
+    x11vnc \
+    fluxbox \
+    # Fonts
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-thai-tlwg \
+    fonts-kacst \
+    fonts-freefont-ttf \
+    # Additional libraries
+    libgtk-3-0 \
+    libgbm1 \
+    libasound2 \
+    libnspr4 \
+    libnss3 \
+    libxss1 \
+    libxtst6 \
+    libappindicator3-1 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libcups2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    # Utilities
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -r browser && useradd -r -g browser -G audio,video browser \
+    && mkdir -p /home/browser/Downloads \
+    && chown -R browser:browser /home/browser
+
+# Set working directory
+WORKDIR /app
+
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+
+# Copy additional files
+COPY examples/ ./examples/
+
+# Set up Puppeteer to use system Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    DISPLAY=:99 \
+    NODE_ENV=production
+
+# Expose ports
+# 3000 - API Server
+# 9222-9322 - Chrome DevTools Protocol (100 concurrent browsers)
+EXPOSE 3000 9222-9322
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Switch to non-root user
+USER browser
+
+# Start Xvfb and application
+CMD Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -nolisten unix & \
+    node dist/server/index.js

@@ -1,290 +1,237 @@
-import { Page } from 'puppeteer';
-import { logger } from '../utils/logger';
-
 /**
- * Speech synthesis voice data
+ * SpeechSynthesis API Protection Module
+ *
+ * Spoofs speechSynthesis.getVoices() to return realistic voice lists
+ * based on the operating system and browser.
+ *
+ * This is CRITICAL for passing:
+ * - browserleaks.com
+ * - creepjs.com
+ * - pixelscan.net
  */
-export interface SynthesisVoice {
-  name: string;
-  lang: string;
-  voiceURI: string;
-  default: boolean;
-  localService: boolean;
-}
 
-/**
- * SpeechSynthesis configuration
- */
+import type { Page } from 'puppeteer';
+
 export interface SpeechSynthesisConfig {
   enabled: boolean;
+  platform: 'Win32' | 'MacIntel' | 'Linux x86_64' | 'iPhone' | 'iPad' | 'Android';
   locale?: string;
-  voices?: SynthesisVoice[];
+  customVoices?: SpeechSynthesisVoiceData[];
+}
+
+export interface SpeechSynthesisVoiceData {
+  name: string;
+  lang: string;
+  default?: boolean;
+  localService: boolean;
+  voiceURI: string;
 }
 
 /**
- * Default voice sets for common locales
+ * Realistic voice lists for different platforms
  */
-const DEFAULT_VOICE_SETS: Record<string, SynthesisVoice[]> = {
-  'en-US': [
-    {
-      name: 'Microsoft David - English (United States)',
-      lang: 'en-US',
-      voiceURI: 'Microsoft David - English (United States)',
-      default: true,
-      localService: true,
-    },
-    {
-      name: 'Microsoft Zira - English (United States)',
-      lang: 'en-US',
-      voiceURI: 'Microsoft Zira - English (United States)',
-      default: false,
-      localService: true,
-    },
-    {
-      name: 'Google US English',
-      lang: 'en-US',
-      voiceURI: 'Google US English',
-      default: false,
-      localService: false,
-    },
+const PLATFORM_VOICES: Record<string, SpeechSynthesisVoiceData[]> = {
+  // Windows 11 voices (Chrome)
+  Win32: [
+    { name: 'Microsoft David - English (United States)', lang: 'en-US', default: true, localService: true, voiceURI: 'Microsoft David - English (United States)' },
+    { name: 'Microsoft Zira - English (United States)', lang: 'en-US', default: false, localService: true, voiceURI: 'Microsoft Zira - English (United States)' },
+    { name: 'Microsoft Mark - English (United States)', lang: 'en-US', default: false, localService: true, voiceURI: 'Microsoft Mark - English (United States)' },
+    { name: 'Google US English', lang: 'en-US', default: false, localService: false, voiceURI: 'Google US English' },
+    { name: 'Google UK English Female', lang: 'en-GB', default: false, localService: false, voiceURI: 'Google UK English Female' },
+    { name: 'Google UK English Male', lang: 'en-GB', default: false, localService: false, voiceURI: 'Google UK English Male' },
+    { name: 'Microsoft Hazel - English (Great Britain)', lang: 'en-GB', default: false, localService: true, voiceURI: 'Microsoft Hazel - English (Great Britain)' },
+    { name: 'Microsoft Susan - English (Great Britain)', lang: 'en-GB', default: false, localService: true, voiceURI: 'Microsoft Susan - English (Great Britain)' },
+    { name: 'Microsoft George - English (Great Britain)', lang: 'en-GB', default: false, localService: true, voiceURI: 'Microsoft George - English (Great Britain)' },
+    { name: 'Google español', lang: 'es-ES', default: false, localService: false, voiceURI: 'Google español' },
+    { name: 'Google español de Estados Unidos', lang: 'es-US', default: false, localService: false, voiceURI: 'Google español de Estados Unidos' },
+    { name: 'Google français', lang: 'fr-FR', default: false, localService: false, voiceURI: 'Google français' },
+    { name: 'Google Deutsch', lang: 'de-DE', default: false, localService: false, voiceURI: 'Google Deutsch' },
+    { name: 'Google italiano', lang: 'it-IT', default: false, localService: false, voiceURI: 'Google italiano' },
+    { name: 'Google 日本語', lang: 'ja-JP', default: false, localService: false, voiceURI: 'Google 日本語' },
+    { name: 'Google 한국의', lang: 'ko-KR', default: false, localService: false, voiceURI: 'Google 한국의' },
+    { name: 'Google 普通话（中国大陆）', lang: 'zh-CN', default: false, localService: false, voiceURI: 'Google 普通话（中国大陆）' },
+    { name: 'Google 粤語（香港）', lang: 'zh-HK', default: false, localService: false, voiceURI: 'Google 粤語（香港）' },
+    { name: 'Google 國語（臺灣）', lang: 'zh-TW', default: false, localService: false, voiceURI: 'Google 國語（臺灣）' },
   ],
-  'en-GB': [
-    {
-      name: 'Microsoft Hazel - English (Great Britain)',
-      lang: 'en-GB',
-      voiceURI: 'Microsoft Hazel - English (Great Britain)',
-      default: true,
-      localService: true,
-    },
-    {
-      name: 'Microsoft George - English (Great Britain)',
-      lang: 'en-GB',
-      voiceURI: 'Microsoft George - English (Great Britain)',
-      default: false,
-      localService: true,
-    },
-    {
-      name: 'Google UK English Female',
-      lang: 'en-GB',
-      voiceURI: 'Google UK English Female',
-      default: false,
-      localService: false,
-    },
+
+  // macOS voices (Safari/Chrome)
+  MacIntel: [
+    { name: 'Alex', lang: 'en-US', default: true, localService: true, voiceURI: 'Alex' },
+    { name: 'Samantha', lang: 'en-US', default: false, localService: true, voiceURI: 'Samantha' },
+    { name: 'Victoria', lang: 'en-US', default: false, localService: true, voiceURI: 'Victoria' },
+    { name: 'Karen', lang: 'en-AU', default: false, localService: true, voiceURI: 'Karen' },
+    { name: 'Daniel', lang: 'en-GB', default: false, localService: true, voiceURI: 'Daniel' },
+    { name: 'Kate', lang: 'en-GB', default: false, localService: true, voiceURI: 'Kate' },
+    { name: 'Moira', lang: 'en-IE', default: false, localService: true, voiceURI: 'Moira' },
+    { name: 'Rishi', lang: 'en-IN', default: false, localService: true, voiceURI: 'Rishi' },
+    { name: 'Fiona', lang: 'en-scotland', default: false, localService: true, voiceURI: 'Fiona' },
+    { name: 'Tessa', lang: 'en-ZA', default: false, localService: true, voiceURI: 'Tessa' },
+    { name: 'Monica', lang: 'es-ES', default: false, localService: true, voiceURI: 'Monica' },
+    { name: 'Paulina', lang: 'es-MX', default: false, localService: true, voiceURI: 'Paulina' },
+    { name: 'Amelie', lang: 'fr-CA', default: false, localService: true, voiceURI: 'Amelie' },
+    { name: 'Thomas', lang: 'fr-FR', default: false, localService: true, voiceURI: 'Thomas' },
+    { name: 'Anna', lang: 'de-DE', default: false, localService: true, voiceURI: 'Anna' },
+    { name: 'Alice', lang: 'it-IT', default: false, localService: true, voiceURI: 'Alice' },
+    { name: 'Kyoko', lang: 'ja-JP', default: false, localService: true, voiceURI: 'Kyoko' },
+    { name: 'Yuna', lang: 'ko-KR', default: false, localService: true, voiceURI: 'Yuna' },
+    { name: 'Ting-Ting', lang: 'zh-CN', default: false, localService: true, voiceURI: 'Ting-Ting' },
+    { name: 'Sin-Ji', lang: 'zh-HK', default: false, localService: true, voiceURI: 'Sin-Ji' },
+    { name: 'Mei-Jia', lang: 'zh-TW', default: false, localService: true, voiceURI: 'Mei-Jia' },
   ],
-  'es-ES': [
-    {
-      name: 'Microsoft Helena - Spanish (Spain)',
-      lang: 'es-ES',
-      voiceURI: 'Microsoft Helena - Spanish (Spain)',
-      default: true,
-      localService: true,
-    },
-    {
-      name: 'Google español',
-      lang: 'es-ES',
-      voiceURI: 'Google español',
-      default: false,
-      localService: false,
-    },
+
+  // Linux voices (typically fewer)
+  'Linux x86_64': [
+    { name: 'Google US English', lang: 'en-US', default: true, localService: false, voiceURI: 'Google US English' },
+    { name: 'Google UK English Female', lang: 'en-GB', default: false, localService: false, voiceURI: 'Google UK English Female' },
+    { name: 'Google UK English Male', lang: 'en-GB', default: false, localService: false, voiceURI: 'Google UK English Male' },
+    { name: 'Google español', lang: 'es-ES', default: false, localService: false, voiceURI: 'Google español' },
+    { name: 'Google français', lang: 'fr-FR', default: false, localService: false, voiceURI: 'Google français' },
+    { name: 'Google Deutsch', lang: 'de-DE', default: false, localService: false, voiceURI: 'Google Deutsch' },
+    { name: 'Google italiano', lang: 'it-IT', default: false, localService: false, voiceURI: 'Google italiano' },
   ],
-  'fr-FR': [
-    {
-      name: 'Microsoft Hortense - French (France)',
-      lang: 'fr-FR',
-      voiceURI: 'Microsoft Hortense - French (France)',
-      default: true,
-      localService: true,
-    },
-    {
-      name: 'Google français',
-      lang: 'fr-FR',
-      voiceURI: 'Google français',
-      default: false,
-      localService: false,
-    },
+
+  // Mobile platforms (iOS)
+  iPhone: [
+    { name: 'Samantha (Enhanced)', lang: 'en-US', default: true, localService: true, voiceURI: 'Samantha (Enhanced)' },
+    { name: 'Alex', lang: 'en-US', default: false, localService: true, voiceURI: 'Alex' },
+    { name: 'Karen', lang: 'en-AU', default: false, localService: true, voiceURI: 'Karen' },
+    { name: 'Daniel (Enhanced)', lang: 'en-GB', default: false, localService: true, voiceURI: 'Daniel (Enhanced)' },
   ],
-  'de-DE': [
-    {
-      name: 'Microsoft Hedda - German (Germany)',
-      lang: 'de-DE',
-      voiceURI: 'Microsoft Hedda - German (Germany)',
-      default: true,
-      localService: true,
-    },
-    {
-      name: 'Google Deutsch',
-      lang: 'de-DE',
-      voiceURI: 'Google Deutsch',
-      default: false,
-      localService: false,
-    },
+
+  iPad: [
+    { name: 'Samantha (Enhanced)', lang: 'en-US', default: true, localService: true, voiceURI: 'Samantha (Enhanced)' },
+    { name: 'Alex', lang: 'en-US', default: false, localService: true, voiceURI: 'Alex' },
+    { name: 'Karen', lang: 'en-AU', default: false, localService: true, voiceURI: 'Karen' },
+    { name: 'Daniel (Enhanced)', lang: 'en-GB', default: false, localService: true, voiceURI: 'Daniel (Enhanced)' },
+  ],
+
+  // Android
+  Android: [
+    { name: 'Google US English', lang: 'en-US', default: true, localService: false, voiceURI: 'Google US English' },
+    { name: 'Google UK English Female', lang: 'en-GB', default: false, localService: false, voiceURI: 'Google UK English Female' },
+    { name: 'Google UK English Male', lang: 'en-GB', default: false, localService: false, voiceURI: 'Google UK English Male' },
   ],
 };
 
-/**
- * SpeechSynthesis Protection Module
- * Spoofs the speech synthesis API to present realistic voice lists
- */
 export class SpeechSynthesisProtection {
   private config: SpeechSynthesisConfig;
-  private voices: SynthesisVoice[];
 
   constructor(config: Partial<SpeechSynthesisConfig> = {}) {
-    const locale = config.locale || 'en-US';
-    const voices =
-      config.voices || DEFAULT_VOICE_SETS[locale] || DEFAULT_VOICE_SETS['en-US'];
-
     this.config = {
       enabled: true,
-      locale,
-      voices,
+      platform: 'Win32',
       ...config,
     };
-
-    this.voices = voices;
-
-    logger.info(
-      `SpeechSynthesis Protection initialized (locale: ${this.config.locale}, voices: ${this.voices.length})`
-    );
   }
 
   /**
-   * Inject SpeechSynthesis protection into page
+   * Apply SpeechSynthesis protection to a page
    */
-  async inject(page: Page): Promise<void> {
+  async apply(page: Page): Promise<void> {
     if (!this.config.enabled) {
-      logger.info('SpeechSynthesis protection disabled, skipping injection');
       return;
     }
 
-    await page.evaluateOnNewDocument((voicesData: SynthesisVoice[]) => {
-      // Create SpeechSynthesisVoice objects
-      class FakeSpeechSynthesisVoice implements SpeechSynthesisVoice {
-        public readonly name: string;
-        public readonly lang: string;
-        public readonly voiceURI: string;
-        public readonly default: boolean;
-        public readonly localService: boolean;
+    const voices = this.getVoicesForPlatform();
 
-        constructor(data: SynthesisVoice) {
-          this.name = data.name;
-          this.lang = data.lang;
-          this.voiceURI = data.voiceURI;
-          this.default = data.default;
-          this.localService = data.localService;
-        }
-      }
+    await page.evaluateOnNewDocument(this.getInjectionScript(), voices);
+  }
 
-      // Create voice instances
-      const fakeVoices = voicesData.map(
-        (data) => new FakeSpeechSynthesisVoice(data)
-      );
+  /**
+   * Get the injection script
+   */
+  private getInjectionScript() {
+    return (voicesData: SpeechSynthesisVoiceData[]) => {
+      // Create mock SpeechSynthesisVoice objects
+      const voices: any[] = voicesData.map((voiceData) => {
+        const voice: any = {};
 
-      // Override speechSynthesis.getVoices()
-      if (window.speechSynthesis) {
-        const originalGetVoices = window.speechSynthesis.getVoices.bind(
-          window.speechSynthesis
-        );
-
-        // Store original to potentially mix with fake voices
-        let voicesRetrieved = false;
-
-        Object.defineProperty(window.speechSynthesis, 'getVoices', {
-          value: function (): SpeechSynthesisVoice[] {
-            voicesRetrieved = true;
-            return fakeVoices;
+        Object.defineProperties(voice, {
+          name: { get: () => voiceData.name, enumerable: true },
+          lang: { get: () => voiceData.lang, enumerable: true },
+          default: {
+            get: () => voiceData.default || false,
+            enumerable: true,
           },
-          writable: false,
-          configurable: false,
+          localService: {
+            get: () => voiceData.localService,
+            enumerable: true,
+          },
+          voiceURI: { get: () => voiceData.voiceURI, enumerable: true },
         });
 
-        // Trigger onvoiceschanged event
-        setTimeout(() => {
-          if (window.speechSynthesis.onvoiceschanged) {
+        // Make it look like SpeechSynthesisVoice
+        Object.setPrototypeOf(voice, SpeechSynthesisVoice.prototype);
+
+        return voice;
+      });
+
+      // Store the original getVoices
+      const originalGetVoices = SpeechSynthesis.prototype.getVoices;
+
+      // Override getVoices
+      SpeechSynthesis.prototype.getVoices = function () {
+        return voices;
+      };
+
+      // Make sure voiceschanged event works
+      const originalAddEventListener = SpeechSynthesis.prototype.addEventListener;
+      const voicesChangedListeners: EventListener[] = [];
+
+      SpeechSynthesis.prototype.addEventListener = function (
+        type: string,
+        listener: EventListener,
+        options?: any
+      ) {
+        if (type === 'voiceschanged') {
+          voicesChangedListeners.push(listener);
+          // Trigger immediately with voices already loaded
+          setTimeout(() => {
             const event = new Event('voiceschanged');
-            window.speechSynthesis.onvoiceschanged(event);
-          }
-        }, 0);
+            listener.call(this, event);
+          }, 100);
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+      };
 
-        // Override speak method to prevent actual speech
-        const originalSpeak = window.speechSynthesis.speak.bind(
-          window.speechSynthesis
+      // Fix toString to look native
+      const originalToString = Function.prototype.toString;
+      Function.prototype.toString = function () {
+        if (this === SpeechSynthesis.prototype.getVoices) {
+          return 'function getVoices() { [native code] }';
+        }
+        return originalToString.call(this);
+      };
+
+      // Log for debugging
+      if (typeof console !== 'undefined' && console.log) {
+        console.log(
+          `[SpeechSynthesis Protection] Loaded ${voices.length} voices`
         );
-        window.speechSynthesis.speak = function (
-          utterance: SpeechSynthesisUtterance
-        ): void {
-          // Simulate speech events without actually speaking
-          setTimeout(() => {
-            if (utterance.onstart) {
-              const event = new SpeechSynthesisEvent('start', {
-                utterance,
-                charIndex: 0,
-                charLength: utterance.text.length,
-                elapsedTime: 0,
-                name: '',
-              });
-              utterance.onstart(event);
-            }
-          }, 10);
-
-          setTimeout(() => {
-            if (utterance.onend) {
-              const event = new SpeechSynthesisEvent('end', {
-                utterance,
-                charIndex: utterance.text.length,
-                charLength: utterance.text.length,
-                elapsedTime: utterance.text.length * 50, // Simulated duration
-                name: '',
-              });
-              utterance.onend(event);
-            }
-          }, utterance.text.length * 50 + 100);
-        };
-
-        // Override other speechSynthesis properties
-        Object.defineProperty(window.speechSynthesis, 'speaking', {
-          get: () => false,
-          configurable: false,
-        });
-
-        Object.defineProperty(window.speechSynthesis, 'pending', {
-          get: () => false,
-          configurable: false,
-        });
-
-        Object.defineProperty(window.speechSynthesis, 'paused', {
-          get: () => false,
-          configurable: false,
-        });
       }
-
-      logger.info('SpeechSynthesis Protection injected successfully');
-    }, this.voices);
-
-    logger.info('SpeechSynthesis Protection injected into page');
+    };
   }
 
   /**
-   * Get the module name
+   * Get voices for the configured platform
    */
-  getName(): string {
-    return 'SpeechSynthesisProtection';
-  }
+  private getVoicesForPlatform(): SpeechSynthesisVoiceData[] {
+    if (this.config.customVoices) {
+      return this.config.customVoices;
+    }
 
-  /**
-   * Get current voices
-   */
-  getVoices(): SynthesisVoice[] {
-    return [...this.voices];
-  }
+    const voices = PLATFORM_VOICES[this.config.platform] || PLATFORM_VOICES.Win32;
 
-  /**
-   * Set custom voices
-   */
-  setVoices(voices: SynthesisVoice[]): void {
-    this.voices = voices;
-    this.config.voices = voices;
-    logger.info(`SpeechSynthesis voices updated (${voices.length} voices)`);
+    // Filter by locale if specified
+    if (this.config.locale) {
+      return voices.filter(
+        (voice) =>
+          voice.lang.startsWith(this.config.locale!) ||
+          voice.lang === this.config.locale
+      );
+    }
+
+    return voices;
   }
 
   /**
@@ -292,37 +239,25 @@ export class SpeechSynthesisProtection {
    */
   updateConfig(config: Partial<SpeechSynthesisConfig>): void {
     this.config = { ...this.config, ...config };
-
-    if (config.voices) {
-      this.voices = config.voices;
-    } else if (config.locale) {
-      this.voices =
-        DEFAULT_VOICE_SETS[config.locale] || DEFAULT_VOICE_SETS['en-US'];
-    }
-
-    logger.info('SpeechSynthesis Protection configuration updated');
-  }
-
-  /**
-   * Get available voice sets
-   */
-  static getAvailableVoiceSets(): string[] {
-    return Object.keys(DEFAULT_VOICE_SETS);
-  }
-
-  /**
-   * Get voice set for locale
-   */
-  static getVoiceSetForLocale(locale: string): SynthesisVoice[] {
-    return DEFAULT_VOICE_SETS[locale] || DEFAULT_VOICE_SETS['en-US'];
   }
 }
 
 /**
- * Create SpeechSynthesis protection instance
+ * Factory function
  */
 export function createSpeechSynthesisProtection(
   config?: Partial<SpeechSynthesisConfig>
 ): SpeechSynthesisProtection {
   return new SpeechSynthesisProtection(config);
+}
+
+/**
+ * Apply to multiple pages
+ */
+export async function applySpeechSynthesisProtectionToPages(
+  pages: Page[],
+  config?: Partial<SpeechSynthesisConfig>
+): Promise<void> {
+  const protection = new SpeechSynthesisProtection(config);
+  await Promise.all(pages.map((page) => protection.apply(page)));
 }

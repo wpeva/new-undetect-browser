@@ -1,395 +1,301 @@
-import { Page } from 'puppeteer';
-import { logger } from '../utils/logger';
+/**
+ * Device Orientation & Motion Protection Module
+ *
+ * Protects against fingerprinting through Device Orientation and Motion events.
+ * Desktop devices typically don't support these APIs, while mobile devices do.
+ *
+ * This ensures proper device type consistency.
+ *
+ * CRITICAL for:
+ * - Device type consistency (desktop vs mobile)
+ * - creepjs.com detection
+ * - Advanced device fingerprinting
+ */
 
-export interface DeviceOrientationProfile {
-  isMobile: boolean;
-  hasGyroscope: boolean;
-  hasAccelerometer: boolean;
-  hasMagnetometer: boolean;
+import type { Page } from 'puppeteer';
+
+export interface DeviceOrientationConfig {
+  enabled: boolean;
+  deviceType: 'desktop' | 'mobile' | 'tablet';
+  // Mobile-specific settings
+  enableMotion?: boolean;
+  enableOrientation?: boolean;
+  customOrientationData?: DeviceOrientationData;
+  customMotionData?: DeviceMotionData;
+}
+
+export interface DeviceOrientationData {
+  alpha: number | null; // 0-360 degrees (rotation around Z axis)
+  beta: number | null; // -180 to 180 degrees (rotation around X axis)
+  gamma: number | null; // -90 to 90 degrees (rotation around Y axis)
+  absolute: boolean;
+}
+
+export interface DeviceMotionData {
+  acceleration: {
+    x: number | null;
+    y: number | null;
+    z: number | null;
+  };
+  accelerationIncludingGravity: {
+    x: number | null;
+    y: number | null;
+    z: number | null;
+  };
+  rotationRate: {
+    alpha: number | null;
+    beta: number | null;
+    gamma: number | null;
+  };
+  interval: number;
 }
 
 /**
- * Device Orientation Protection Module
- * Protects against detection via Device Orientation and Motion APIs
- * Emulates realistic sensor behavior for mobile devices or hides sensors for desktop
+ * Realistic device orientation/motion data for mobile devices
  */
-export class DeviceOrientationProtectionModule {
-  private profile: DeviceOrientationProfile;
+const DEFAULT_MOBILE_ORIENTATION: DeviceOrientationData = {
+  alpha: 0,
+  beta: 0,
+  gamma: 0,
+  absolute: true,
+};
 
-  constructor(profile: DeviceOrientationProfile) {
-    this.profile = profile;
+const DEFAULT_MOBILE_MOTION: DeviceMotionData = {
+  acceleration: { x: 0, y: 0, z: 0 },
+  accelerationIncludingGravity: { x: 0, y: 9.8, z: 0 }, // Gravity
+  rotationRate: { alpha: 0, beta: 0, gamma: 0 },
+  interval: 16, // ~60Hz
+};
+
+export class DeviceOrientationProtection {
+  private config: DeviceOrientationConfig;
+
+  constructor(config: Partial<DeviceOrientationConfig> = {}) {
+    this.config = {
+      enabled: true,
+      deviceType: 'desktop',
+      enableMotion: false,
+      enableOrientation: false,
+      ...config,
+    };
+
+    // Auto-configure based on device type
+    if (this.config.deviceType === 'mobile' || this.config.deviceType === 'tablet') {
+      this.config.enableMotion = config.enableMotion ?? true;
+      this.config.enableOrientation = config.enableOrientation ?? true;
+    }
   }
 
   /**
-   * Inject device orientation protection scripts
+   * Apply Device Orientation protection to a page
    */
-  async inject(page: Page): Promise<void> {
-    logger.debug('Injecting device orientation protection scripts');
+  async apply(page: Page): Promise<void> {
+    if (!this.config.enabled) {
+      return;
+    }
 
-    await page.evaluateOnNewDocument((profile: DeviceOrientationProfile) => {
-      // ========================================
-      // 1. DeviceOrientationEvent Protection
-      // ========================================
+    await page.evaluateOnNewDocument(
+      this.getInjectionScript(),
+      this.config,
+      DEFAULT_MOBILE_ORIENTATION,
+      DEFAULT_MOBILE_MOTION
+    );
+  }
 
-      if (profile.isMobile && profile.hasGyroscope) {
-        // For mobile devices: provide realistic orientation data
+  /**
+   * Get the injection script
+   */
+  private getInjectionScript() {
+    return (
+      config: DeviceOrientationConfig,
+      defaultOrientation: DeviceOrientationData,
+      defaultMotion: DeviceMotionData
+    ) => {
+      if (config.deviceType === 'desktop') {
+        // Desktop devices: Remove/disable these APIs
 
-        // Store event listeners for manual triggering
-        const orientationListeners = new Set<EventListener>();
-        const motionListeners = new Set<EventListener>();
+        // Remove DeviceOrientationEvent
+        if (typeof DeviceOrientationEvent !== 'undefined') {
+          (window as any).DeviceOrientationEvent = undefined;
+          delete (window as any).DeviceOrientationEvent;
+        }
 
-        // Override addEventListener to capture orientation listeners
-        const originalAddEventListener = window.addEventListener.bind(window);
-        window.addEventListener = function (
+        // Remove DeviceMotionEvent
+        if (typeof DeviceMotionEvent !== 'undefined') {
+          (window as any).DeviceMotionEvent = undefined;
+          delete (window as any).DeviceMotionEvent;
+        }
+
+        // Remove ondeviceorientation handler
+        Object.defineProperty(window, 'ondeviceorientation', {
+          get: () => null,
+          set: () => {},
+          configurable: true,
+          enumerable: true,
+        });
+
+        // Remove ondevicemotion handler
+        Object.defineProperty(window, 'ondevicemotion', {
+          get: () => null,
+          set: () => {},
+          configurable: true,
+          enumerable: true,
+        });
+
+        // Block addEventListener for these events
+        const originalAddEventListener = EventTarget.prototype.addEventListener;
+        EventTarget.prototype.addEventListener = function (
           type: string,
-          listener: EventListenerOrEventListenerObject,
-          options?: boolean | AddEventListenerOptions
+          listener: any,
+          options?: any
         ) {
-          if (type === 'deviceorientation' && typeof listener === 'function') {
-            orientationListeners.add(listener as EventListener);
-          } else if (type === 'devicemotion' && typeof listener === 'function') {
-            motionListeners.add(listener as EventListener);
+          if (
+            type === 'deviceorientation' ||
+            type === 'deviceorientationabsolute' ||
+            type === 'devicemotion'
+          ) {
+            // Silently ignore these event listeners on desktop
+            return;
           }
-          return originalAddEventListener(type, listener, options);
+          return originalAddEventListener.call(this, type, listener, options);
         };
 
-        // Override removeEventListener
-        const originalRemoveEventListener = window.removeEventListener.bind(window);
-        window.removeEventListener = function (
+      } else {
+        // Mobile/Tablet devices: Provide realistic data
+
+        const orientationData = config.customOrientationData || defaultOrientation;
+        const motionData = config.customMotionData || defaultMotion;
+
+        // Store listeners
+        const orientationListeners: EventListener[] = [];
+        const motionListeners: EventListener[] = [];
+
+        // Override addEventListener to track device orientation/motion listeners
+        const originalAddEventListener = EventTarget.prototype.addEventListener;
+        EventTarget.prototype.addEventListener = function (
           type: string,
-          listener: EventListenerOrEventListenerObject,
-          options?: boolean | EventListenerOptions
+          listener: any,
+          options?: any
         ) {
-          if (type === 'deviceorientation' && typeof listener === 'function') {
-            orientationListeners.delete(listener as EventListener);
-          } else if (type === 'devicemotion' && typeof listener === 'function') {
-            motionListeners.delete(listener as EventListener);
+          if (type === 'deviceorientation' && config.enableOrientation) {
+            orientationListeners.push(listener);
+
+            // Trigger with realistic data after a delay
+            setTimeout(() => {
+              const event = new DeviceOrientationEvent('deviceorientation', {
+                alpha: orientationData.alpha,
+                beta: orientationData.beta,
+                gamma: orientationData.gamma,
+                absolute: orientationData.absolute,
+              });
+              listener.call(window, event);
+            }, 100);
+          } else if (type === 'devicemotion' && config.enableMotion) {
+            motionListeners.push(listener);
+
+            // Trigger with realistic data after a delay
+            setTimeout(() => {
+              const event = new DeviceMotionEvent('devicemotion', {
+                acceleration: motionData.acceleration,
+                accelerationIncludingGravity: motionData.accelerationIncludingGravity,
+                rotationRate: motionData.rotationRate,
+                interval: motionData.interval,
+              });
+              listener.call(window, event);
+            }, 100);
           }
-          return originalRemoveEventListener(type, listener, options);
+
+          return originalAddEventListener.call(this, type, listener, options);
         };
 
-        // Simulate realistic orientation values
-        let alpha = 0; // Z-axis rotation (0-360)
-        let beta = 0; // X-axis rotation (-180 to 180)
-        let gamma = 0; // Y-axis rotation (-90 to 90)
-
-        // Create realistic DeviceOrientationEvent constructor
-        const OriginalDeviceOrientationEvent = (window as any).DeviceOrientationEvent;
-
-        if (OriginalDeviceOrientationEvent) {
-          // Make DeviceOrientationEvent constructible
-          (window as any).DeviceOrientationEvent = class DeviceOrientationEvent extends OriginalDeviceOrientationEvent {
-            constructor(type: string, eventInitDict?: DeviceOrientationEventInit) {
-              super(type, eventInitDict);
-            }
-          };
-
-          // Simulate orientation changes periodically (subtle movements)
+        // Simulate periodic updates for mobile devices
+        if (config.enableOrientation) {
           setInterval(() => {
-            // Add small random changes to simulate natural device movements
-            alpha += (Math.random() - 0.5) * 2; // ±1 degree
-            beta += (Math.random() - 0.5) * 0.5; // ±0.25 degree
-            gamma += (Math.random() - 0.5) * 0.5; // ±0.25 degree
-
-            // Keep values in valid ranges
-            alpha = ((alpha % 360) + 360) % 360;
-            beta = Math.max(-180, Math.min(180, beta));
-            gamma = Math.max(-90, Math.min(90, gamma));
-
-            // Create and dispatch event
-            const event = new (window as any).DeviceOrientationEvent('deviceorientation', {
-              alpha,
-              beta,
-              gamma,
-              absolute: false,
+            // Add small random variations to simulate real device movement
+            const event = new DeviceOrientationEvent('deviceorientation', {
+              alpha: orientationData.alpha! + (Math.random() - 0.5) * 0.5,
+              beta: orientationData.beta! + (Math.random() - 0.5) * 0.5,
+              gamma: orientationData.gamma! + (Math.random() - 0.5) * 0.5,
+              absolute: orientationData.absolute,
             });
 
             orientationListeners.forEach((listener) => {
-              try {
-                listener(event);
-              } catch (e) {
-                // Ignore errors in listener
-              }
+              listener.call(window, event);
             });
-          }, 100); // Update every 100ms for smooth motion
+          }, 100); // 10Hz update rate
         }
 
-        // ========================================
-        // 2. DeviceMotionEvent Protection
-        // ========================================
-
-        if (profile.hasAccelerometer) {
-          const OriginalDeviceMotionEvent = (window as any).DeviceMotionEvent;
-
-          if (OriginalDeviceMotionEvent) {
-            // Make DeviceMotionEvent constructible
-            (window as any).DeviceMotionEvent = class DeviceMotionEvent extends OriginalDeviceMotionEvent {
-              constructor(type: string, eventInitDict?: DeviceMotionEventInit) {
-                super(type, eventInitDict);
-              }
-            };
-
-            // Simulate motion data periodically
-            setInterval(() => {
-              // Simulate gravity and acceleration (device at rest with minor vibrations)
-              const acceleration = {
-                x: (Math.random() - 0.5) * 0.2, // ±0.1 m/s²
-                y: (Math.random() - 0.5) * 0.2,
-                z: (Math.random() - 0.5) * 0.2,
-              };
-
-              const accelerationIncludingGravity = {
-                x: acceleration.x + (Math.random() - 0.5) * 0.5,
-                y: acceleration.y + (Math.random() - 0.5) * 0.5,
-                z: acceleration.z + 9.81 + (Math.random() - 0.5) * 0.5, // Earth's gravity
-              };
-
-              const rotationRate = {
-                alpha: (Math.random() - 0.5) * 2, // ±1 deg/s
-                beta: (Math.random() - 0.5) * 2,
-                gamma: (Math.random() - 0.5) * 2,
-              };
-
-              const event = new (window as any).DeviceMotionEvent('devicemotion', {
-                acceleration,
-                accelerationIncludingGravity,
-                rotationRate,
-                interval: 100,
-              });
-
-              motionListeners.forEach((listener) => {
-                try {
-                  listener(event);
-                } catch (e) {
-                  // Ignore errors in listener
-                }
-              });
-            }, 100); // Update every 100ms
-          }
-        }
-
-        // ========================================
-        // 3. Permission API for Sensors
-        // ========================================
-
-        // Override permissions query for device sensors
-        if (navigator.permissions && navigator.permissions.query) {
-          const originalQuery = navigator.permissions.query.bind(navigator.permissions);
-
-          navigator.permissions.query = function (permissionDesc: any) {
-            if (
-              permissionDesc.name === 'accelerometer' ||
-              permissionDesc.name === 'gyroscope' ||
-              permissionDesc.name === 'magnetometer'
-            ) {
-              // Return granted for mobile devices
-              return Promise.resolve({
-                state: 'granted',
-                onchange: null,
-                addEventListener: () => {},
-                removeEventListener: () => {},
-                dispatchEvent: () => true,
-              } as PermissionStatus);
-            }
-            return originalQuery(permissionDesc);
-          };
-        }
-
-      } else {
-        // For desktop devices: hide orientation APIs to avoid detection
-
-        // ========================================
-        // Desktop: Remove DeviceOrientationEvent
-        // ========================================
-
-        if ((window as any).DeviceOrientationEvent) {
-          // Make the constructor throw when instantiated
-          (window as any).DeviceOrientationEvent = class {
-            constructor() {
-              throw new TypeError('DeviceOrientationEvent is not supported on this device');
-            }
-          };
-
-          // Prevent event listeners from being called
-          const originalAddEventListener = window.addEventListener.bind(window);
-          window.addEventListener = function (
-            type: string,
-            listener: EventListenerOrEventListenerObject,
-            options?: boolean | AddEventListenerOptions
-          ) {
-            // Silently ignore device orientation listeners on desktop
-            if (type === 'deviceorientation' || type === 'deviceorientationabsolute') {
-              return;
-            }
-            return originalAddEventListener(type, listener, options);
-          };
-        }
-
-        // ========================================
-        // Desktop: Remove DeviceMotionEvent
-        // ========================================
-
-        if ((window as any).DeviceMotionEvent) {
-          (window as any).DeviceMotionEvent = class {
-            constructor() {
-              throw new TypeError('DeviceMotionEvent is not supported on this device');
-            }
-          };
-
-          const originalAddEventListener = window.addEventListener.bind(window);
-          window.addEventListener = function (
-            type: string,
-            listener: EventListenerOrEventListenerObject,
-            options?: boolean | AddEventListenerOptions
-          ) {
-            // Silently ignore device motion listeners on desktop
-            if (type === 'devicemotion') {
-              return;
-            }
-            return originalAddEventListener(type, listener, options);
-          };
-        }
-
-        // ========================================
-        // Desktop: Hide Sensor APIs
-        // ========================================
-
-        // Remove Sensor API constructors on desktop
-        if ((window as any).Accelerometer) {
-          delete (window as any).Accelerometer;
-        }
-        if ((window as any).Gyroscope) {
-          delete (window as any).Gyroscope;
-        }
-        if ((window as any).Magnetometer) {
-          delete (window as any).Magnetometer;
-        }
-        if ((window as any).LinearAccelerationSensor) {
-          delete (window as any).LinearAccelerationSensor;
-        }
-        if ((window as any).GravitySensor) {
-          delete (window as any).GravitySensor;
-        }
-        if ((window as any).AbsoluteOrientationSensor) {
-          delete (window as any).AbsoluteOrientationSensor;
-        }
-        if ((window as any).RelativeOrientationSensor) {
-          delete (window as any).RelativeOrientationSensor;
-        }
-
-        // Override permissions query to deny sensor access on desktop
-        if (navigator.permissions && navigator.permissions.query) {
-          const originalQuery = navigator.permissions.query.bind(navigator.permissions);
-
-          navigator.permissions.query = function (permissionDesc: any) {
-            if (
-              permissionDesc.name === 'accelerometer' ||
-              permissionDesc.name === 'gyroscope' ||
-              permissionDesc.name === 'magnetometer'
-            ) {
-              return Promise.resolve({
-                state: 'denied',
-                onchange: null,
-                addEventListener: () => {},
-                removeEventListener: () => {},
-                dispatchEvent: () => true,
-              } as PermissionStatus);
-            }
-            return originalQuery(permissionDesc);
-          };
-        }
-      }
-
-      // ========================================
-      // 4. Screen Orientation Lock (Mobile Only)
-      // ========================================
-
-      if (profile.isMobile && window.screen && (window.screen as any).orientation) {
-        const orientation = (window.screen as any).orientation;
-
-        // Make orientation.lock available on mobile
-        if (!orientation.lock) {
-          orientation.lock = function (lockType: OrientationLockType) {
-            return Promise.resolve();
-          };
-        }
-
-        // Make orientation.unlock available
-        if (!orientation.unlock) {
-          orientation.unlock = function () {
-            return undefined;
-          };
-        }
-      }
-
-      // ========================================
-      // 5. Ambient Light Sensor (if available)
-      // ========================================
-
-      if (profile.isMobile && (window as any).AmbientLightSensor) {
-        // Keep the API but make it return realistic values
-        const OriginalAmbientLightSensor = (window as any).AmbientLightSensor;
-
-        (window as any).AmbientLightSensor = class extends OriginalAmbientLightSensor {
-          constructor(options?: any) {
-            super(options);
-
-            // Simulate realistic ambient light values (in lux)
-            Object.defineProperty(this, 'illuminance', {
-              get: () => 200 + Math.random() * 100, // Indoor lighting: 200-300 lux
-              configurable: true,
+        if (config.enableMotion) {
+          setInterval(() => {
+            // Add small random variations to simulate real device movement
+            const event = new DeviceMotionEvent('devicemotion', {
+              acceleration: {
+                x: (Math.random() - 0.5) * 0.1,
+                y: (Math.random() - 0.5) * 0.1,
+                z: (Math.random() - 0.5) * 0.1,
+              },
+              accelerationIncludingGravity: {
+                x: (Math.random() - 0.5) * 0.5,
+                y: 9.8 + (Math.random() - 0.5) * 0.2,
+                z: (Math.random() - 0.5) * 0.5,
+              },
+              rotationRate: {
+                alpha: (Math.random() - 0.5) * 0.5,
+                beta: (Math.random() - 0.5) * 0.5,
+                gamma: (Math.random() - 0.5) * 0.5,
+              },
+              interval: motionData.interval,
             });
-          }
-        };
-      } else if (!profile.isMobile && (window as any).AmbientLightSensor) {
-        // Remove on desktop
-        delete (window as any).AmbientLightSensor;
+
+            motionListeners.forEach((listener) => {
+              listener.call(window, event);
+            });
+          }, 16); // ~60Hz update rate
+        }
       }
 
-      // ========================================
-      // 6. Proximity Sensor (Mobile Only)
-      // ========================================
+      // Fix toString for addEventListener
+      const originalToString = Function.prototype.toString;
+      Function.prototype.toString = function () {
+        if (this === EventTarget.prototype.addEventListener) {
+          return 'function addEventListener() { [native code] }';
+        }
+        return originalToString.call(this);
+      };
 
-      if (!profile.isMobile && (window as any).ProximitySensor) {
-        delete (window as any).ProximitySensor;
+      // Log for debugging
+      if (typeof console !== 'undefined' && console.log) {
+        console.log(
+          `[DeviceOrientation Protection] Applied for ${config.deviceType} device`
+        );
       }
-
-      // ========================================
-      // 7. ondeviceorientation Property
-      // ========================================
-
-      // Ensure window.ondeviceorientation exists on mobile
-      if (profile.isMobile && !('ondeviceorientation' in window)) {
-        (window as any).ondeviceorientation = null;
-      }
-
-      // Ensure window.ondevicemotion exists on mobile
-      if (profile.isMobile && profile.hasAccelerometer && !('ondevicemotion' in window)) {
-        (window as any).ondevicemotion = null;
-      }
-    }, this.profile);
-
-    logger.debug('Device orientation protection scripts injected successfully');
+    };
   }
 
   /**
-   * Update device profile
+   * Update configuration
    */
-  setProfile(profile: DeviceOrientationProfile): void {
-    this.profile = profile;
+  updateConfig(config: Partial<DeviceOrientationConfig>): void {
+    this.config = { ...this.config, ...config };
   }
+}
 
-  /**
-   * Get current profile
-   */
-  getProfile(): DeviceOrientationProfile {
-    return this.profile;
-  }
+/**
+ * Factory function
+ */
+export function createDeviceOrientationProtection(
+  config?: Partial<DeviceOrientationConfig>
+): DeviceOrientationProtection {
+  return new DeviceOrientationProtection(config);
+}
 
-  /**
-   * Get module name
-   */
-  getName(): string {
-    return 'DeviceOrientationProtection';
-  }
+/**
+ * Apply to multiple pages
+ */
+export async function applyDeviceOrientationProtectionToPages(
+  pages: Page[],
+  config?: Partial<DeviceOrientationConfig>
+): Promise<void> {
+  const protection = new DeviceOrientationProtection(config);
+  await Promise.all(pages.map((page) => protection.apply(page)));
 }

@@ -1,473 +1,537 @@
-# Cloud Infrastructure
+# Cloud Anti-Detect Browser Infrastructure
 
-This directory contains cloud infrastructure components for the Antidetect Browser, including multi-region deployment, geographic routing, and session migration.
+Complete cloud deployment infrastructure for the Anti-Detect Browser with Docker orchestration, load balancing, session management, and scalability.
 
-## Directory Structure
+## Architecture Overview
 
 ```
-cloud/
-├── geo-router.ts              # Geographic routing engine
-├── session-migration.ts       # Session migration manager
-├── kernel/                    # Kernel-level modifications
-├── vm/                        # Virtual machine management
-├── __tests__/                 # Integration tests
-│   ├── geo-router.test.ts
-│   └── session-migration.test.ts
-└── README.md                  # This file
+┌─────────────────────────────────────────────────────────────┐
+│                     NGINX Load Balancer                      │
+│              (Rate Limiting, WebSocket Support)              │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+      ┌───────────────┼───────────────┐
+      │               │               │
+      ▼               ▼               ▼
+┌──────────┐    ┌──────────┐    ┌──────────┐
+│ Browser  │    │ Browser  │... │ Browser  │
+│  Pool 1  │    │  Pool 2  │    │  Pool N  │
+│          │    │          │    │          │
+│ Chromium │    │ Chromium │    │ Chromium │
+│   CDP    │    │   CDP    │    │   CDP    │
+└────┬─────┘    └────┬─────┘    └────┬─────┘
+     │               │               │
+     └───────────────┼───────────────┘
+                     │
+     ┌───────────────┴───────────────┐
+     │                               │
+     ▼                               ▼
+┌─────────┐                    ┌──────────┐
+│  Redis  │                    │PostgreSQL│
+│(Session)│                    │(Profiles)│
+└─────────┘                    └──────────┘
 ```
 
----
+## Features
 
-## Components
+- **Scalable Architecture**: Scale to 100+ concurrent browser sessions
+- **Load Balancing**: NGINX with least_conn algorithm
+- **Session Management**: Redis-backed session state with automatic cleanup
+- **Profile Storage**: PostgreSQL for persistent fingerprint profiles
+- **Health Monitoring**: Built-in health checks and metrics (Prometheus format)
+- **WebSocket Support**: Real-time CDP access for each browser
+- **Rate Limiting**: Protects API from abuse (configurable per endpoint)
+- **Auto-Recovery**: Unhealthy sessions detected and recycled automatically
+- **Resource Limits**: Per-container CPU and memory limits
 
-### Geographic Router (`geo-router.ts`)
+## Quick Start
 
-Intelligent routing system that directs client requests to the nearest healthy regional cluster.
+### Prerequisites
 
-**Features:**
-- Distance-based routing using Haversine formula
-- IP geolocation detection
-- Latency-aware region selection
-- Health monitoring (30s intervals)
-- Intelligent caching (5-minute TTL)
-- Automatic failover
+- Docker 20.10+
+- Docker Compose 2.0+
+- 8GB+ RAM available
+- Linux host (recommended) or macOS/Windows with WSL2
 
-**Usage:**
-
-```typescript
-import { geoRouter } from './geo-router';
-
-// Route request
-const result = await geoRouter.routeRequest('203.0.113.0');
-console.log(result.region);    // 'us-east'
-console.log(result.endpoint);  // 'https://us-east.api.antidetect.io'
-console.log(result.distance);  // 1250 km
-console.log(result.latency);   // 45 ms
-
-// Check health
-const healthy = geoRouter.isHealthy('us-east');
-
-// Get backup region
-const backup = geoRouter.getBackupRegion('us-east');
-```
-
-**API:**
-
-```typescript
-class GeoRouter {
-  // Route request to optimal region
-  routeRequest(clientIP: string, options?: RouteOptions): Promise<RouteResult>
-
-  // Check region health
-  isHealthy(regionId: string): boolean
-
-  // Get backup region
-  getBackupRegion(regionId: string): string
-
-  // Get all regions status
-  getRegionsStatus(): Array<RegionStatus>
-
-  // Manage regions
-  addRegion(region: Region): void
-  removeRegion(regionId: string): void
-  setRegionHealth(regionId: string, healthy: boolean): void
-
-  // Cache management
-  clearCache(): void
-
-  // Lifecycle
-  stop(): void
-}
-```
-
----
-
-### Session Migration (`session-migration.ts`)
-
-Manages seamless migration of browser sessions between regions with zero downtime.
-
-**Features:**
-- Zero-downtime migration
-- Browser state preservation
-- Automatic region evacuation
-- Batch migration support
-- Real-time sync across regions
-- Event-driven architecture
-
-**Usage:**
-
-```typescript
-import { sessionMigration } from './session-migration';
-
-// Register session
-sessionMigration.registerSession({
-  id: 'session-123',
-  userId: 'user-456',
-  browserId: 'browser-789',
-  region: 'us-east',
-  // ... other fields
-});
-
-// Migrate single session
-const result = await sessionMigration.migrateSession(
-  'session-123',
-  'eu-west'
-);
-
-// Batch migration
-const results = await sessionMigration.batchMigrate(
-  ['session-1', 'session-2', 'session-3'],
-  'eu-west'
-);
-
-// Evacuate region
-const evacuationResults = await sessionMigration.evacuateRegion('us-east');
-
-// Query sessions
-const session = sessionMigration.getSession('session-123');
-const userSessions = sessionMigration.getSessionsByUser('user-456');
-const regionSessions = sessionMigration.getSessionsByRegion('us-east');
-
-// Statistics
-const stats = sessionMigration.getStatistics();
-```
-
-**API:**
-
-```typescript
-class SessionMigration extends EventEmitter {
-  // Session management
-  registerSession(session: Session): void
-  getSession(sessionId: string): Session | undefined
-  getSessionsByUser(userId: string): Session[]
-  getSessionsByRegion(region: string): Session[]
-  terminateSession(sessionId: string): Promise<void>
-
-  // Migration
-  migrateSession(sessionId: string, targetRegion?: string, options?: MigrationOptions): Promise<MigrationResult>
-  batchMigrate(sessionIds: string[], targetRegion?: string, options?: MigrationOptions): Promise<MigrationResult[]>
-  evacuateRegion(sourceRegion: string): Promise<MigrationResult[]>
-
-  // Statistics
-  getStatistics(): MigrationStatistics
-
-  // Lifecycle
-  stop(): void
-}
-```
-
-**Events:**
-
-```typescript
-// Session events
-sessionMigration.on('session:registered', (session) => { });
-sessionMigration.on('session:migrating', (event) => { });
-sessionMigration.on('session:migrated', (event) => { });
-sessionMigration.on('session:migration-failed', (event) => { });
-sessionMigration.on('session:terminated', (event) => { });
-
-// Region events
-sessionMigration.on('region:evacuating', (event) => { });
-sessionMigration.on('region:evacuated', (event) => { });
-```
-
----
-
-## Regions
-
-### Supported Regions
-
-| ID | Location | Coordinates | Endpoint |
-|----|----------|-------------|----------|
-| us-east | Virginia, USA | 37.5°N, 77.5°W | https://us-east.api.antidetect.io |
-| eu-west | Ireland, EU | 53.3°N, 6.2°W | https://eu-west.api.antidetect.io |
-| ap-south | Singapore, APAC | 1.3°N, 103.8°E | https://ap-south.api.antidetect.io |
-| ru-central | Moscow, Russia | 55.7°N, 37.6°E | https://ru-central.api.antidetect.io |
-
-### Adding New Regions
-
-```typescript
-geoRouter.addRegion({
-  id: 'sa-east',
-  name: 'South America East',
-  endpoint: 'https://sa-east.api.antidetect.io',
-  location: { lat: -23.5, lon: -46.6, country: 'BR' },
-  weight: 100,
-  maxLatencyMs: 200,
-});
-```
-
----
-
-## Testing
-
-### Run Tests
+### 1. Build and Start
 
 ```bash
-# All tests
-npm test
+# Build the Docker image
+docker compose -f docker-compose.cloud.yml build
 
-# Specific test suite
-npm test geo-router
-npm test session-migration
+# Start all services
+docker compose -f docker-compose.cloud.yml up -d
 
-# With coverage
-npm test -- --coverage
+# Scale browser pool to 5 instances
+docker compose -f docker-compose.cloud.yml up -d --scale browser-pool=5
+
+# Check status
+docker compose -f docker-compose.cloud.yml ps
 ```
 
-### Test Coverage
+### 2. Verify Health
 
-- ✅ Geographic routing with various IPs
-- ✅ Distance calculations
-- ✅ Health monitoring
-- ✅ Failover scenarios
-- ✅ Session registration
-- ✅ Single session migration
-- ✅ Batch migration
-- ✅ Region evacuation
-- ✅ Session queries
-- ✅ Statistics
+```bash
+# Health check
+curl http://localhost/health
 
----
+# Expected response:
+# {
+#   "status": "ok",
+#   "uptime": 123.45,
+#   "sessions": { "active": 0, "max": 100 },
+#   "memory": { ... },
+#   "timestamp": "2025-11-13T..."
+# }
+```
+
+### 3. Create Your First Session
+
+```bash
+# Create a session
+curl -X POST http://localhost/api/sessions/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fingerprint": {
+      "platform": "Win32",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    "stealthLevel": "advanced",
+    "headless": true
+  }'
+
+# Response:
+# {
+#   "success": true,
+#   "session": {
+#     "id": "session_1699999999_abc123",
+#     "cdpUrl": "ws://localhost:9222",
+#     "wsUrl": "ws://localhost:9222",
+#     "createdAt": "2025-11-13T...",
+#     "pagesCount": 1,
+#     "config": { ... }
+#   }
+# }
+```
+
+## API Reference
+
+### Session Management
+
+#### Create Session
+```http
+POST /api/sessions/create
+Content-Type: application/json
+
+{
+  "fingerprint": {
+    "platform": "Win32",
+    "userAgent": "Mozilla/5.0..."
+  },
+  "stealthLevel": "basic" | "moderate" | "advanced" | "paranoid",
+  "headless": true,
+  "viewport": { "width": 1920, "height": 1080 },
+  "proxy": "http://proxy.example.com:8080",
+  "timeout": 1800000
+}
+```
+
+#### Get Session Info
+```http
+GET /api/sessions/:sessionId
+```
+
+#### List All Sessions
+```http
+GET /api/sessions
+```
+
+#### Destroy Session
+```http
+DELETE /api/sessions/:sessionId
+```
+
+#### Navigate Page
+```http
+POST /api/sessions/:sessionId/navigate
+Content-Type: application/json
+
+{
+  "url": "https://example.com",
+  "pageIndex": 0
+}
+```
+
+#### Execute JavaScript
+```http
+POST /api/sessions/:sessionId/execute
+Content-Type: application/json
+
+{
+  "code": "document.title",
+  "pageIndex": 0
+}
+```
+
+#### Take Screenshot
+```http
+POST /api/sessions/:sessionId/screenshot
+Content-Type: application/json
+
+{
+  "pageIndex": 0,
+  "fullPage": false
+}
+```
+
+### Health & Metrics
+
+#### Health Check
+```http
+GET /health
+```
+
+#### Prometheus Metrics
+```http
+GET /metrics
+```
+
+#### NGINX Status
+```http
+GET /status
+```
 
 ## Configuration
 
 ### Environment Variables
 
+#### Browser Pool Container
+
+```env
+# Node.js
+NODE_ENV=production
+PORT=3000
+
+# Puppeteer
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Session Management
+MAX_SESSIONS=100
+SESSION_TIMEOUT=1800000  # 30 minutes in ms
+
+# Database
+REDIS_URL=redis://redis:6379
+DATABASE_URL=postgresql://antidetect:password@postgres:5432/antidetect
+
+# Display (Xvfb)
+DISPLAY=:99
+```
+
+#### PostgreSQL
+
+```env
+POSTGRES_USER=antidetect
+POSTGRES_PASSWORD=password
+POSTGRES_DB=antidetect
+```
+
+#### Redis
+
+```env
+REDIS_PASSWORD=optional-password
+```
+
+### Scaling
+
 ```bash
-# Geographic Router
-GEO_HEALTH_CHECK_INTERVAL=30000    # 30 seconds
-GEO_HEALTH_CHECK_TIMEOUT=5000      # 5 seconds
-GEO_CACHE_TTL=300000               # 5 minutes
-GEO_MAX_CONSECUTIVE_FAILURES=3
+# Scale browser pool to 10 instances
+docker compose -f docker-compose.cloud.yml up -d --scale browser-pool=10
 
-# Session Migration
-MIGRATION_TIMEOUT=30000            # 30 seconds
-MIGRATION_RETRIES=3
-SNAPSHOT_INTERVAL=60000            # 1 minute
-SESSION_SYNC_INTERVAL=5000         # 5 seconds
+# Each instance can handle up to MAX_SESSIONS sessions
+# Total capacity = instances * MAX_SESSIONS
 ```
 
----
+### Resource Limits
 
-## Monitoring
+Adjust in `docker-compose.cloud.yml`:
 
-### Health Checks
+```yaml
+services:
+  browser-pool:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+```
 
-```typescript
-// Check all regions
-const regions = geoRouter.getRegionsStatus();
-regions.forEach(region => {
-  console.log(`${region.name}: ${region.healthy ? 'UP' : 'DOWN'} (${region.latency}ms)`);
+## Advanced Usage
+
+### Custom Fingerprints
+
+```javascript
+// Create session with custom fingerprint
+const response = await fetch('http://localhost/api/sessions/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    fingerprint: {
+      platform: 'MacIntel',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+      screen: {
+        width: 2560,
+        height: 1440,
+        availWidth: 2560,
+        availHeight: 1415,
+        colorDepth: 30,
+        pixelDepth: 30
+      },
+      languages: ['en-US', 'en'],
+      timezone: 'America/Los_Angeles',
+      webgl: {
+        vendor: 'Apple Inc.',
+        renderer: 'Apple M2'
+      }
+    },
+    stealthLevel: 'paranoid',
+    headless: false
+  })
 });
+
+const { session } = await response.json();
+console.log('Session created:', session.id);
 ```
 
-### Migration Statistics
+### Using CDP (Chrome DevTools Protocol)
 
-```typescript
-const stats = sessionMigration.getStatistics();
-console.log(`Total sessions: ${stats.totalSessions}`);
-console.log(`By region:`, stats.sessionsByRegion);
-console.log(`By state:`, stats.sessionsByState);
+```javascript
+const puppeteer = require('puppeteer-core');
+
+// Connect to existing session via CDP
+const browser = await puppeteer.connect({
+  browserWSEndpoint: session.cdpUrl
+});
+
+const page = await browser.newPage();
+await page.goto('https://example.com');
+const title = await page.title();
+console.log('Page title:', title);
 ```
 
----
+### Profile Management
 
-## Performance
+```javascript
+// Store frequently-used profiles in PostgreSQL
+// Profiles are automatically created by the init.sql script
 
-### Expected Metrics
-
-| Metric | Value |
-|--------|-------|
-| Routing decision | < 10ms (cached) |
-| Routing decision | < 100ms (uncached) |
-| Health check | < 5s |
-| Session snapshot | 50-200ms |
-| Session migration | 1-7s |
-| Batch migration (100 sessions) | 10-30s |
-
----
-
-## Architecture
-
-### Geographic Routing Flow
-
-```
-Client Request
-    ↓
-Extract Client IP
-    ↓
-Geolocation Lookup
-    ↓
-Calculate Distances
-    ↓
-Score Regions (distance + latency + weight)
-    ↓
-Filter Unhealthy
-    ↓
-Select Best Region
-    ↓
-Cache Result
-    ↓
-Return Endpoint
-```
-
-### Session Migration Flow
-
-```
-Migration Request
-    ↓
-Validate Session
-    ↓
-Create Snapshot (cookies, storage, tabs, profile)
-    ↓
-Suspend Session
-    ↓
-Transfer to Target (shared storage)
-    ↓
-Restore in Target Region
-    ↓
-Activate Session
-    ↓
-Update Metadata
-    ↓
-Emit Success Event
-```
-
----
-
-## Integration
-
-### Express.js Integration
-
-```typescript
-import express from 'express';
-import { geoRouter } from './cloud/geo-router';
-
-const app = express();
-
-app.use(async (req, res, next) => {
-  const clientIP = req.ip || req.connection.remoteAddress;
-  const route = await geoRouter.routeRequest(clientIP);
-
-  // Add routing info to request
-  req.region = route.region;
-  req.regionEndpoint = route.endpoint;
-
-  next();
+// Use a profile
+const response = await fetch('http://localhost/api/sessions/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    profileId: 'profile_sample_1',
+    stealthLevel: 'advanced'
+  })
 });
 ```
 
 ### WebSocket Integration
 
-```typescript
-import { Server } from 'socket.io';
-import { sessionMigration } from './cloud/session-migration';
+```javascript
+const WebSocket = require('ws');
 
-const io = new Server(server);
+// Connect to session WebSocket for real-time events
+const ws = new WebSocket('ws://localhost/ws/');
 
-io.on('connection', (socket) => {
-  // Register session
-  sessionMigration.registerSession({
-    id: socket.id,
-    // ... session data
-  });
+ws.on('open', () => {
+  console.log('WebSocket connected');
+  ws.send(JSON.stringify({ action: 'subscribe', sessionId: session.id }));
+});
 
-  // Handle migration events
-  sessionMigration.on('session:migrating', (event) => {
-    if (event.sessionId === socket.id) {
-      socket.emit('migrating', event);
-    }
-  });
+ws.on('message', (data) => {
+  console.log('Received:', JSON.parse(data));
 });
 ```
 
----
+## Monitoring
 
-## Best Practices
+### Prometheus + Grafana (Optional)
 
-### Geographic Routing
+Uncomment monitoring services in `docker-compose.cloud.yml`:
 
-1. **Cache aggressively** - Routing decisions are expensive
-2. **Monitor health** - Keep health checks frequent but lightweight
-3. **Use weights** - Adjust region weights based on capacity
-4. **Fallback strategy** - Always have a backup region
-5. **Prefer locality** - Keep sessions in the same region when possible
+```yaml
+  prometheus:
+    # ... configuration ...
 
-### Session Migration
+  grafana:
+    # ... configuration ...
+```
 
-1. **Minimize migrations** - Only migrate when necessary
-2. **Batch operations** - Migrate multiple sessions together
-3. **Preserve state** - Always capture complete browser state
-4. **Handle failures** - Implement retry logic with exponential backoff
-5. **Monitor metrics** - Track migration success rates and durations
+Access:
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3001 (admin/admin)
 
----
+### Metrics Available
+
+```
+browser_sessions_active          - Number of active sessions
+browser_sessions_max             - Maximum session capacity
+nodejs_memory_heap_used_bytes    - Node.js heap memory used
+nodejs_memory_heap_total_bytes   - Node.js heap memory total
+process_uptime_seconds           - Process uptime
+```
 
 ## Troubleshooting
 
-### Geographic Router Issues
+### Sessions not starting
 
-**Problem:** All regions marked as unhealthy
+```bash
+# Check browser pool logs
+docker compose -f docker-compose.cloud.yml logs browser-pool
 
-```typescript
-// Check network connectivity
-const regions = geoRouter.getRegionsStatus();
-regions.forEach(r => console.log(r.lastCheck, r.consecutiveFailures));
-
-// Manually mark as healthy
-geoRouter.setRegionHealth('us-east', true);
+# Common issues:
+# - Out of memory: Increase memory limits or reduce MAX_SESSIONS
+# - Chromium crash: Check Xvfb is running correctly
 ```
 
-**Problem:** High routing latency
+### High memory usage
 
-```typescript
-// Clear cache
-geoRouter.clearCache();
+```bash
+# Monitor memory per container
+docker stats
 
-// Check geolocation service
-// Consider caching geolocation results
+# Solutions:
+# - Reduce MAX_SESSIONS
+# - Decrease SESSION_TIMEOUT for faster cleanup
+# - Enable healthCheckInterval for aggressive cleanup
 ```
 
-### Session Migration Issues
+### Connection refused
 
-**Problem:** Migration fails consistently
+```bash
+# Check all services are running
+docker compose -f docker-compose.cloud.yml ps
 
-```typescript
-// Check session state
-const session = sessionMigration.getSession(sessionId);
-console.log('State:', session?.state);
-
-// Verify target region health
-const healthy = geoRouter.isHealthy(targetRegion);
-
-// Check logs for errors
-sessionMigration.on('session:migration-failed', (event) => {
-  console.error('Migration failed:', event.error);
-});
+# Restart services
+docker compose -f docker-compose.cloud.yml restart
 ```
 
----
+### Database connection errors
+
+```bash
+# Check PostgreSQL logs
+docker compose -f docker-compose.cloud.yml logs postgres
+
+# Reinitialize database
+docker compose -f docker-compose.cloud.yml down -v
+docker compose -f docker-compose.cloud.yml up -d
+```
+
+## Security Considerations
+
+### Production Deployment
+
+1. **Change default passwords** in `docker-compose.cloud.yml`
+2. **Enable HTTPS** in `nginx.conf` (uncomment HTTPS server block)
+3. **Restrict /metrics and /status** endpoints to internal network only
+4. **Use firewall rules** to limit access to CDP ports (9222-9322)
+5. **Enable authentication** for API endpoints
+6. **Use secrets management** (Docker Swarm secrets, Kubernetes secrets)
+
+### Network Security
+
+```yaml
+# Example: Restrict internal network
+networks:
+  antidetect-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+```
+
+## Performance Tuning
+
+### NGINX
+
+```nginx
+# Increase worker connections
+worker_connections 4096;
+
+# Tune keepalive
+keepalive_timeout 65;
+keepalive_requests 100;
+
+# Buffer sizes
+client_max_body_size 100M;
+proxy_buffer_size 128k;
+proxy_buffers 4 256k;
+```
+
+### Redis
+
+```env
+# Increase max memory
+REDIS_MAXMEMORY=2gb
+REDIS_MAXMEMORY_POLICY=allkeys-lru
+```
+
+### PostgreSQL
+
+```env
+# Tune for performance
+POSTGRES_SHARED_BUFFERS=256MB
+POSTGRES_EFFECTIVE_CACHE_SIZE=1GB
+POSTGRES_MAX_CONNECTIONS=100
+```
+
+## Logs
+
+### View logs
+
+```bash
+# All services
+docker compose -f docker-compose.cloud.yml logs -f
+
+# Specific service
+docker compose -f docker-compose.cloud.yml logs -f browser-pool
+
+# Last 100 lines
+docker compose -f docker-compose.cloud.yml logs --tail=100
+```
+
+### Log rotation
+
+Configure in Docker daemon or use external log aggregation (ELK, Loki, etc.)
+
+## Backup & Recovery
+
+### Database Backup
+
+```bash
+# Backup PostgreSQL
+docker exec antidetect-postgres pg_dump -U antidetect antidetect > backup.sql
+
+# Restore
+cat backup.sql | docker exec -i antidetect-postgres psql -U antidetect antidetect
+```
+
+### Redis Backup
+
+```bash
+# Backup Redis
+docker exec antidetect-redis redis-cli SAVE
+docker cp antidetect-redis:/data/dump.rdb ./redis-backup.rdb
+```
 
 ## License
 
-MIT License - See LICENSE file for details
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/my-feature`)
-3. Commit changes (`git commit -am 'Add feature'`)
-4. Push to branch (`git push origin feature/my-feature`)
-5. Create Pull Request
-
----
+See main project LICENSE file.
 
 ## Support
 
-For issues and questions:
-- GitHub Issues: https://github.com/your-org/antidetect-browser/issues
-- Documentation: See `/docs/MULTI_REGION_DEPLOYMENT.md`
-- Tests: Run `npm test` to verify functionality
+For issues and questions, please open a GitHub issue in the main repository.
