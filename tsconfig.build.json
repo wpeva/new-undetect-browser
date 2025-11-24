@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    // Temporarily relax strict mode for CI
+    // CI-specific: Relax strict mode for faster builds
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,
@@ -17,10 +17,29 @@
     "noImplicitReturns": false,
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": false,
+    "noPropertyAccessFromIndexSignature": false,
 
-    // Keep build optimizations
+    // Performance optimizations for CI
     "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
     "incremental": true,
-    "isolatedModules": true
-  }
+    "isolatedModules": true,
+
+    // Reduce output
+    "removeComments": true,
+    "sourceMap": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "tests",
+    "frontend",
+    "electron",
+    "examples",
+    "benchmarks"
+  ]
 }

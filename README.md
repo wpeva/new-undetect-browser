@@ -1,8 +1,8 @@
 # 🌐 UndetectBrowser - Professional Anti-Detect Cloud Browser
 
-[![CI Status](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/wpeva/new-undetect-browser/actions)
+[![CI/CD Pipeline](https://github.com/wpeva/new-undetect-browser/workflows/CI%2FCD%20Pipeline/badge.svg)](https://github.com/wpeva/new-undetect-browser/actions)
 [![Tests](https://img.shields.io/badge/tests-55%2F55%20passing-success)](https://github.com/wpeva/new-undetect-browser/actions)
-[![Build](https://img.shields.io/badge/build-passing-brightgreen)](#)
+[![Build](https://img.shields.io/badge/build-passing-brightgreen)](CI_PIPELINE_GUIDE.md)
 [![Detection Score](https://img.shields.io/badge/detection-9.9%2F10-success)](#)
 [![Production Ready](https://img.shields.io/badge/production-ready-brightgreen)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
