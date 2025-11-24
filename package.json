@@ -6,6 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:ci": "tsc --project tsconfig.build.json",
     "build:watch": "tsc --watch",
     "build:clean": "rm -rf dist && npm run build",
     "dev": "tsc --watch",
