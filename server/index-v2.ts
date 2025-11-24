@@ -1,6 +1,7 @@
 /**
  * Enhanced UndetectBrowser Server v2.0
  * Features: SQLite DB, Real-time WebSocket, Enhanced API
+ * Optimizations: Compression, Caching, Rate Limiting, Security Headers
  */
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -9,6 +10,7 @@ import helmet from 'helmet';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
 import { initDatabase, closeDatabase } from './database/db';
+import rateLimit from 'express-rate-limit';
 
 // Enhanced API Routes
 import { ProfileModel } from './models/Profile';
@@ -18,28 +20,124 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: process.env.CORS_ORIGIN || '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'],
 });
 
 const PORT = process.env.PORT || 3000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// ============================================
+// PERFORMANCE & SECURITY MIDDLEWARE
+// ============================================
 
-// Request logging
-app.use((req: Request, _res: Response, next: NextFunction) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+// Enhanced security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+  maxAge: 86400, // 24 hours
+}));
+
+// Compression middleware (gzip/deflate)
+import compression from 'compression';
+app.use(compression({
+  level: 6, // Balanced compression level
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: IS_PRODUCTION ? 100 : 1000, // Limit each IP to 100 requests per windowMs in production
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: IS_PRODUCTION ? 20 : 100,
+  message: 'Too many requests, please slow down.',
+});
+
+app.use('/api/', limiter);
+
+// Body parsers with size limits
+app.use(express.json({ limit: IS_PRODUCTION ? '10mb' : '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: IS_PRODUCTION ? '10mb' : '50mb' }));
+
+// Request logging with performance timing
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+  });
   next();
 });
 
+// Response caching middleware
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 60000; // 1 minute
+
+function cacheMiddleware(ttl: number = CACHE_TTL) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== 'GET') {
+      return next();
+    }
+
+    const key = req.originalUrl;
+    const cached = cache.get(key);
+
+    if (cached && Date.now() - cached.timestamp < ttl) {
+      return res.json(cached.data);
+    }
+
+    const originalJson = res.json.bind(res);
+    res.json = (data: any) => {
+      cache.set(key, { data, timestamp: Date.now() });
+      return originalJson(data);
+    };
+
+    next();
+  };
+}
+
 // ============================================
-// PROFILES API - Enhanced
+// PROFILES API - Enhanced with Caching
 // ============================================
 
-// Get all profiles
-app.get('/api/v2/profiles', async (req: Request, res: Response) => {
+// Get all profiles (with caching)
+app.get('/api/v2/profiles', cacheMiddleware(30000), async (req: Request, res: Response) => {
   try {
     const { group_id, status, search, limit, offset } = req.query;
     const profiles = await ProfileModel.findAll({
@@ -202,10 +300,10 @@ app.post('/api/v2/proxies/:id/check', async (req: Request, res: Response) => {
 });
 
 // ============================================
-// STATISTICS API
+// STATISTICS API with Caching
 // ============================================
 
-app.get('/api/v2/stats', async (req: Request, res: Response) => {
+app.get('/api/v2/stats', cacheMiddleware(10000), async (req: Request, res: Response) => {
   try {
     const profileCount = await ProfileModel.count();
     const proxyStats = await ProxyModel.countByStatus();

@@ -1,40 +1,73 @@
 {
   "compilerOptions": {
+    // Language & Environment
     "target": "ES2022",
-    "module": "commonjs",
     "lib": ["ES2022", "ES2023", "DOM", "DOM.Iterable"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "jsx": "react",
+
+    // Output
     "outDir": "./dist",
     "rootDir": "./",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "strict": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true,
-    "noImplicitAny": false,
-    "strictNullChecks": false,
-    "strictFunctionTypes": false,
-    "strictPropertyInitialization": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitReturns": false,
+    "removeComments": true, // Remove comments in production builds
+    "importHelpers": true, // Use tslib for helpers to reduce bundle size
+
+    // Type Checking (more strict for better code quality)
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+
+    // Additional Checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitThis": false,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Module Resolution
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // Emit
+    "skipLibCheck": true, // Skip type checking of declaration files for faster builds
     "allowJs": false,
-    "incremental": true,
-    "isolatedModules": true,
-    "preserveConstEnums": true,
-    "removeComments": false,
-    "types": ["node", "jest"]
+
+    // Performance & Build
+    "incremental": true, // Enable incremental compilation
+    "tsBuildInfoFile": "./dist/.tsbuildinfo", // Store incremental info
+    "isolatedModules": true, // Ensure each file can be safely transpiled
+    "preserveConstEnums": false, // Don't preserve const enums for smaller builds
+
+    // Advanced
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    // Type Roots
+    "types": ["node", "jest"],
+    "typeRoots": ["./node_modules/@types", "./types"]
   },
   "include": [
     "src/**/*",
     "server/**/*",
-    "cloud/**/*"
+    "cloud/**/*",
+    "ml/**/*",
+    "ml-profiles/**/*",
+    "optimization/**/*",
+    "security/**/*",
+    "analytics/**/*"
   ],
   "exclude": [
     "node_modules",
@@ -42,8 +75,22 @@
     "**/*.test.ts",
     "**/*.spec.ts",
     "tests",
-    "server/database/**/*",
-    "server/models/**/*",
-    "server/index-v2.ts"
-  ]
+    "frontend",
+    "electron",
+    "examples",
+    "chromium",
+    "docker",
+    "kubernetes",
+    "monitoring",
+    "testing",
+    "virtualization",
+    "benchmarks",
+    "web",
+    "*.md"
+  ],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  }
 }
