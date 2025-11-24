@@ -48,8 +48,8 @@
     // Performance & Build
     "incremental": true, // Enable incremental compilation
     "tsBuildInfoFile": "./dist/.tsbuildinfo", // Store incremental info
-    "isolatedModules": true, // Ensure each file can be safely transpiled
-    "preserveConstEnums": false, // Don't preserve const enums for smaller builds
+    "isolatedModules": false, // Disabled for compatibility
+    "preserveConstEnums": true, // Keep const enums
 
     // Advanced
     "experimentalDecorators": true,
