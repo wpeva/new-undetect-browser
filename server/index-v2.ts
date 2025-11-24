@@ -2,6 +2,7 @@
  * Enhanced UndetectBrowser Server v2.0
  * Features: SQLite DB, Real-time WebSocket, Enhanced API
  * Optimizations: Compression, Caching, Rate Limiting, Security Headers
+ * Windows Compatible: Auto-recovery, Error handling
  */
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -9,12 +10,21 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
+import * as path from 'path';
+import * as fs from 'fs';
 import { initDatabase, closeDatabase } from './database/db';
 import rateLimit from 'express-rate-limit';
 
 // Enhanced API Routes
 import { ProfileModel } from './models/Profile';
 import { ProxyModel } from './models/Proxy';
+
+// Load environment variables
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+// Platform detection
+const isWindows = process.platform === 'win32';
 
 const app = express();
 const httpServer = createServer(app);
@@ -377,36 +387,151 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // SERVER STARTUP
 // ============================================
 
+// Ensure data directories exist
+function ensureDirectories(): void {
+  const dirs = ['data', 'data/profiles', 'data/sessions', 'data/logs', 'data/cache'];
+  for (const dir of dirs) {
+    const fullPath = path.resolve(process.cwd(), dir);
+    if (!fs.existsSync(fullPath)) {
+      fs.mkdirSync(fullPath, { recursive: true });
+      console.log(`[INIT] Created directory: ${dir}`);
+    }
+  }
+}
+
+// Auto-fix common startup issues
+async function autoFix(): Promise<boolean> {
+  let fixed = false;
+
+  // Fix 1: Ensure data directories
+  ensureDirectories();
+
+  // Fix 2: Check if port is available (Windows-compatible)
+  return new Promise((resolve) => {
+    const testServer = createServer();
+    testServer.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`[WARN] Port ${PORT} is in use`);
+        if (isWindows) {
+          console.log(`[INFO] To free the port, run: netstat -ano | findstr :${PORT}`);
+        } else {
+          console.log(`[INFO] To free the port, run: lsof -i :${PORT}`);
+        }
+      }
+      resolve(false);
+    });
+    testServer.once('listening', () => {
+      testServer.close();
+      resolve(true);
+    });
+    testServer.listen(PORT);
+  });
+}
+
 async function startServer() {
+  console.log('\n[INIT] Starting UndetectBrowser Server v2.0...');
+  console.log(`[INIT] Platform: ${process.platform} (${process.arch})`);
+  console.log(`[INIT] Node.js: ${process.version}`);
+  console.log(`[INIT] Working directory: ${process.cwd()}`);
+
   try {
-    // Initialize database
-    await initDatabase();
-    console.log('✅ Database initialized');
+    // Run auto-fix
+    const portAvailable = await autoFix();
+
+    if (!portAvailable) {
+      console.error(`[ERROR] Cannot start server - port ${PORT} is not available`);
+      console.log('[INFO] Change PORT in .env file or free the port');
+      process.exit(1);
+    }
+
+    // Initialize database with retry
+    let dbInitialized = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await initDatabase();
+        dbInitialized = true;
+        console.log('[OK] Database initialized');
+        break;
+      } catch (dbError: any) {
+        console.log(`[WARN] Database init attempt ${attempt}/3 failed: ${dbError.message}`);
+        if (attempt < 3) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+    }
+
+    if (!dbInitialized) {
+      console.error('[ERROR] Failed to initialize database after 3 attempts');
+      console.log('[INFO] Check data directory permissions and SQLite availability');
+      process.exit(1);
+    }
 
     // Start server
     httpServer.listen(PORT, () => {
       console.log(`
 ╔════════════════════════════════════════════════════════╗
 ║  UndetectBrowser Server v2.0 - RUNNING                 ║
-║  Port: ${PORT}                                         ║
-║  Database: SQLite                                      ║
+╠════════════════════════════════════════════════════════╣
+║  Port:      ${String(PORT).padEnd(41)}║
+║  Database:  SQLite                                     ║
 ║  WebSocket: Enabled                                    ║
-║  API Docs: http://localhost:${PORT}/api/v2/health      ║
+║  Platform:  ${(isWindows ? 'Windows' : process.platform).padEnd(41)}║
+╠════════════════════════════════════════════════════════╣
+║  API:       http://localhost:${String(PORT).padEnd(25)}║
+║  Health:    http://localhost:${PORT}/api/v2/health${' '.repeat(Math.max(0, 13 - String(PORT).length))}║
 ╚════════════════════════════════════════════════════════╝
       `);
     });
 
-    // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      console.log('SIGTERM received, closing server...');
-      await closeDatabase();
+    // Graceful shutdown handlers
+    const shutdown = async (signal: string) => {
+      console.log(`\n[SHUTDOWN] ${signal} received, closing server...`);
+      try {
+        await closeDatabase();
+        console.log('[SHUTDOWN] Database closed');
+      } catch (e) {
+        console.log('[SHUTDOWN] Database close error (ignoring)');
+      }
       httpServer.close(() => {
-        console.log('Server closed');
+        console.log('[SHUTDOWN] Server closed');
         process.exit(0);
       });
+      // Force exit after 10 seconds
+      setTimeout(() => {
+        console.log('[SHUTDOWN] Forcing exit...');
+        process.exit(0);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
+    // Windows-specific: Handle Ctrl+C properly
+    if (isWindows) {
+      process.on('SIGHUP', () => shutdown('SIGHUP'));
+    }
+
+    // Uncaught exception handler
+    process.on('uncaughtException', (error: Error) => {
+      console.error('[ERROR] Uncaught exception:', error.message);
+      console.error(error.stack);
+      // Don't exit - try to keep running
     });
-  } catch (error) {
-    console.error('Failed to start server:', error);
+
+    process.on('unhandledRejection', (reason: any) => {
+      console.error('[ERROR] Unhandled rejection:', reason);
+    });
+
+  } catch (error: any) {
+    console.error('[ERROR] Failed to start server:', error.message);
+
+    // Provide helpful error messages
+    if (error.code === 'EACCES') {
+      console.log('[INFO] Permission denied. Try running as administrator or use a port > 1024');
+    } else if (error.code === 'ENOENT') {
+      console.log('[INFO] File not found. Run: npm run fix');
+    }
+
     process.exit(1);
   }
 }

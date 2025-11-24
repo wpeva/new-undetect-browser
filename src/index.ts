@@ -422,3 +422,8 @@ export * from './utils/human-behavior-stats';
 export * from './core/stealth-engine';
 export * from './core/profile-manager';
 export * from './storage/profile-storage';
+
+// Export Windows compatibility and error handling
+export * from './utils/windows-compat';
+export * from './utils/error-handler';
+export * from './utils/auto-recovery';
