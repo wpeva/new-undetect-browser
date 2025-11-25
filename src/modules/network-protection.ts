@@ -43,57 +43,73 @@ export class NetworkProtectionModule {
    * Intercept and modify requests
    */
   private async interceptRequest(request: HTTPRequest): Promise<void> {
-    const headers = { ...request.headers() };
-
-    // Remove automation headers
-    delete headers['X-Devtools-Emulate-Network-Conditions-Client-Id'];
-    delete headers['X-DevTools-Request-Id'];
-
-    // Add/modify realistic headers
-    const url = new URL(request.url());
-    const resourceType = request.resourceType();
-
-    // Accept header based on resource type
-    if (!headers['accept']) {
-      headers['accept'] = this.getAcceptHeader(resourceType);
+    // Skip special URLs that can't be intercepted properly
+    const url = request.url();
+    if (url.startsWith('data:') || url.startsWith('about:') || url.startsWith('chrome:') || url.startsWith('file:')) {
+      await request.continue();
+      return;
     }
 
-    // Accept-Language
-    if (!headers['accept-language']) {
-      headers['accept-language'] = 'en-US,en;q=0.9';
+    try {
+      const headers = { ...request.headers() };
+
+      // Remove automation headers
+      delete headers['X-Devtools-Emulate-Network-Conditions-Client-Id'];
+      delete headers['X-DevTools-Request-Id'];
+
+      // Add/modify realistic headers
+      const parsedUrl = new URL(url);
+      const resourceType = request.resourceType();
+
+      // Accept header based on resource type
+      if (!headers['accept']) {
+        headers['accept'] = this.getAcceptHeader(resourceType);
+      }
+
+      // Accept-Language
+      if (!headers['accept-language']) {
+        headers['accept-language'] = 'en-US,en;q=0.9';
+      }
+
+      // Accept-Encoding
+      if (!headers['accept-encoding']) {
+        headers['accept-encoding'] = 'gzip, deflate, br';
+      }
+
+      // Sec-Fetch-* headers (Chrome 80+)
+      headers['sec-fetch-dest'] = this.getSecFetchDest(resourceType);
+      headers['sec-fetch-mode'] = this.getSecFetchMode(resourceType, request.isNavigationRequest());
+      headers['sec-fetch-site'] = this.getSecFetchSite(parsedUrl, request.frame());
+
+      if (request.isNavigationRequest()) {
+        headers['sec-fetch-user'] = '?1';
+      }
+
+      // Upgrade-Insecure-Requests for navigation
+      if (request.isNavigationRequest()) {
+        headers['upgrade-insecure-requests'] = '1';
+      }
+
+      // Cache-Control
+      if (request.isNavigationRequest()) {
+        headers['cache-control'] = 'max-age=0';
+      }
+
+      // Referer handling
+      if (request.redirectChain().length > 0) {
+        const previousUrl = request.redirectChain()[request.redirectChain().length - 1].url();
+        headers['referer'] = previousUrl;
+      }
+
+      await request.continue({ headers });
+    } catch {
+      // If anything fails, just continue without modifications
+      try {
+        await request.continue();
+      } catch {
+        // Request already handled, ignore
+      }
     }
-
-    // Accept-Encoding
-    if (!headers['accept-encoding']) {
-      headers['accept-encoding'] = 'gzip, deflate, br';
-    }
-
-    // Sec-Fetch-* headers (Chrome 80+)
-    headers['sec-fetch-dest'] = this.getSecFetchDest(resourceType);
-    headers['sec-fetch-mode'] = this.getSecFetchMode(resourceType, request.isNavigationRequest());
-    headers['sec-fetch-site'] = this.getSecFetchSite(url, request.frame());
-
-    if (request.isNavigationRequest()) {
-      headers['sec-fetch-user'] = '?1';
-    }
-
-    // Upgrade-Insecure-Requests for navigation
-    if (request.isNavigationRequest()) {
-      headers['upgrade-insecure-requests'] = '1';
-    }
-
-    // Cache-Control
-    if (request.isNavigationRequest()) {
-      headers['cache-control'] = 'max-age=0';
-    }
-
-    // Referer handling
-    if (request.redirectChain().length > 0) {
-      const previousUrl = request.redirectChain()[request.redirectChain().length - 1].url();
-      headers['referer'] = previousUrl;
-    }
-
-    await request.continue({ headers });
   }
 
   /**
