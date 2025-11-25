@@ -19,6 +19,14 @@ if not exist "dist" (
     exit /b 1
 )
 
+:: Copy renderer files (HTML, CSS, JS are not compiled by TypeScript)
+if not exist "dist\electron\renderer" (
+    echo Copying renderer files...
+    mkdir "dist\electron\renderer" 2>nul
+)
+copy /Y "electron\renderer\*.*" "dist\electron\renderer\" >nul 2>&1
+echo Renderer files: OK
+
 :: Check if electron is installed
 if not exist "node_modules\electron" (
     echo Installing Electron...
