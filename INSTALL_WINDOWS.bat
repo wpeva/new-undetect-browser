@@ -1,7 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 > nul 2>&1
-title UndetectBrowser - Ultimate Windows 10 Installer
+title UndetectBrowser - Windows 10 Installer
 color 0A
 
 :: ============================================================================
@@ -10,18 +9,13 @@ color 0A
 :: ============================================================================
 
 echo.
-echo  ╔═══════════════════════════════════════════════════════════════════════╗
-echo  ║                                                                       ║
-echo  ║     ██╗   ██╗███╗   ██╗██████╗ ███████╗████████╗███████╗ ██████╗████████╗  ║
-echo  ║     ██║   ██║████╗  ██║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝  ║
-echo  ║     ██║   ██║██╔██╗ ██║██║  ██║█████╗     ██║   █████╗  ██║        ██║     ║
-echo  ║     ██║   ██║██║╚██╗██║██║  ██║██╔══╝     ██║   ██╔══╝  ██║        ██║     ║
-echo  ║     ╚██████╔╝██║ ╚████║██████╔╝███████╗   ██║   ███████╗╚██████╗   ██║     ║
-echo  ║      ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚══════╝   ╚═╝   ╚══════╝ ╚═════╝   ╚═╝     ║
-echo  ║                                                                       ║
-echo  ║              ULTIMATE WINDOWS 10 INSTALLER v2.0                       ║
-echo  ║                                                                       ║
-echo  ╚═══════════════════════════════════════════════════════════════════════╝
+echo ================================================================
+echo.
+echo     U N D E T E C T   B R O W S E R
+echo.
+echo     Windows 10 Installer v2.0
+echo.
+echo ================================================================
 echo.
 
 cd /d "%~dp0"
@@ -73,13 +67,14 @@ node --version > nul 2>&1
 if errorlevel 1 (
     echo   [!] Node.js not found - downloading installer...
     echo.
-    echo   ╔═══════════════════════════════════════════════════════════════╗
-    echo   ║  Node.js is required. Opening download page...                ║
-    echo   ║                                                               ║
-    echo   ║  1. Download and install Node.js LTS ^(20.x^)                   ║
-    echo   ║  2. IMPORTANT: Check "Add to PATH" during installation       ║
-    echo   ║  3. After installation, run this script again                ║
-    echo   ╚═══════════════════════════════════════════════════════════════╝
+    echo   ================================================================
+    echo   Node.js is required!
+    echo.
+    echo   1. Download and install Node.js LTS 20.x
+    echo   2. IMPORTANT: Check "Add to PATH" during installation
+    echo   3. RESTART your computer after installation
+    echo   4. Run this script again
+    echo   ================================================================
     echo.
 
     :: Try to download with PowerShell
@@ -390,31 +385,31 @@ echo.
 :: ============================================================================
 echo.
 if %ERRORS% EQU 0 (
-    echo  ╔═══════════════════════════════════════════════════════════════════════╗
-    echo  ║                                                                       ║
-    echo  ║              INSTALLATION COMPLETE! READY TO USE!                     ║
-    echo  ║                                                                       ║
-    echo  ╚═══════════════════════════════════════════════════════════════════════╝
+    echo ================================================================
+    echo.
+    echo   INSTALLATION COMPLETE! READY TO USE!
+    echo.
+    echo ================================================================
     color 0A
 ) else (
-    echo  ╔═══════════════════════════════════════════════════════════════════════╗
-    echo  ║                                                                       ║
-    echo  ║         INSTALLATION COMPLETE WITH %ERRORS% WARNING^(S^)                    ║
-    echo  ║                                                                       ║
-    echo  ╚═══════════════════════════════════════════════════════════════════════╝
+    echo ================================================================
+    echo.
+    echo   INSTALLATION COMPLETE WITH %ERRORS% WARNING(S)
+    echo.
+    echo ================================================================
     color 0E
 )
 
 echo.
-echo  ┌───────────────────────────────────────────────────────────────────────┐
-echo  │  QUICK START:                                                         │
-echo  │                                                                       │
-echo  │    START_APP.bat      - Launch the application (RECOMMENDED)          │
-echo  │    START_SERVER.bat   - Start API server only                         │
-echo  │    FIX_ERRORS.bat     - Auto-fix any issues                           │
-echo  │                                                                       │
-echo  │  Or double-click the desktop shortcut "UndetectBrowser"               │
-echo  └───────────────────────────────────────────────────────────────────────┘
+echo   QUICK START:
+echo.
+echo     START_APP.bat      - Launch the application
+echo     START_SERVER.bat   - Start API server only
+echo     FIX_ERRORS.bat     - Auto-fix any issues
+echo.
+echo   Or double-click desktop shortcut "UndetectBrowser"
+echo.
+echo ================================================================
 echo.
 echo  Press any key to launch the application, or close this window...
 pause > nul

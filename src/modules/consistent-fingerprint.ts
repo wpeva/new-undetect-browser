@@ -547,17 +547,26 @@ export async function applyConsistentFingerprint(
     deviceScaleFactor: fingerprint.pixelRatio,
   });
 
-  // Set geolocation permissions
-  const context = page.browserContext();
-  await context.overridePermissions(page.url() || 'https://example.com', [
-    'geolocation',
-  ]);
+  // Set geolocation permissions (only for HTTP/HTTPS URLs)
+  const pageUrl = page.url();
+  if (pageUrl && pageUrl.startsWith('http')) {
+    try {
+      const context = page.browserContext();
+      await context.overridePermissions(pageUrl, ['geolocation']);
+    } catch {
+      // Ignore permission errors for special URLs
+    }
+  }
 
-  await page.setGeolocation({
-    latitude: fingerprint.geolocation.latitude,
-    longitude: fingerprint.geolocation.longitude,
-    accuracy: 10,
-  });
+  try {
+    await page.setGeolocation({
+      latitude: fingerprint.geolocation.latitude,
+      longitude: fingerprint.geolocation.longitude,
+      accuracy: 10,
+    });
+  } catch {
+    // Ignore geolocation errors
+  }
 }
 
 /**
