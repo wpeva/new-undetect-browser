@@ -1,19 +1,19 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "./dist",
     "rootDir": "./",
-    "declaration": true,
+    "declaration": false,
     "declarationMap": false,
-    "sourceMap": true,
+    "sourceMap": false,
     "removeComments": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true,
+    "forceConsistentCasingInFileNames": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "strict": false,
@@ -33,18 +33,19 @@
     "incremental": true,
     "isolatedModules": false,
     "preserveConstEnums": true,
-    "types": ["node"]
+    "noEmitOnError": false
   },
   "include": [
-    "src/**/*",
-    "server/**/*",
-    "electron/**/*"
+    "src/**/*.ts",
+    "server/**/*.ts",
+    "electron/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
+    "**/*.d.ts",
     "tests",
     "frontend",
     "examples",
@@ -62,6 +63,6 @@
     "analytics",
     "optimization",
     "security",
-    "*.md"
+    "scripts"
   ]
 }
