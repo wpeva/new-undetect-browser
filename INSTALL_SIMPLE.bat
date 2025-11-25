@@ -1,101 +1,130 @@
 @echo off
-title UndetectBrowser - Simple Installer
+title UndetectBrowser - Installer with Log
 color 0A
-
-echo.
-echo ================================================================
-echo     UndetectBrowser - Simple Windows Installer
-echo ================================================================
-echo.
 
 cd /d "%~dp0"
 
+set LOGFILE=install_log.txt
+
+echo ================================================================ > %LOGFILE%
+echo   UndetectBrowser Installation Log >> %LOGFILE%
+echo   Date: %date% %time% >> %LOGFILE%
+echo ================================================================ >> %LOGFILE%
+echo. >> %LOGFILE%
+
+echo.
+echo ================================================================
+echo     UndetectBrowser - Installer
+echo     Log file: %LOGFILE%
+echo ================================================================
+echo.
+
 echo [1/6] Checking Node.js...
-node --version
+echo [1/6] Checking Node.js... >> %LOGFILE%
+node --version >> %LOGFILE% 2>&1
 if errorlevel 1 (
+    echo   ERROR: Node.js not found! >> %LOGFILE%
     echo.
     echo ERROR: Node.js not found!
     echo.
-    echo Please install Node.js first:
-    echo   1. Go to https://nodejs.org/
-    echo   2. Download LTS version
-    echo   3. Install with "Add to PATH" checked
-    echo   4. RESTART your computer
-    echo   5. Run this script again
+    echo Install Node.js from https://nodejs.org/
+    echo Then RESTART computer and run again.
     echo.
     start https://nodejs.org/
     pause
     exit /b 1
 )
+echo   Node.js OK >> %LOGFILE%
 echo   OK!
 echo.
 
 echo [2/6] Creating folders...
-if not exist "data" mkdir data
-if not exist "data\profiles" mkdir data\profiles
-if not exist "data\sessions" mkdir data\sessions
-if not exist "data\logs" mkdir data\logs
-if not exist "data\cache" mkdir data\cache
-if not exist "dist" mkdir dist
-if not exist "build" mkdir build
+echo [2/6] Creating folders... >> %LOGFILE%
+mkdir data 2>> %LOGFILE%
+mkdir data\profiles 2>> %LOGFILE%
+mkdir data\sessions 2>> %LOGFILE%
+mkdir data\logs 2>> %LOGFILE%
+mkdir data\cache 2>> %LOGFILE%
+mkdir dist 2>> %LOGFILE%
+mkdir build 2>> %LOGFILE%
+echo   Folders OK >> %LOGFILE%
 echo   OK!
 echo.
 
-echo [3/6] Creating config file...
+echo [3/6] Creating .env...
+echo [3/6] Creating .env... >> %LOGFILE%
 if not exist ".env" (
-    if exist ".env.example" (
-        copy ".env.example" ".env"
-    ) else (
-        echo PORT=3000> .env
-        echo NODE_ENV=development>> .env
-        echo HOST=127.0.0.1>> .env
-        echo JWT_SECRET=secret123456789>> .env
-        echo HEADLESS=false>> .env
-        echo CLOUD_MODE=false>> .env
-    )
+    echo PORT=3000> .env
+    echo NODE_ENV=development>> .env
+    echo HOST=127.0.0.1>> .env
+    echo JWT_SECRET=secret123456789>> .env
+    echo HEADLESS=false>> .env
+    echo CLOUD_MODE=false>> .env
+    echo DB_PATH=./data/undetect.db>> .env
+    echo   Created new .env >> %LOGFILE%
+) else (
+    echo   .env already exists >> %LOGFILE%
 )
 echo   OK!
 echo.
 
-echo [4/6] Installing packages (this takes 3-5 minutes)...
-echo.
-call npm install --legacy-peer-deps
-echo.
+echo [4/6] Installing packages (3-5 min)...
+echo [4/6] Installing packages... >> %LOGFILE%
+echo. >> %LOGFILE%
+echo --- NPM INSTALL OUTPUT --- >> %LOGFILE%
+call npm install --legacy-peer-deps 2>&1 >> %LOGFILE%
+echo --- END NPM INSTALL --- >> %LOGFILE%
+echo. >> %LOGFILE%
+echo   npm install done >> %LOGFILE%
 echo   Done!
 echo.
 
-echo [5/6] Building project...
-call npm run build:win
-if errorlevel 1 (
-    echo   Trying alternative build...
-    call npx tsc --skipLibCheck
-)
+echo [5/6] Building TypeScript...
+echo [5/6] Building TypeScript... >> %LOGFILE%
+echo. >> %LOGFILE%
+echo --- BUILD OUTPUT --- >> %LOGFILE%
+call npx tsc --skipLibCheck 2>&1 >> %LOGFILE%
+echo --- END BUILD --- >> %LOGFILE%
+echo. >> %LOGFILE%
+echo   Build done >> %LOGFILE%
 echo   Done!
 echo.
 
-echo [6/6] Verifying...
-if exist "node_modules" (
+echo [6/6] Checking results...
+echo [6/6] Checking results... >> %LOGFILE%
+echo.
+if exist "node_modules\puppeteer" (
     echo   node_modules: OK
+    echo   node_modules: OK >> %LOGFILE%
 ) else (
-    echo   node_modules: MISSING
+    echo   node_modules: PROBLEM
+    echo   node_modules: MISSING or incomplete >> %LOGFILE%
 )
 if exist ".env" (
     echo   .env: OK
+    echo   .env: OK >> %LOGFILE%
 ) else (
-    echo   .env: MISSING
+    echo   .env: PROBLEM
+    echo   .env: MISSING >> %LOGFILE%
 )
-if exist "dist" (
+if exist "dist\server" (
     echo   dist: OK
+    echo   dist: OK >> %LOGFILE%
 ) else (
-    echo   dist: MISSING
+    echo   dist: PROBLEM - check log
+    echo   dist: MISSING or build failed >> %LOGFILE%
 )
 echo.
 
+echo ================================================================ >> %LOGFILE%
+echo   Installation finished at %time% >> %LOGFILE%
+echo ================================================================ >> %LOGFILE%
+
 echo ================================================================
 echo.
-echo   INSTALLATION COMPLETE!
+echo   DONE! Check install_log.txt for errors
 echo.
-echo   To start the app, run: START_SIMPLE.bat
+echo   Run START_SIMPLE.bat to launch
 echo.
 echo ================================================================
 echo.
