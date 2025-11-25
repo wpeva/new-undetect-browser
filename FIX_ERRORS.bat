@@ -1,17 +1,16 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 > nul 2>&1
 title UndetectBrowser - Auto Fix Tool
 color 0C
 
 cd /d "%~dp0"
 
 echo.
-echo  ╔═══════════════════════════════════════════════════════════════╗
-echo  ║            UndetectBrowser - Auto Fix Tool                    ║
-echo  ║                                                               ║
-echo  ║  This tool will automatically detect and fix common issues   ║
-echo  ╚═══════════════════════════════════════════════════════════════╝
+echo ================================================================
+echo       UndetectBrowser - Auto Fix Tool
+echo.
+echo   This tool will automatically detect and fix common issues
+echo ================================================================
 echo.
 
 set FIXES=0
@@ -210,15 +209,15 @@ echo   [OK] Electron configured
 :: SUMMARY
 :: ============================================================================
 echo.
-echo  ╔═══════════════════════════════════════════════════════════════╗
+echo ================================================================
 if %ERRORS%==0 (
-    echo  ║                   ALL ISSUES FIXED!                           ║
+    echo        ALL ISSUES FIXED!
     color 0A
 ) else (
-    echo  ║            FIXES APPLIED: %FIXES%, REMAINING ISSUES: %ERRORS%              ║
+    echo    FIXES APPLIED: %FIXES%, REMAINING ISSUES: %ERRORS%
     color 0E
 )
-echo  ╚═══════════════════════════════════════════════════════════════╝
+echo ================================================================
 echo.
 echo  Applied %FIXES% fixes.
 

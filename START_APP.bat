@@ -1,15 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 > nul 2>&1
 title UndetectBrowser - Starting...
 color 0B
 
 cd /d "%~dp0"
 
 echo.
-echo  ╔═══════════════════════════════════════════════════════════════╗
-echo  ║            UndetectBrowser - Smart Launcher                   ║
-echo  ╚═══════════════════════════════════════════════════════════════╝
+echo ================================================================
+echo       UndetectBrowser - Smart Launcher
+echo ================================================================
 echo.
 
 :: ============================================================================
@@ -87,15 +86,15 @@ echo.
 :: LAUNCH APPLICATION
 :: ============================================================================
 
-echo  ┌───────────────────────────────────────────────────────────────┐
-echo  │  Select launch mode:                                          │
-echo  │                                                               │
-echo  │    [1] Desktop Application (Electron GUI) - RECOMMENDED       │
-echo  │    [2] Server Mode (API + Web Interface)                      │
-echo  │    [3] Development Mode (with hot reload)                     │
-echo  │    [4] Quick Browser Test                                     │
-echo  │                                                               │
-echo  └───────────────────────────────────────────────────────────────┘
+echo ================================================================
+echo   Select launch mode:
+echo.
+echo     [1] Desktop Application (Electron GUI) - RECOMMENDED
+echo     [2] Server Mode (API + Web Interface)
+echo     [3] Development Mode (with hot reload)
+echo     [4] Quick Browser Test
+echo.
+echo ================================================================
 echo.
 
 choice /c 1234 /n /m "Enter choice (1-4): "

@@ -1,15 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 > nul 2>&1
 title UndetectBrowser - Installation Test
 color 0B
 
 cd /d "%~dp0"
 
 echo.
-echo  ╔═══════════════════════════════════════════════════════════════╗
-echo  ║         UndetectBrowser - Quick Installation Test             ║
-echo  ╚═══════════════════════════════════════════════════════════════╝
+echo ================================================================
+echo       UndetectBrowser - Quick Installation Test
+echo ================================================================
 echo.
 
 set PASSED=0
@@ -117,7 +116,7 @@ if errorlevel 1 (
 
 :: Summary
 echo.
-echo  ═════════════════════════════════════════════════════════════════
+echo ================================================================
 echo.
 set /a TOTAL=%PASSED%+%FAILED%
 
