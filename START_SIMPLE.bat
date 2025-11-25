@@ -65,10 +65,38 @@ if "%CHOICE%"=="1" (
 
 if "%CHOICE%"=="2" (
     echo Starting Server... >> %LOGFILE%
-    echo Starting Server at http://localhost:3000
-    echo Press Ctrl+C to stop
     echo.
-    call npm run server:v2 2>&1
+    echo ================================================================
+    echo   Server starting at http://localhost:3000
+    echo   Press Ctrl+C to stop
+    echo   Errors are logged to: %LOGFILE%
+    echo ================================================================
+    echo.
+    echo --- SERVER OUTPUT --- >> %LOGFILE%
+    if exist "dist\server\index-v2.js" (
+        echo Found: dist\server\index-v2.js >> %LOGFILE%
+        echo Starting server...
+        node dist/server/index-v2.js
+        echo Server exit code: %errorlevel% >> %LOGFILE%
+    ) else if exist "dist\server\index.js" (
+        echo Found: dist\server\index.js >> %LOGFILE%
+        echo Starting server...
+        node dist/server/index.js
+        echo Server exit code: %errorlevel% >> %LOGFILE%
+    ) else (
+        echo ERROR: Server not built! >> %LOGFILE%
+        echo.
+        echo ERROR: Server files not found!
+        echo Building now...
+        call npx tsc --skipLibCheck
+        if exist "dist\server\index-v2.js" (
+            echo Build complete. Starting server...
+            node dist/server/index-v2.js
+        ) else (
+            echo Build failed. Check install_log.txt
+        )
+    )
+    echo --- END SERVER OUTPUT --- >> %LOGFILE%
 )
 
 if "%CHOICE%"=="3" (
