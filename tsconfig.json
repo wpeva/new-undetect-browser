@@ -67,7 +67,8 @@
     "ml-profiles/**/*",
     "optimization/**/*",
     "security/**/*",
-    "analytics/**/*"
+    "analytics/**/*",
+    "electron/**/*"
   ],
   "exclude": [
     "node_modules",
@@ -76,7 +77,6 @@
     "**/*.spec.ts",
     "tests",
     "frontend",
-    "electron",
     "examples",
     "chromium",
     "docker",
