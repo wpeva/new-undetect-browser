@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs-20_x', 'npm-10_x']
+nixPkgs = ['nodejs-20_x']
 
 [phases.install]
 cmds = [
@@ -8,8 +8,8 @@ cmds = [
 
 [phases.build]
 cmds = [
-  'npm run build'
+  'npx tsc --skipLibCheck || npx tsc'
 ]
 
 [start]
-cmd = 'npm run server'
+cmd = 'node dist/server/index-v2.js'
