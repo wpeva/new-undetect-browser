@@ -36,37 +36,58 @@ router.post('/tasks', (req: Request, res: Response) => {
 });
 
 // PUT /api/automation/tasks/:id - Update task
-router.put('/tasks/:id', (req: Request, res: Response) => {
-  const task = tasks.get(req.params.id);
+router.put('/tasks/:id', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Task ID is required' });
+    return;
+  }
+
+  const task = tasks.get(id);
   if (!task) {
-    return res.status(404).json({ error: 'Task not found' });
+    res.status(404).json({ error: 'Task not found' });
+    return;
   }
 
   const updated = { ...task, ...req.body, id: task.id };
-  tasks.set(req.params.id, updated);
+  tasks.set(id, updated);
   res.json(updated);
 });
 
 // DELETE /api/automation/tasks/:id - Delete task
-router.delete('/tasks/:id', (req: Request, res: Response) => {
-  if (!tasks.has(req.params.id)) {
-    return res.status(404).json({ error: 'Task not found' });
+router.delete('/tasks/:id', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Task ID is required' });
+    return;
   }
 
-  tasks.delete(req.params.id);
+  if (!tasks.has(id)) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+
+  tasks.delete(id);
   res.status(204).send();
 });
 
 // POST /api/automation/tasks/:id/run - Run task
-router.post('/tasks/:id/run', async (req: Request, res: Response) => {
-  const task = tasks.get(req.params.id);
+router.post('/tasks/:id/run', async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Task ID is required' });
+    return;
+  }
+
+  const task = tasks.get(id);
   if (!task) {
-    return res.status(404).json({ error: 'Task not found' });
+    res.status(404).json({ error: 'Task not found' });
+    return;
   }
 
   task.status = 'running';
   task.lastRun = new Date().toISOString();
-  tasks.set(req.params.id, task);
+  tasks.set(id, task);
 
   res.json({ status: 'started', task });
 });

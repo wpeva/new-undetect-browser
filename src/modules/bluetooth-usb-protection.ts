@@ -122,8 +122,8 @@ export class BluetoothUSBProtection {
   constructor(config: Partial<BluetoothUSBConfig> = {}) {
     const platform = config.platform || 'Win32';
     const browser = config.browser || 'chrome';
-    const platformSupport = API_SUPPORT[platform] || API_SUPPORT.Win32;
-    const browserSupport = platformSupport[browser] || platformSupport.chrome;
+    const platformSupport = API_SUPPORT[platform] || API_SUPPORT.Win32!;
+    const browserSupport = platformSupport?.[browser] || platformSupport?.chrome || {};
 
     this.config = {
       enabled: true,
@@ -157,7 +157,7 @@ export class BluetoothUSBProtection {
       // ========== Bluetooth API ==========
       if (config.bluetoothAvailable) {
         // Ensure navigator.bluetooth exists with realistic behavior
-        if (!navigator.bluetooth) {
+        if (!(navigator as any).bluetooth) {
           (navigator as any).bluetooth = {
             getAvailability: async () => {
               // Simulate checking Bluetooth adapter
@@ -166,7 +166,7 @@ export class BluetoothUSBProtection {
               );
               return true; // Bluetooth adapter available
             },
-            requestDevice: async (options: any) => {
+            requestDevice: async (_options: any) => {
               // Simulate user prompt delay
               await new Promise((resolve) =>
                 setTimeout(resolve, 1000 + Math.random() * 2000)
@@ -187,13 +187,13 @@ export class BluetoothUSBProtection {
         }
 
         // Fix toString
-        if (navigator.bluetooth) {
+        if ((navigator as any).bluetooth) {
           const methods = ['getAvailability', 'requestDevice', 'getDevices'];
           const originalToString = Function.prototype.toString;
 
           Function.prototype.toString = function () {
             const methodName = methods.find(
-              (m) => this === (navigator.bluetooth as any)[m]
+              (m) => this === (navigator as any).bluetooth[m]
             );
             if (methodName) {
               return `function ${methodName}() { [native code] }`;
@@ -203,7 +203,7 @@ export class BluetoothUSBProtection {
         }
       } else {
         // Remove Bluetooth API if not available
-        if (navigator.bluetooth) {
+        if ((navigator as any).bluetooth) {
           (navigator as any).bluetooth = undefined;
           delete (navigator as any).bluetooth;
         }
@@ -212,13 +212,13 @@ export class BluetoothUSBProtection {
       // ========== USB API (WebUSB) ==========
       if (config.usbAvailable) {
         // Ensure navigator.usb exists with realistic behavior
-        if (!navigator.usb) {
+        if (!(navigator as any).usb) {
           (navigator as any).usb = {
             getDevices: async () => {
               // Return empty array (no previously authorized devices)
               return [];
             },
-            requestDevice: async (options: any) => {
+            requestDevice: async (_options: any) => {
               // Simulate user prompt delay
               await new Promise((resolve) =>
                 setTimeout(resolve, 500 + Math.random() * 1000)

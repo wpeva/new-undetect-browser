@@ -30,7 +30,7 @@ export async function example1_CheckSupport() {
   } else {
     console.log('✗ eBPF is not supported');
     console.log('\nInstallation instructions:');
-    console.log(ebpfLoader.constructor.getInstallationInstructions());
+    console.log('Please install eBPF requirements for your system');
   }
 }
 
@@ -43,6 +43,10 @@ export async function example2_TCPFingerprint() {
   try {
     // Get Windows 11 + Chrome profile
     const profile = TCPProfiles['windows11-chrome'];
+
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
 
     console.log('TCP Profile:');
     console.log(`  Window Size: ${profile.windowSize}`);
@@ -71,7 +75,7 @@ export async function example2_TCPFingerprint() {
       console.log(`  Errors: ${stats.errors}`);
     }
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error:', (error as Error).message);
   }
 }
 
@@ -84,6 +88,10 @@ export async function example3_JA3Fingerprint() {
   try {
     // Get Chrome profile
     const profile = JA3Profiles['chrome-120-windows'];
+
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
 
     console.log('JA3 Profile:');
     console.log(`  TLS Version: 0x${profile.tlsVersion.toString(16)}`);
@@ -104,7 +112,7 @@ export async function example3_JA3Fingerprint() {
     console.log(`✓ Loaded: ${progInfo.name}`);
     console.log(`✓ Program ID: ${progInfo.fd}`);
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error:', (error as Error).message);
   }
 }
 
@@ -141,6 +149,16 @@ export async function example5_RandomizeFingerprints() {
   // Base profile
   const baseTCP = TCPProfiles['linux-chrome'];
   const baseJA3 = JA3Profiles['chrome-120-windows'];
+
+  if (!baseTCP) {
+    console.log('TCP profile not found');
+    return;
+  }
+
+  if (!baseJA3) {
+    console.log('JA3 profile not found');
+    return;
+  }
 
   console.log('Original TCP Profile:');
   console.log(`  Window Size: ${baseTCP.windowSize}`);
@@ -227,7 +245,7 @@ export async function example6_CompleteWorkflow() {
     console.log('✓ All programs unloaded');
 
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error:', (error as Error).message);
     console.error('\nMake sure you:');
     console.error('  1. Run as root (sudo)');
     console.error('  2. Have clang and bpftool installed');
@@ -255,13 +273,16 @@ export async function example7_SpecificProcess() {
 
     // Load profile for this specific PID
     const profile = TCPProfiles['linux-chrome'];
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
     await ebpfLoader.loadTCPFingerprint(profile, parseInt(chromePid));
 
     console.log(`✓ TCP fingerprinting applied to PID ${chromePid}`);
     console.log('\nNow all connections from this Chrome process will be spoofed!');
 
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error:', (error as Error).message);
   }
 }
 
@@ -283,13 +304,15 @@ async function main() {
   ];
 
   // Run based on command line argument
-  const exampleNum = parseInt(process.argv[2]) || 0;
+  const exampleNum = parseInt(process.argv[2] || '0') || 0;
 
   if (exampleNum > 0 && exampleNum <= examples.length) {
     // Run specific example
     const example = examples[exampleNum - 1];
-    console.log(`Running: ${example.name}\n`);
-    await example.fn();
+    if (example) {
+      console.log(`Running: ${example.name}\n`);
+      await example.fn();
+    }
   } else {
     // Show menu
     console.log('Usage: npx ts-node cloud/kernel/example.ts [number]\n');

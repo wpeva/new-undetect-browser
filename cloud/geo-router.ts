@@ -220,18 +220,27 @@ export class GeoRouter {
     if (scores.length === 0) {
       // Fallback: use any region, even if unhealthy
       const fallbackRegion = Array.from(this.regions.values())[0];
-      const fallbackHealth = this.healthStatus.get(fallbackRegion.id)!;
+      if (!fallbackRegion) {
+        throw new Error('No regions available');
+      }
+      const fallbackHealth = this.healthStatus.get(fallbackRegion.id);
       return {
         region: fallbackRegion.id,
         endpoint: fallbackRegion.endpoint,
         distance: 0,
-        latency: fallbackHealth.latencyMs,
+        latency: fallbackHealth?.latencyMs ?? 999,
         reason: 'fallback-no-healthy-regions',
       };
     }
 
     const best = scores[0];
-    const region = this.regions.get(best.regionId)!;
+    if (!best) {
+      throw new Error('No routing scores available');
+    }
+    const region = this.regions.get(best.regionId);
+    if (!region) {
+      throw new Error(`Region ${best.regionId} not found`);
+    }
 
     return {
       region: best.regionId,
@@ -408,7 +417,13 @@ export class GeoRouter {
    */
   getBackupRegion(failedRegionId: string): string {
     const failedRegion = this.regions.get(failedRegionId);
-    if (!failedRegion) return Array.from(this.regions.keys())[0];
+    const firstRegion = Array.from(this.regions.keys())[0];
+    if (!failedRegion) {
+      if (!firstRegion) {
+        throw new Error('No regions available');
+      }
+      return firstRegion;
+    }
 
     // Find nearest healthy region
     let minDistance = Infinity;
@@ -430,7 +445,13 @@ export class GeoRouter {
     }
 
     // If no healthy region found, use first available
-    return backupRegionId || Array.from(this.regions.keys())[0];
+    if (backupRegionId) {
+      return backupRegionId;
+    }
+    if (!firstRegion) {
+      throw new Error('No regions available');
+    }
+    return firstRegion;
   }
 
   /**

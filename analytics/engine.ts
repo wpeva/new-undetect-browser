@@ -30,14 +30,13 @@ export interface ReportQuery {
 export class AnalyticsEngine extends EventEmitter {
   private storage: string;
   private realtime: boolean;
-  private retention: number;
   private events: TrackEvent[] = [];
 
   constructor(options: AnalyticsOptions) {
     super();
     this.storage = options.storage;
     this.realtime = options.realtime !== false;
-    this.retention = options.retention || 365;
+    // Retention period (not currently used but reserved for future implementation): options.retention || 365
   }
 
   async initialize(): Promise<void> {

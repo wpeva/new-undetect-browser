@@ -380,7 +380,12 @@ export class BatchProcessor<T, R> {
     try {
       const results = await this.processor(currentBatch);
       currentResolvers.forEach((resolver, index) => {
-        resolver.resolve(results[index]);
+        const result = results[index];
+        if (result !== undefined) {
+          resolver.resolve(result);
+        } else {
+          resolver.reject(new Error('Result not found for batch item'));
+        }
       });
     } catch (error) {
       currentResolvers.forEach((resolver) => {

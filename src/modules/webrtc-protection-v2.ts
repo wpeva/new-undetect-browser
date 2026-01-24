@@ -189,10 +189,11 @@ export class WebRTCProtectionV2 {
           if (type === 'icecandidate') {
             const wrappedListener =
               typeof listener === 'function'
-                ? function (event: RTCPeerConnectionIceEvent) {
-                    if (event.candidate && event.candidate.candidate) {
+                ? function (event: Event) {
+                    const iceEvent = event as RTCPeerConnectionIceEvent;
+                    if (iceEvent.candidate && iceEvent.candidate.candidate) {
                       const filtered = filterICECandidate(
-                        event.candidate.candidate
+                        iceEvent.candidate.candidate
                       );
 
                       if (!filtered) {
@@ -202,9 +203,9 @@ export class WebRTCProtectionV2 {
                       }
 
                       // Create modified event
-                      if (filtered !== event.candidate.candidate) {
+                      if (filtered !== iceEvent.candidate.candidate) {
                         const modifiedCandidate = {
-                          ...event.candidate,
+                          ...iceEvent.candidate,
                           candidate: filtered,
                         };
                         const modifiedEvent = new RTCPeerConnectionIceEvent(
@@ -213,18 +214,18 @@ export class WebRTCProtectionV2 {
                             candidate: modifiedCandidate as RTCIceCandidate,
                           }
                         );
-                        return listener.call(this, modifiedEvent);
+                        return (listener as any).call(this, modifiedEvent);
                       }
                     }
-                    return listener.call(this, event);
+                    return (listener as any).call(this, iceEvent);
                   }
                 : listener;
 
-            return originalAddEventListener(type, wrappedListener, options);
+            return originalAddEventListener(type, wrappedListener as any, options);
           }
 
           return originalAddEventListener(type, listener, options);
-        };
+        } as any;
 
         // Override onicecandidate
         let originalOnicecandidate = pc.onicecandidate;
@@ -277,7 +278,7 @@ export class WebRTCProtectionV2 {
             (modifiedOptions as any).offerToReceiveVideo = false;
           }
           return originalCreateOffer(modifiedOptions);
-        };
+        } as any;
 
         // Override getStats to filter IP information
         const originalGetStats = pc.getStats.bind(pc);
@@ -409,8 +410,8 @@ export class WebRTCProtectionV2 {
             ipv6Addresses.push(ip);
           } else {
             const parts = ip.split('.');
-            const first = parseInt(parts[0], 10);
-            const second = parseInt(parts[1], 10);
+            const first = parseInt(parts[0] || '0', 10);
+            const second = parseInt(parts[1] || '0', 10);
 
             const isLocal =
               first === 10 ||

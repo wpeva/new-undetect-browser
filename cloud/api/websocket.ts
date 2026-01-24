@@ -200,13 +200,13 @@ export class WebSocketServer {
       });
     });
 
-    this.sessions.on('session:error', (session: Session) => {
-      this.broadcastToSession(session.id, {
+    this.sessions.on('session:error', (data: { session: Session; error: Error }) => {
+      this.broadcastToSession(data.session.id, {
         type: 'session:error',
-        sessionId: session.id,
+        sessionId: data.session.id,
         data: {
-          error: session.error,
-          session: session,
+          error: data.error.message,
+          session: data.session,
         },
         timestamp: new Date(),
       });
@@ -251,7 +251,7 @@ export class WebSocketServer {
           break;
 
         case 'session:list':
-          const sessions = await this.sessions.list();
+          const sessions = this.sessions.getAllSessions();
           this.sendMessage(socket, {
             type: 'session:list',
             data: sessions,
@@ -264,7 +264,7 @@ export class WebSocketServer {
           if (!message.sessionId) {
             throw new Error('sessionId is required');
           }
-          const session = await this.sessions.get(message.sessionId);
+          const session = this.sessions.getSession(message.sessionId);
           this.sendMessage(socket, {
             type: 'session:get',
             sessionId: message.sessionId,
@@ -313,7 +313,10 @@ export class WebSocketServer {
   private async handleSubscribe(socket: Socket, sessionId: string): Promise<void> {
     try {
       // Verify session exists
-      await this.sessions.get(sessionId);
+      const session = this.sessions.getSession(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
 
       // Add client to session subscribers
       if (!this.sessionClients.has(sessionId)) {
@@ -378,7 +381,11 @@ export class WebSocketServer {
         throw new Error('sessionId is required for CDP messages');
       }
 
-      const session = await this.sessions.get(message.sessionId);
+      // Verify session exists
+      const session = this.sessions.getSession(message.sessionId);
+      if (!session) {
+        throw new Error(`Session ${message.sessionId} not found`);
+      }
 
       // In production, forward to actual CDP endpoint
       // For now, simulate response
@@ -422,12 +429,18 @@ export class WebSocketServer {
     data: { sessionId: string; script: string; requestId?: string }
   ): Promise<void> {
     try {
-      const result = await this.sessions.execute(data.sessionId, data.script);
+      // Get session and execute script
+      const session = this.sessions.getSession(data.sessionId);
+      if (!session || session.pages.length === 0) {
+        throw new Error(`Session ${data.sessionId} not found or has no pages`);
+      }
+
+      const result = await session.pages[0].evaluate(data.script);
 
       this.sendMessage(socket, {
         type: 'execute:result',
         sessionId: data.sessionId,
-        data: result,
+        data: { success: true, result },
         requestId: data.requestId,
         timestamp: new Date(),
       });

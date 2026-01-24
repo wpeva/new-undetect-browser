@@ -141,7 +141,14 @@ export class BatchProcessor<T, R> {
 
     try {
       const results = await this.processor(items);
-      batch.forEach((b, i) => b.resolve(results[i]));
+      batch.forEach((b, i) => {
+        const result = results[i];
+        if (result !== undefined) {
+          b.resolve(result);
+        } else {
+          b.reject(new Error('Result not found for batch item'));
+        }
+      });
     } catch (error) {
       batch.forEach((b) => b.reject(error as Error));
     }
@@ -257,7 +264,7 @@ export class ObjectPool<T> {
 /**
  * Performance monitoring decorator
  */
-export function measurePerformance(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+export function measurePerformance(_target: any, propertyKey: string, descriptor: PropertyDescriptor) {
   const originalMethod = descriptor.value;
 
   descriptor.value = async function (...args: any[]) {

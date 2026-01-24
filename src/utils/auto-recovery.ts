@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { EventEmitter } from 'events';
 import { logger } from './logger';
-import { isWindows, ensureDir, getChromePath, normalizePath } from './windows-compat';
+import { isWindows, ensureDir, getChromePath } from './windows-compat';
 
 export interface HealthStatus {
   healthy: boolean;

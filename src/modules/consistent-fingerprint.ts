@@ -254,7 +254,7 @@ export function generateConsistentFingerprint(
 
   // Get geolocation based on proxy
   const countryCode = proxyCountry?.toUpperCase() || 'US';
-  const geo = GEO_DATABASE[countryCode] || GEO_DATABASE.US;
+  const geo = GEO_DATABASE[countryCode] || GEO_DATABASE.US!;
 
   // Determine OS (platform)
   const platforms = ['Windows', 'macOS', 'Linux'];
@@ -278,8 +278,8 @@ export function generateConsistentFingerprint(
   const gpuVendors = ['NVIDIA', 'Intel', 'AMD'];
   const gpuWeights = [0.5, 0.3, 0.2];
   const gpuVendor = weightedChoice(gpuVendors, gpuWeights, seededRandom);
-  const webglConfigs = WEBGL_CONFIGS[gpuVendor];
-  const webglConfig = webglConfigs[Math.floor(seededRandom() * webglConfigs.length)];
+  const webglConfigs = WEBGL_CONFIGS[gpuVendor] || WEBGL_CONFIGS.NVIDIA!;
+  const webglConfig = webglConfigs[Math.floor(seededRandom() * webglConfigs.length)]!;
 
   // Hardware specs
   const hardwareConcurrency = [2, 4, 6, 8, 12, 16][Math.floor(seededRandom() * 6)];
@@ -297,11 +297,11 @@ export function generateConsistentFingerprint(
     languages: geo.languages,
     timezone: geo.timezone,
     locale: geo.locale,
-    resolution,
+    resolution: resolution!,
     colorDepth: 24,
-    pixelRatio,
-    hardwareConcurrency,
-    deviceMemory,
+    pixelRatio: pixelRatio!,
+    hardwareConcurrency: hardwareConcurrency!,
+    deviceMemory: deviceMemory!,
     canvas: {
       noise: 0.001 + seededRandom() * 0.004, // 0.001-0.005
       seed: randomSeed,
@@ -315,7 +315,7 @@ export function generateConsistentFingerprint(
       noise: seededRandom() * 0.0001,
       oscillator: seededRandom(),
     },
-    fonts: FONTS_BY_OS[platform] || FONTS_BY_OS.Windows,
+    fonts: FONTS_BY_OS[platform] || FONTS_BY_OS.Windows!,
     plugins: generatePlugins(platform, seededRandom),
     mediaDevices: {
       audioinput: 1,
@@ -405,7 +405,6 @@ export async function applyConsistentFingerprint(
     Intl.DateTimeFormat.prototype = originalDateTimeFormat.prototype;
 
     // Override geolocation
-    const _originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;
     navigator.geolocation.getCurrentPosition = function (
       success,
       _error,
@@ -442,9 +441,9 @@ export async function applyConsistentFingerprint(
         for (let i = 0; i < data.length; i += 4) {
           seed = (seed * 9301 + 49297) % 233280;
           const noise = (seed / 233280.0 - 0.5) * fp.canvas.noise * 255;
-          data[i] = Math.min(255, Math.max(0, data[i] + noise));
-          data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
-          data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+          data[i] = Math.min(255, Math.max(0, (data[i] ?? 0) + noise));
+          data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] ?? 0) + noise));
+          data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] ?? 0) + noise));
         }
 
         context.putImageData(imageData, 0, 0);
@@ -486,7 +485,6 @@ export async function applyConsistentFingerprint(
     } as any);
 
     // Media Devices
-    const _originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
     navigator.mediaDevices.enumerateDevices = function () {
       const devices: MediaDeviceInfo[] = [];
 
@@ -596,13 +594,15 @@ function weightedChoice<T>(
   let randomNum = random() * totalWeight;
 
   for (let i = 0; i < items.length; i++) {
-    if (randomNum < weights[i]) {
-      return items[i];
+    const weight = weights[i];
+    const item = items[i];
+    if (weight !== undefined && randomNum < weight && item !== undefined) {
+      return item;
     }
-    randomNum -= weights[i];
+    randomNum -= weight ?? 0;
   }
 
-  return items[items.length - 1];
+  return items[items.length - 1]!;
 }
 
 /**
@@ -610,7 +610,7 @@ function weightedChoice<T>(
  */
 function generateConsistentUserAgent(
   platform: string,
-  locale: string,
+  _locale: string,
   random: () => number
 ): string {
   const chromeVersions = ['120', '121', '122', '123'];

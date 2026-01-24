@@ -202,7 +202,7 @@ export class WebGL2Protection {
       HTMLCanvasElement.prototype.getContext = function (
         contextType: string,
         ...args: any[]
-      ) {
+      ): RenderingContext | null {
         const context = originalGetContext.call(this, contextType, ...args);
 
         if (
@@ -213,7 +213,7 @@ export class WebGL2Protection {
         }
 
         return context;
-      };
+      } as any;
 
       /**
        * Patch WebGL2 context
@@ -248,20 +248,20 @@ export class WebGL2Protection {
 
           // WebGL2-specific parameters
           const webgl2Params: Record<number, any> = {
-            0x8073: parameters.MAX_3D_TEXTURE_SIZE || 16384, // MAX_3D_TEXTURE_SIZE
-            0x88ff: parameters.MAX_ARRAY_TEXTURE_LAYERS || 2048, // MAX_ARRAY_TEXTURE_LAYERS
-            0x8c29: parameters.MAX_COLOR_ATTACHMENTS || 8, // MAX_COLOR_ATTACHMENTS
-            0x8824: parameters.MAX_DRAW_BUFFERS || 8, // MAX_DRAW_BUFFERS
-            0x8cdf: parameters.MAX_SAMPLES || 16, // MAX_SAMPLES
+            0x8073: (parameters as any).MAX_3D_TEXTURE_SIZE || 16384, // MAX_3D_TEXTURE_SIZE
+            0x88ff: (parameters as any).MAX_ARRAY_TEXTURE_LAYERS || 2048, // MAX_ARRAY_TEXTURE_LAYERS
+            0x8c29: (parameters as any).MAX_COLOR_ATTACHMENTS || 8, // MAX_COLOR_ATTACHMENTS
+            0x8824: (parameters as any).MAX_DRAW_BUFFERS || 8, // MAX_DRAW_BUFFERS
+            0x8cdf: (parameters as any).MAX_SAMPLES || 16, // MAX_SAMPLES
             0x8c8a:
-              parameters.MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS || 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
+              (parameters as any).MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS || 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
             0x8c8b:
-              parameters.MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS || 128,
-            0x8a2f: parameters.MAX_UNIFORM_BUFFER_BINDINGS || 84,
-            0x8a30: parameters.MAX_UNIFORM_BLOCK_SIZE || 65536,
-            0x8dfb: parameters.MAX_VERTEX_UNIFORM_BLOCKS || 16,
-            0x8dfa: parameters.MAX_FRAGMENT_UNIFORM_BLOCKS || 16,
-            0x8a34: parameters.MAX_COMBINED_UNIFORM_BLOCKS || 84,
+              (parameters as any).MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS || 128,
+            0x8a2f: (parameters as any).MAX_UNIFORM_BUFFER_BINDINGS || 84,
+            0x8a30: (parameters as any).MAX_UNIFORM_BLOCK_SIZE || 65536,
+            0x8dfb: (parameters as any).MAX_VERTEX_UNIFORM_BLOCKS || 16,
+            0x8dfa: (parameters as any).MAX_FRAGMENT_UNIFORM_BLOCKS || 16,
+            0x8a34: (parameters as any).MAX_COMBINED_UNIFORM_BLOCKS || 84,
           };
 
           if (pname in webgl2Params) {
@@ -364,7 +364,7 @@ export class WebGL2Protection {
       0x8869: profile.MAX_VARYING_VECTORS, // MAX_VARYING_VECTORS
       0x8dfb: profile.MAX_VERTEX_UNIFORM_VECTORS, // MAX_VERTEX_UNIFORM_VECTORS
       0x8dfd: profile.MAX_FRAGMENT_UNIFORM_VECTORS, // MAX_FRAGMENT_UNIFORM_VECTORS
-      0x8b4d: profile.MAX_TEXTURE_IMAGE_UNITS, // MAX_TEXTURE_IMAGE_UNITS
+      0x8872: profile.MAX_TEXTURE_IMAGE_UNITS, // MAX_TEXTURE_IMAGE_UNITS
       0x8b4c: profile.MAX_VERTEX_TEXTURE_IMAGE_UNITS, // MAX_VERTEX_TEXTURE_IMAGE_UNITS
       0x8b4d: profile.MAX_COMBINED_TEXTURE_IMAGE_UNITS, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
     };
