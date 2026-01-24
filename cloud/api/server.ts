@@ -158,14 +158,15 @@ async function createBrowserSession(config: SessionConfig): Promise<BrowserSessi
   const page = pages[0] || (await browser.newPage());
 
   // Set user agent if provided (must be done before stealth)
-  const userAgent = config.userAgent || config.fingerprint?.userAgent ||
+  const userAgent = config.userAgent ||
+    (config.fingerprint && 'userAgent' in config.fingerprint ? config.fingerprint.userAgent : undefined) ||
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   await page.setUserAgent(userAgent);
 
   // Apply stealth protections
   const stealth = new StealthEngine({
     level: config.stealthLevel || 'advanced',
-    fingerprint: config.fingerprint as FingerprintProfile,
+    customFingerprint: config.fingerprint as FingerprintProfile | undefined,
   });
   await stealth.applyProtections(page, userAgent);
 
