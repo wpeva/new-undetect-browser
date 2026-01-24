@@ -33,6 +33,11 @@ const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium'
 // ========== Types ==========
 export interface ServerConfig {
   port?: number;
+  host?: string;
+  cors?: any;
+  rateLimit?: any;
+  apiPrefix?: string;
+  enableSwagger?: boolean;
   redisUrl?: string;
   postgresUrl?: string;
   maxSessions?: number;

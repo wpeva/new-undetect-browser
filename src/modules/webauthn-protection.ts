@@ -292,7 +292,7 @@ export class WebAuthnProtection {
       // ========== PasswordCredential & FederatedCredential ==========
       // These are part of Credential Management API
       if (config.credentialManagementAvailable) {
-        if (typeof PasswordCredential === 'undefined') {
+        if (typeof (window as any).PasswordCredential === 'undefined') {
           (window as any).PasswordCredential = class PasswordCredential {
             readonly id: string = '';
             readonly type: string = 'password';
@@ -309,7 +309,7 @@ export class WebAuthnProtection {
           };
         }
 
-        if (typeof FederatedCredential === 'undefined') {
+        if (typeof (window as any).FederatedCredential === 'undefined') {
           (window as any).FederatedCredential = class FederatedCredential {
             readonly id: string = '';
             readonly type: string = 'federated';
@@ -328,11 +328,11 @@ export class WebAuthnProtection {
           };
         }
       } else {
-        if (typeof PasswordCredential !== 'undefined') {
+        if (typeof (window as any).PasswordCredential !== 'undefined') {
           (window as any).PasswordCredential = undefined;
           delete (window as any).PasswordCredential;
         }
-        if (typeof FederatedCredential !== 'undefined') {
+        if (typeof (window as any).FederatedCredential !== 'undefined') {
           (window as any).FederatedCredential = undefined;
           delete (window as any).FederatedCredential;
         }

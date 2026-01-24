@@ -1,53 +1,48 @@
-# 🚀 Quick Start Guide - UndetectBrowser v2.0
+# Запуск антидетект браузера
 
-## Installation
+## 1 команда:
 
 ```bash
-# 1. Install dependencies
-npm install
-
-# 2. Build the project
-npm run build
-
-# 3. Start the enhanced server
-node dist/server/index-v2.js
+./start.sh
 ```
 
-## Basic Usage
+Готово! Сервер запущен на http://localhost:3000
 
-### Start Server
+## API:
+
 ```bash
-npm run build && node dist/server/index-v2.js
-```
+# Проверка работы
+curl http://localhost:3000/api/v2/health
 
-Server starts on http://localhost:3000
+# Список профилей
+curl http://localhost:3000/api/v2/profiles
 
-### API Examples
-
-**Create Profile:**
-```bash
+# Создать профиль
 curl -X POST http://localhost:3000/api/v2/profiles \
   -H "Content-Type: application/json" \
-  -d '{"name": "My Profile"}'
+  -d '{"name": "Test Profile"}'
+
+# Запустить браузер
+curl -X POST http://localhost:3000/api/v2/profiles/PROFILE_ID/launch
 ```
 
-**List Profiles:**
-```bash
-curl http://localhost:3000/api/v2/profiles
+## Пример (Node.js):
+
+```javascript
+const axios = require('axios');
+
+async function startBrowser() {
+  const { data } = await axios.post('http://localhost:3000/api/v2/profiles', {
+    name: 'My Browser'
+  });
+  
+  await axios.post(`http://localhost:3000/api/v2/profiles/${data.id}/launch`);
+  console.log('Браузер запущен!');
+}
+
+startBrowser();
 ```
 
-**Get Stats:**
-```bash
-curl http://localhost:3000/api/v2/stats
-```
+## Остановка:
 
-## Features
-
-✅ SQLite Database (auto-created)
-✅ REST API v2
-✅ WebSocket Real-time
-✅ Profile Management
-✅ Proxy Management
-✅ Statistics & Analytics
-
-See IMPROVEMENTS.md for complete documentation.
+Нажмите `Ctrl+C`

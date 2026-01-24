@@ -235,13 +235,13 @@ export class BluetoothUSBProtection {
         }
 
         // Fix toString
-        if (navigator.usb) {
+        if ((navigator as any).usb) {
           const methods = ['getDevices', 'requestDevice'];
           const originalToString = Function.prototype.toString;
 
           Function.prototype.toString = function () {
             const methodName = methods.find(
-              (m) => this === (navigator.usb as any)[m]
+              (m) => this === ((navigator as any).usb as any)[m]
             );
             if (methodName) {
               return `function ${methodName}() { [native code] }`;
@@ -251,7 +251,7 @@ export class BluetoothUSBProtection {
         }
       } else {
         // Remove USB API if not available
-        if (navigator.usb) {
+        if ((navigator as any).usb) {
           (navigator as any).usb = undefined;
           delete (navigator as any).usb;
         }

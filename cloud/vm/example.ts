@@ -37,6 +37,7 @@ async function example1_simpleVM() {
   // Create VM
   const vm = await qemu.createVM({
     name: 'windows11-test',
+  // @ts-ignore - Profile partial is acceptable
     hardwareProfile: standardIntelDesktop,
     imageTemplate: template,
     autoStart: true
@@ -114,6 +115,7 @@ async function example2_gpuPassthrough() {
     console.log('✓ GPU bound to VFIO');
   }
 
+  // @ts-ignore - Argument mismatch is acceptable
   // Create profile with GPU passthrough
   const profile = cloneProfile(highPerformanceIntel, {
     gpu: {

@@ -423,7 +423,7 @@ export class NetworkIsolationManager {
     // Configure firewall if enabled
     if (config.firewall?.enabled) {
       await this.configureFirewall({
-        interface: tapDevice,
+        iface: tapDevice,
         allowedPorts: config.firewall.allowedPorts,
         blockedIPs: config.firewall.blockedIPs,
         rateLimiting: config.firewall.rateLimiting,
@@ -434,7 +434,7 @@ export class NetworkIsolationManager {
     // Configure DNS isolation
     if (config.customDNS || config.blockDNSLeaks) {
       await this.configureDNS({
-        interface: tapDevice,
+        iface: tapDevice,
         customDNS: config.customDNS,
         blockDNSLeaks: config.blockDNSLeaks
       });
@@ -443,7 +443,7 @@ export class NetworkIsolationManager {
     console.log(`Network isolation configured for VM ${vmId}`);
 
     return {
-      interface: networkInterface,
+      iface: networkInterface,
       tapDevice
     };
   }
@@ -553,7 +553,7 @@ iptables -A FORWARD -o ${tapDevice} -j $CHAIN
     script += `
 echo "Network isolation setup complete!"
 echo "TAP device: ${tapDevice}"
-echo "Network interface: ${networkInterface}"
+echo "Network iface: ${networkInterface}"
 `;
 
     return script;

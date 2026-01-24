@@ -92,7 +92,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Initialize and load all profiles
    */
-  async initialize(): Promise<void> {
+  override async initialize(): Promise<void> {
     await super.initialize();
     await this.loadAllProfiles();
     logger.info(`Loaded ${this.profiles.size} profiles`);
@@ -322,7 +322,7 @@ export class AdvancedProfileManager extends ProfileManager {
   /**
    * Delete profile
    */
-  async deleteProfile(id: string): Promise<void> {
+  override async deleteProfile(id: string): Promise<void> {
     const profile = await this.loadAdvancedProfile(id);
     if (!profile) {
       throw new Error(`Profile ${id} not found`);
@@ -519,12 +519,12 @@ export class AdvancedProfileManager extends ProfileManager {
             }
             profile.metadata.tags.forEach((tag) => this.tags.add(tag));
           } catch (error) {
-            logger.warn(`Failed to load profile from ${file}:`, error);
+            logger.warn(`Failed to load profile from ${file}:`, error as Record<string, unknown>);
           }
         }
       }
     } catch (error) {
-      logger.warn('Failed to load profiles:', error);
+      logger.warn('Failed to load profiles:', error as Record<string, unknown>);
     }
   }
 

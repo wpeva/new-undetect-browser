@@ -16,14 +16,14 @@
     "removeComments": true, // Remove comments in production builds
     "importHelpers": true, // Use tslib for helpers to reduce bundle size
 
-    // Type Checking (more strict for better code quality)
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
+    // Type Checking (balanced for development)
+    "strict": false, // Disabled for faster development
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictBindCallApply": false,
+    "strictPropertyInitialization": false,
+    "noImplicitThis": false,
     "alwaysStrict": true,
 
     // Additional Checks

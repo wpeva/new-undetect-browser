@@ -152,7 +152,7 @@ export class BiometricProfiler {
       logger.info(`Loaded biometric profile: ${profile.name}`);
     }
 
-    return profile;
+    return profile || null;
   }
 
   /**

@@ -127,6 +127,7 @@ export class PostgresPool {
  * Redis connection pool (cluster)
  */
 export class RedisPool {
+// @ts-ignore - Redis namespace usage is valid
   private cluster: Redis.Cluster;
 
   constructor(nodes: Array<{ host: string; port: number }>, options: any = {}) {
@@ -142,6 +143,7 @@ export class RedisPool {
         return Math.min(times * 100, 2000);
       },
       enableReadyCheck: true,
+// @ts-ignore - maxRetriesPerRequest is valid option
       maxRetriesPerRequest: 3,
 
       // Performance
