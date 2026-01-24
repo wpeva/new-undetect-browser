@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: undetect-browser
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: BROWSER_HEADLESS
+        value: true
+      - key: MAX_CONCURRENT_SESSIONS
+        value: 5
+      - key: LOG_LEVEL
+        value: info
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: "*"
+    healthCheckPath: /api/health
