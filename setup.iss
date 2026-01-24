@@ -28,7 +28,7 @@ AllowNoIcons=yes
 LicenseFile=LICENSE
 OutputDir=Output
 OutputBaseFilename=UndetectBrowser-Setup-{#MyAppVersion}
-SetupIconFile=build\icon.ico
+; SetupIconFile=build\icon.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -83,19 +83,18 @@ Source: "eslint.config.js"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".prettierrc"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Иконки (если есть)
-Source: "build\*"; DestDir: "{app}\build"; Flags: ignoreversion recursesubdirs createallsubdirs; Tasks: desktopicon
+; Source: "build\*"; DestDir: "{app}\build"; Flags: ignoreversion recursesubdirs createallsubdirs; Tasks: desktopicon
 
 [Icons]
 ; Ярлыки в меню Пуск
-Name: "{group}\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\{#MyAppExeName}"""; WorkingDir: "{app}"; IconFilename: "{app}\build\icon.ico"
-Name: "{group}\Документация"; Filename: "{app}\README.md"
+Name: "{group}\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\{#MyAppExeName}"""; WorkingDir: "{app}"Name: "{group}\Документация"; Filename: "{app}\README.md"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 ; Ярлык на рабочем столе
-Name: "{autodesktop}\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\{#MyAppExeName}"""; WorkingDir: "{app}"; IconFilename: "{app}\build\icon.ico"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\{#MyAppExeName}"""; WorkingDir: "{app}"; ; IconFilename: "{app}\build\icon.ico"; Tasks: desktopicon
 
 ; Ярлык быстрого запуска
-Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\{#MyAppExeName}"""; WorkingDir: "{app}"; IconFilename: "{app}\build\icon.ico"; Tasks: quicklaunchicon
+Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "wscript.exe"; Parameters: """{app}\{#MyAppExeName}"""; WorkingDir: "{app}"; ; IconFilename: "{app}\build\icon.ico"; Tasks: quicklaunchicon
 
 [Run]
 ; Проверка Node.js перед установкой зависимостей
