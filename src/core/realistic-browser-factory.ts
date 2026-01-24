@@ -34,6 +34,7 @@ import {
 } from '../modules/enhanced-privacy-protection';
 import { WebRTCSpoofConfig } from '../modules/webrtc-advanced-spoofing';
 import { logger, LogLevel } from '../utils/logger';
+import http from 'http';
 
 /**
  * Configuration for realistic browser
@@ -359,24 +360,82 @@ export class RealisticBrowserFactory {
   }
 
   /**
-   * Detect country from proxy (mock - replace with real implementation)
+   * Detect country from proxy using real GeoIP lookup
+   * Makes HTTP request through proxy to ip-api.com
    */
   private async detectProxyCountry(proxy: ProxyConfig): Promise<string> {
-    // TODO: In production, implement real geolocation detection:
-    // - Use GeoIP API (MaxMind, IP2Location, etc.)
-    // - Query proxy provider API
-    // - Make test request through proxy to geolocation service
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        logger.warn(`GeoIP timeout for proxy ${proxy.host}, using fallback`);
+        resolve('US'); // Fallback to US
+      }, 15000);
 
-    // Mock async operation
-    await Promise.resolve();
+      try {
+        const options: http.RequestOptions = {
+          host: proxy.host,
+          port: proxy.port,
+          path: 'http://ip-api.com/json/?fields=countryCode,country,city,timezone',
+          method: 'GET',
+          headers: {
+            'Host': 'ip-api.com',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+          timeout: 15000,
+        };
 
-    // For now, return a random country
-    const countries = ['US', 'GB', 'DE', 'FR', 'ES', 'IT', 'RU', 'CN', 'JP', 'BR', 'AU', 'CA'];
-    const randomCountry = countries[Math.floor(Math.random() * countries.length)];
+        // Add proxy authentication if provided
+        if (proxy.username && proxy.password) {
+          const auth = Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64');
+          options.headers!['Proxy-Authorization'] = `Basic ${auth}`;
+        }
 
-    logger.debug(`[Mock] Detected country ${randomCountry} for proxy ${proxy.host}`);
+        const req = http.request(options, (res) => {
+          let data = '';
 
-    return randomCountry;
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+
+          res.on('end', () => {
+            clearTimeout(timeout);
+            try {
+              const json = JSON.parse(data);
+              const countryCode = json.countryCode || 'US';
+              logger.info(`Detected proxy country: ${countryCode} (${json.country || 'Unknown'})`);
+              if (json.city) {
+                logger.debug(`  City: ${json.city}`);
+              }
+              if (json.timezone) {
+                logger.debug(`  Timezone: ${json.timezone}`);
+              }
+              resolve(countryCode);
+            } catch (parseError) {
+              logger.warn(`Failed to parse GeoIP response, using fallback`);
+              resolve('US');
+            }
+          });
+        });
+
+        req.on('error', (err) => {
+          clearTimeout(timeout);
+          logger.warn(`GeoIP request failed: ${err.message}, using fallback`);
+          resolve('US');
+        });
+
+        req.on('timeout', () => {
+          clearTimeout(timeout);
+          req.destroy();
+          logger.warn(`GeoIP request timeout, using fallback`);
+          resolve('US');
+        });
+
+        req.end();
+      } catch (error: any) {
+        clearTimeout(timeout);
+        logger.warn(`GeoIP detection error: ${error.message}, using fallback`);
+        resolve('US');
+      }
+    });
   }
 
   /**
