@@ -19,6 +19,10 @@ import rateLimit from 'express-rate-limit';
 import { ProfileModel } from './models/Profile';
 import { ProxyModel } from './models/Proxy';
 
+// Utilities
+import { checkProxy, ProxyCheckResult } from './utils/proxy-checker';
+import { getGeoIP, getGeoIPThroughProxy } from './utils/geoip';
+
 // Load environment variables
 import * as dotenv from 'dotenv';
 dotenv.config();
@@ -297,13 +301,133 @@ app.post('/api/v2/proxies/bulk-import', async (req: Request, res: Response) => {
   }
 });
 
-// Check proxy
+// Check proxy - Real implementation with HTTP request through proxy
 app.post('/api/v2/proxies/:id/check', async (req: Request, res: Response) => {
   try {
-    // TODO: Implement actual proxy checking
-    await ProxyModel.updateStatus(req.params.id, 'working', 100);
-    io.emit('proxy:checked', req.params.id);
-    res.json({ success: true, message: 'Proxy checked' });
+    // Get proxy from database
+    const proxy = await ProxyModel.findById(req.params.id);
+    if (!proxy) {
+      return res.status(404).json({ success: false, error: 'Proxy not found' });
+    }
+
+    // Perform real proxy check
+    const result: ProxyCheckResult = await checkProxy({
+      type: proxy.type,
+      host: proxy.host,
+      port: proxy.port,
+      username: proxy.username,
+      password: proxy.password,
+    });
+
+    if (result.success) {
+      // Update proxy with real data
+      await ProxyModel.update(req.params.id, {
+        status: 'working',
+        speed: result.latencyMs,
+        country: result.country || proxy.country,
+        city: result.city || proxy.city,
+      });
+      await ProxyModel.updateStatus(req.params.id, 'working', result.latencyMs);
+
+      io.emit('proxy:checked', {
+        id: req.params.id,
+        status: 'working',
+        realIP: result.realIP,
+        latency: result.latencyMs,
+        country: result.country,
+        city: result.city,
+      });
+
+      res.json({
+        success: true,
+        message: 'Proxy is working',
+        data: {
+          realIP: result.realIP,
+          latencyMs: result.latencyMs,
+          country: result.country,
+          city: result.city,
+        },
+      });
+    } else {
+      // Mark proxy as failed
+      await ProxyModel.updateStatus(req.params.id, 'failed');
+
+      io.emit('proxy:checked', {
+        id: req.params.id,
+        status: 'failed',
+        error: result.error,
+      });
+
+      res.json({
+        success: false,
+        message: 'Proxy check failed',
+        error: result.error,
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Check all proxies
+app.post('/api/v2/proxies/check-all', strictLimiter, async (req: Request, res: Response) => {
+  try {
+    const proxies = await ProxyModel.findAll();
+
+    // Start checking in background
+    res.json({
+      success: true,
+      message: `Starting check for ${proxies.length} proxies`,
+      total: proxies.length,
+    });
+
+    // Check proxies in batches (don't await - runs in background)
+    (async () => {
+      for (const proxy of proxies) {
+        try {
+          const result = await checkProxy({
+            type: proxy.type,
+            host: proxy.host,
+            port: proxy.port,
+            username: proxy.username,
+            password: proxy.password,
+          });
+
+          if (result.success) {
+            await ProxyModel.update(proxy.id, {
+              status: 'working',
+              speed: result.latencyMs,
+              country: result.country || proxy.country,
+              city: result.city || proxy.city,
+            });
+            await ProxyModel.updateStatus(proxy.id, 'working', result.latencyMs);
+          } else {
+            await ProxyModel.updateStatus(proxy.id, 'failed');
+          }
+
+          io.emit('proxy:checked', {
+            id: proxy.id,
+            status: result.success ? 'working' : 'failed',
+            latency: result.latencyMs,
+          });
+        } catch (err) {
+          await ProxyModel.updateStatus(proxy.id, 'failed');
+          io.emit('proxy:checked', { id: proxy.id, status: 'failed' });
+        }
+      }
+
+      io.emit('proxies:check-complete', { total: proxies.length });
+    })();
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get geolocation for IP
+app.get('/api/v2/geoip/:ip', cacheMiddleware(300000), async (req: Request, res: Response) => {
+  try {
+    const result = await getGeoIP(req.params.ip);
+    res.json({ success: result.success, data: result });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

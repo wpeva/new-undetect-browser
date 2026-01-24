@@ -290,7 +290,199 @@ ipcMain.handle('browser:status', async (_event, profileId) => {
 // ============================================================================
 
 /**
- * Test proxy connection
+ * Get all proxies
+ */
+ipcMain.handle('proxy:getAll', async () => {
+  const proxies = store.get('proxies', []) as any[];
+  return { success: true, data: proxies };
+});
+
+/**
+ * Create new proxy
+ */
+ipcMain.handle('proxy:create', async (_event, proxyData) => {
+  const proxies = store.get('proxies', []) as any[];
+
+  const newProxy = {
+    id: `proxy-${Date.now()}`,
+    name: proxyData.name || `${proxyData.host}:${proxyData.port}`,
+    type: proxyData.type || 'http',
+    host: proxyData.host,
+    port: proxyData.port,
+    username: proxyData.username || null,
+    password: proxyData.password || null,
+    country: proxyData.country || null,
+    city: proxyData.city || null,
+    status: 'unchecked',
+    speed: null,
+    lastChecked: null,
+    created: new Date().toISOString(),
+  };
+
+  proxies.push(newProxy);
+  store.set('proxies', proxies);
+
+  return { success: true, data: newProxy };
+});
+
+/**
+ * Update proxy
+ */
+ipcMain.handle('proxy:update', async (_event, proxyId, updates) => {
+  const proxies = store.get('proxies', []) as any[];
+  const index = proxies.findIndex((p: any) => p.id === proxyId);
+
+  if (index === -1) {
+    return { success: false, error: 'Proxy not found' };
+  }
+
+  proxies[index] = { ...proxies[index], ...updates };
+  store.set('proxies', proxies);
+
+  return { success: true, data: proxies[index] };
+});
+
+/**
+ * Delete proxy
+ */
+ipcMain.handle('proxy:delete', async (_event, proxyId) => {
+  const proxies = store.get('proxies', []) as any[];
+  const filtered = proxies.filter((p: any) => p.id !== proxyId);
+
+  store.set('proxies', filtered);
+
+  return { success: true };
+});
+
+/**
+ * Check proxy connection with real validation
+ */
+ipcMain.handle('proxy:check', async (_event, proxyId) => {
+  const proxies = store.get('proxies', []) as any[];
+  const proxy = proxies.find((p: any) => p.id === proxyId);
+
+  if (!proxy) {
+    return { success: false, error: 'Proxy not found' };
+  }
+
+  try {
+    const startTime = Date.now();
+
+    // Create temporary browser to test proxy
+    const browser = await createRealisticBrowser({
+      proxy: {
+        type: proxy.type,
+        host: proxy.host,
+        port: proxy.port,
+        username: proxy.username,
+        password: proxy.password,
+      },
+      launchOptions: {
+        headless: true,
+      },
+    });
+
+    const page = await browser.newPage();
+
+    // Test connection and get GeoIP info
+    await page.goto('http://ip-api.com/json/', { timeout: 15000 });
+    const responseText = await page.evaluate(() => document.body.innerText);
+    const geoData = JSON.parse(responseText);
+
+    await browser.close();
+
+    const latency = Date.now() - startTime;
+
+    // Update proxy with real data
+    const proxyIndex = proxies.findIndex((p: any) => p.id === proxyId);
+    proxies[proxyIndex] = {
+      ...proxies[proxyIndex],
+      status: 'working',
+      speed: latency,
+      country: geoData.countryCode || proxy.country,
+      city: geoData.city || proxy.city,
+      realIP: geoData.query,
+      lastChecked: new Date().toISOString(),
+    };
+    store.set('proxies', proxies);
+
+    return {
+      success: true,
+      data: {
+        status: 'working',
+        realIP: geoData.query,
+        latency,
+        country: geoData.countryCode,
+        countryName: geoData.country,
+        city: geoData.city,
+        isp: geoData.isp,
+      },
+    };
+  } catch (error: any) {
+    // Mark as failed
+    const proxyIndex = proxies.findIndex((p: any) => p.id === proxyId);
+    proxies[proxyIndex] = {
+      ...proxies[proxyIndex],
+      status: 'failed',
+      lastChecked: new Date().toISOString(),
+    };
+    store.set('proxies', proxies);
+
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+/**
+ * Check all proxies
+ */
+ipcMain.handle('proxy:checkAll', async () => {
+  const proxies = store.get('proxies', []) as any[];
+
+  return {
+    success: true,
+    message: `Starting check for ${proxies.length} proxies`,
+    total: proxies.length,
+  };
+});
+
+/**
+ * Bulk import proxies
+ */
+ipcMain.handle('proxy:bulkImport', async (_event, proxyList: any[]) => {
+  const proxies = store.get('proxies', []) as any[];
+  let imported = 0;
+
+  for (const proxyData of proxyList) {
+    const newProxy = {
+      id: `proxy-${Date.now()}-${imported}`,
+      name: proxyData.name || `${proxyData.host}:${proxyData.port}`,
+      type: proxyData.type || 'http',
+      host: proxyData.host,
+      port: proxyData.port,
+      username: proxyData.username || null,
+      password: proxyData.password || null,
+      country: proxyData.country || null,
+      city: proxyData.city || null,
+      status: 'unchecked',
+      speed: null,
+      lastChecked: null,
+      created: new Date().toISOString(),
+    };
+
+    proxies.push(newProxy);
+    imported++;
+  }
+
+  store.set('proxies', proxies);
+
+  return { success: true, imported };
+});
+
+/**
+ * Test proxy connection (legacy method)
  */
 ipcMain.handle('proxy:test', async (_event, proxyConfig: ProxyConfig) => {
   try {

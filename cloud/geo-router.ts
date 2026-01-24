@@ -4,6 +4,8 @@
  */
 
 import { createHash } from 'crypto';
+import http from 'http';
+import https from 'https';
 
 // Types
 export interface Location {
@@ -241,47 +243,129 @@ export class GeoRouter {
   }
 
   /**
-   * Geolocate IP address
-   * In production, use MaxMind GeoIP2, IP2Location, or similar
+   * Geolocate IP address using real GeoIP service
+   * Uses ip-api.com with fallback to ipwhois.app
    */
   private async geolocate(ip: string): Promise<Location> {
-    // Mock implementation - in production, use a real geolocation service
-    // Example: @maxmind/geoip2-node, geoip-lite, or API service
-
-    // For development, return a default location based on IP pattern
-    if (ip.startsWith('192.168.') || ip === 'localhost' || ip === '127.0.0.1') {
-      // Local IP - return US location
-      return { lat: 37.5, lon: -77.5, country: 'US' };
-    }
-
-    // Mock geolocation based on IP ranges (very simplified)
-    const firstOctet = parseInt(ip.split('.')[0]);
-
-    if (firstOctet >= 1 && firstOctet <= 63) {
-      // US
+    // Handle local IPs
+    if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.') ||
+        ip === 'localhost' || ip === '127.0.0.1' || ip === '::1') {
       return { lat: 37.5, lon: -77.5, country: 'US', continent: 'NA' };
-    } else if (firstOctet >= 64 && firstOctet <= 127) {
-      // Europe
-      return { lat: 53.3, lon: -6.2, country: 'IE', continent: 'EU' };
-    } else if (firstOctet >= 128 && firstOctet <= 191) {
-      // Asia
-      return { lat: 1.3, lon: 103.8, country: 'SG', continent: 'AS' };
-    } else {
-      // Russia
-      return { lat: 55.7, lon: 37.6, country: 'RU', continent: 'EU' };
     }
 
-    // TODO: Implement real geolocation service
-    // Example with maxmind:
-    // const reader = await maxmind.open<CityResponse>(geoipDatabase);
-    // const geo = reader.get(ip);
-    // return {
-    //   lat: geo?.location?.latitude || 0,
-    //   lon: geo?.location?.longitude || 0,
-    //   country: geo?.country?.iso_code,
-    //   city: geo?.city?.names?.en,
-    //   continent: geo?.continent?.code,
-    // };
+    // Try ip-api.com first (faster, no SSL overhead)
+    try {
+      const result = await this.fetchGeoIP(ip, 'http://ip-api.com/json/', false);
+      if (result) return result;
+    } catch (error) {
+      console.error('ip-api.com failed:', error);
+    }
+
+    // Fallback to ipwhois.app
+    try {
+      const result = await this.fetchGeoIP(ip, 'http://ipwhois.app/json/', false);
+      if (result) return result;
+    } catch (error) {
+      console.error('ipwhois.app failed:', error);
+    }
+
+    // Final fallback - return US location
+    return { lat: 37.5, lon: -77.5, country: 'US', continent: 'NA' };
+  }
+
+  /**
+   * Fetch geolocation data from API
+   */
+  private fetchGeoIP(ip: string, baseUrl: string, useHttps: boolean): Promise<Location | null> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 10000);
+
+      const url = `${baseUrl}${ip}`;
+      const httpModule = useHttps ? https : http;
+
+      const req = httpModule.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; GeoRouter/1.0)',
+          'Accept': 'application/json',
+        },
+      }, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          clearTimeout(timeout);
+          try {
+            const json = JSON.parse(data);
+
+            // Handle ip-api.com format
+            if (json.status === 'success' || json.lat !== undefined) {
+              resolve({
+                lat: json.lat || json.latitude || 0,
+                lon: json.lon || json.longitude || 0,
+                country: json.countryCode || json.country_code || json.country,
+                city: json.city,
+                continent: json.continent || this.getContinent(json.countryCode || json.country_code),
+              });
+              return;
+            }
+
+            // Handle ipwhois.app format
+            if (json.success !== false && json.latitude !== undefined) {
+              resolve({
+                lat: json.latitude,
+                lon: json.longitude,
+                country: json.country_code,
+                city: json.city,
+                continent: json.continent_code || this.getContinent(json.country_code),
+              });
+              return;
+            }
+
+            resolve(null);
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+
+      req.on('error', () => {
+        clearTimeout(timeout);
+        resolve(null);
+      });
+
+      req.on('timeout', () => {
+        clearTimeout(timeout);
+        req.destroy();
+        resolve(null);
+      });
+    });
+  }
+
+  /**
+   * Get continent code from country code
+   */
+  private getContinent(countryCode: string): string {
+    const continents: Record<string, string> = {
+      // North America
+      US: 'NA', CA: 'NA', MX: 'NA',
+      // Europe
+      GB: 'EU', DE: 'EU', FR: 'EU', IT: 'EU', ES: 'EU', NL: 'EU', BE: 'EU', AT: 'EU',
+      CH: 'EU', SE: 'EU', NO: 'EU', DK: 'EU', FI: 'EU', PL: 'EU', CZ: 'EU', PT: 'EU',
+      GR: 'EU', IE: 'EU', RU: 'EU', UA: 'EU', TR: 'EU',
+      // Asia
+      CN: 'AS', JP: 'AS', KR: 'AS', IN: 'AS', SG: 'AS', HK: 'AS', TW: 'AS', TH: 'AS',
+      VN: 'AS', ID: 'AS', MY: 'AS', PH: 'AS', AE: 'AS', SA: 'AS', IL: 'AS',
+      // South America
+      BR: 'SA', AR: 'SA', CL: 'SA', CO: 'SA', PE: 'SA', VE: 'SA',
+      // Oceania
+      AU: 'OC', NZ: 'OC',
+      // Africa
+      ZA: 'AF', EG: 'AF', NG: 'AF', KE: 'AF',
+    };
+    return continents[countryCode] || 'NA';
   }
 
   /**

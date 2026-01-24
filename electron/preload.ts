@@ -24,7 +24,14 @@ const api = {
 
   // Proxy
   proxy: {
+    getAll: () => ipcRenderer.invoke('proxy:getAll'),
+    create: (data: any) => ipcRenderer.invoke('proxy:create', data),
+    update: (id: string, updates: any) => ipcRenderer.invoke('proxy:update', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('proxy:delete', id),
+    check: (id: string) => ipcRenderer.invoke('proxy:check', id),
+    checkAll: () => ipcRenderer.invoke('proxy:checkAll'),
     test: (proxyConfig: any) => ipcRenderer.invoke('proxy:test', proxyConfig),
+    bulkImport: (proxies: any[]) => ipcRenderer.invoke('proxy:bulkImport', proxies),
   },
 
   // Settings

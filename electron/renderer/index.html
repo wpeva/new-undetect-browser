@@ -85,9 +85,28 @@
       <div class="tab-content" id="settings-tab">
         <header class="content-header">
           <h2>Настройки</h2>
+          <button class="btn btn-primary" id="save-settings-btn">💾 Сохранить</button>
         </header>
 
         <div class="settings-container">
+          <div class="setting-group">
+            <h3>Внешний вид</h3>
+            <div class="setting-item">
+              <label>Тема оформления</label>
+              <div class="theme-selector">
+                <button class="theme-btn active" data-theme="dark">🌙 Тёмная</button>
+                <button class="theme-btn" data-theme="light">☀️ Светлая</button>
+              </div>
+            </div>
+            <div class="setting-item">
+              <label>Язык интерфейса</label>
+              <select id="language-select" class="form-select">
+                <option value="ru">🇷🇺 Русский</option>
+                <option value="en">🇺🇸 English</option>
+              </select>
+            </div>
+          </div>
+
           <div class="setting-group">
             <h3>Общие настройки</h3>
             <div class="setting-item">
@@ -99,6 +118,14 @@
               <label>
                 <input type="checkbox" id="start-minimized-check"> Запускать свернутым
               </label>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <h3>Браузер по умолчанию</h3>
+            <div class="setting-item">
+              <label>Стартовая страница</label>
+              <input type="text" id="start-page-input" class="form-input" placeholder="https://www.google.com" value="https://www.google.com">
             </div>
           </div>
 
@@ -130,6 +157,23 @@
                 <input type="checkbox" id="human-behavior-check" checked disabled> Реалистичное поведение человека
               </label>
               <small>Естественные движения мыши, печать с опечатками, паузы</small>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <h3>Хранилище данных</h3>
+            <div class="storage-info">
+              <div class="storage-stat">
+                <span>Профили:</span>
+                <span id="storage-profiles-count">0</span>
+              </div>
+              <div class="storage-stat">
+                <span>Прокси:</span>
+                <span id="storage-proxies-count">0</span>
+              </div>
+            </div>
+            <div class="setting-actions">
+              <button class="btn btn-danger" id="clear-data-btn">🗑️ Очистить все данные</button>
             </div>
           </div>
         </div>
@@ -236,6 +280,94 @@
       <div class="modal-footer">
         <button class="btn btn-secondary modal-cancel">Отмена</button>
         <button class="btn btn-primary" id="save-profile-btn">Создать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Proxy -->
+  <div class="modal" id="add-proxy-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Добавить прокси</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Название (опционально)</label>
+          <input type="text" id="proxy-name-input" placeholder="Мой прокси" class="form-input">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Тип</label>
+            <select id="proxy-type-select" class="form-select">
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+              <option value="socks4">SOCKS4</option>
+              <option value="socks5">SOCKS5</option>
+            </select>
+          </div>
+
+          <div class="form-group flex-grow">
+            <label>Хост</label>
+            <input type="text" id="proxy-host-input" placeholder="192.168.1.1" class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label>Порт</label>
+            <input type="number" id="proxy-port-input" placeholder="8080" class="form-input" style="width: 100px;">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-grow">
+            <label>Логин (опционально)</label>
+            <input type="text" id="proxy-username-input" placeholder="username" class="form-input">
+          </div>
+
+          <div class="form-group flex-grow">
+            <label>Пароль (опционально)</label>
+            <input type="password" id="proxy-password-input" placeholder="password" class="form-input">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Отмена</button>
+        <button class="btn btn-primary" id="save-proxy-btn">Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Import Proxies -->
+  <div class="modal" id="import-proxies-modal">
+    <div class="modal-content modal-wide">
+      <div class="modal-header">
+        <h2>Импорт прокси</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Список прокси (один на строку)</label>
+          <textarea id="import-proxies-textarea" class="form-textarea" rows="10" placeholder="Поддерживаемые форматы:
+host:port
+host:port:username:password
+http://host:port
+socks5://host:port:username:password
+http://username:password@host:port"></textarea>
+        </div>
+        <div class="import-hint">
+          <h4>Поддерживаемые форматы:</h4>
+          <ul>
+            <li><code>host:port</code> - HTTP прокси без авторизации</li>
+            <li><code>host:port:user:pass</code> - HTTP прокси с авторизацией</li>
+            <li><code>protocol://host:port</code> - Прокси с указанием протокола</li>
+            <li><code>protocol://user:pass@host:port</code> - Полный формат URL</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Отмена</button>
+        <button class="btn btn-primary" id="do-import-proxies-btn">Импортировать</button>
       </div>
     </div>
   </div>

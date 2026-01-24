@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
@@ -7,8 +8,20 @@ import Proxies from './pages/Proxies';
 import Automation from './pages/Automation';
 import Settings from './pages/Settings';
 import BrowserEmulation from './pages/BrowserEmulation';
+import { initWebSocket, disconnectWebSocket } from './api/websocket';
 
 function App() {
+  // Initialize WebSocket connection on app mount
+  useEffect(() => {
+    // Connect to WebSocket server
+    initWebSocket();
+
+    // Cleanup on unmount
+    return () => {
+      disconnectWebSocket();
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <Toaster position="top-right" />

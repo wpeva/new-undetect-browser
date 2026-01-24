@@ -8,6 +8,7 @@ interface ProfileStore {
   loading: boolean;
   selectedProfile: BrowserProfile | null;
 
+  // API actions
   fetchProfiles: () => Promise<void>;
   createProfile: (data: Partial<BrowserProfile>) => Promise<void>;
   updateProfile: (id: string, data: Partial<BrowserProfile>) => Promise<void>;
@@ -15,6 +16,11 @@ interface ProfileStore {
   launchProfile: (id: string) => Promise<void>;
   stopProfile: (id: string) => Promise<void>;
   selectProfile: (profile: BrowserProfile | null) => void;
+
+  // Local state actions (for WebSocket updates)
+  addProfile: (profile: BrowserProfile) => void;
+  updateProfileLocal: (id: string, data: Partial<BrowserProfile>) => void;
+  removeProfile: (id: string) => void;
 }
 
 export const useProfileStore = create<ProfileStore>((set, get) => ({
@@ -107,4 +113,28 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
   },
 
   selectProfile: (profile) => set({ selectedProfile: profile }),
+
+  // Local state actions for WebSocket updates
+  addProfile: (profile) => {
+    set((state) => {
+      // Avoid duplicates
+      if (state.profiles.some((p) => p.id === profile.id)) {
+        return state;
+      }
+      return { profiles: [...state.profiles, profile] };
+    });
+  },
+
+  updateProfileLocal: (id, data) => {
+    set((state) => ({
+      profiles: state.profiles.map((p) => (p.id === id ? { ...p, ...data } : p)),
+    }));
+  },
+
+  removeProfile: (id) => {
+    set((state) => ({
+      profiles: state.profiles.filter((p) => p.id !== id),
+      selectedProfile: state.selectedProfile?.id === id ? null : state.selectedProfile,
+    }));
+  },
 }));
