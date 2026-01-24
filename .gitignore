@@ -30,6 +30,12 @@ Thumbs.db
 profiles/
 *.profile
 
+# Runtime data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
 # Logs
 logs/
 *.log
