@@ -25,10 +25,17 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // GET /api/profiles/:id - Get profile by ID
-router.get('/:id', (req: Request, res: Response) => {
-  const profile = profiles.get(req.params.id);
+router.get('/:id', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Profile ID is required' });
+    return;
+  }
+
+  const profile = profiles.get(id);
   if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
+    res.status(404).json({ error: 'Profile not found' });
+    return;
   }
   res.json(profile);
 });
@@ -52,50 +59,78 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // PUT /api/profiles/:id - Update profile
-router.put('/:id', (req: Request, res: Response) => {
-  const profile = profiles.get(req.params.id);
+router.put('/:id', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Profile ID is required' });
+    return;
+  }
+
+  const profile = profiles.get(id);
   if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
+    res.status(404).json({ error: 'Profile not found' });
+    return;
   }
 
   const updated = { ...profile, ...req.body, id: profile.id };
-  profiles.set(req.params.id, updated);
+  profiles.set(id, updated);
   res.json(updated);
 });
 
 // DELETE /api/profiles/:id - Delete profile
-router.delete('/:id', (req: Request, res: Response) => {
-  if (!profiles.has(req.params.id)) {
-    return res.status(404).json({ error: 'Profile not found' });
+router.delete('/:id', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Profile ID is required' });
+    return;
   }
 
-  profiles.delete(req.params.id);
+  if (!profiles.has(id)) {
+    res.status(404).json({ error: 'Profile not found' });
+    return;
+  }
+
+  profiles.delete(id);
   res.status(204).send();
 });
 
 // POST /api/profiles/:id/launch - Launch browser
-router.post('/:id/launch', async (req: Request, res: Response) => {
-  const profile = profiles.get(req.params.id);
+router.post('/:id/launch', async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Profile ID is required' });
+    return;
+  }
+
+  const profile = profiles.get(id);
   if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
+    res.status(404).json({ error: 'Profile not found' });
+    return;
   }
 
   profile.status = 'active';
   profile.lastUsed = new Date().toISOString();
-  profiles.set(req.params.id, profile);
+  profiles.set(id, profile);
 
   res.json({ status: 'launched', profile });
 });
 
 // POST /api/profiles/:id/stop - Stop browser
-router.post('/:id/stop', (req: Request, res: Response) => {
-  const profile = profiles.get(req.params.id);
+router.post('/:id/stop', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Profile ID is required' });
+    return;
+  }
+
+  const profile = profiles.get(id);
   if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
+    res.status(404).json({ error: 'Profile not found' });
+    return;
   }
 
   profile.status = 'stopped';
-  profiles.set(req.params.id, profile);
+  profiles.set(id, profile);
 
   res.json({ status: 'stopped', profile });
 });

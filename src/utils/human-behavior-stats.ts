@@ -454,6 +454,10 @@ export function randomRange(min: number, max: number): number {
  * Helper function: Pick random item from weighted distribution
  */
 export function weightedRandom<T>(items: Array<{ value: T; probability: number }>): T {
+  if (items.length === 0) {
+    throw new Error('Items array cannot be empty');
+  }
+
   const random = Math.random();
   let cumulative = 0;
 
@@ -464,7 +468,7 @@ export function weightedRandom<T>(items: Array<{ value: T; probability: number }
     }
   }
 
-  return items[items.length - 1].value;
+  return items[items.length - 1]!.value;
 }
 
 /**

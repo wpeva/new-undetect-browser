@@ -5,8 +5,8 @@ import { randomBytes } from 'crypto';
  */
 export function generateUUID(): string {
   const bytes = randomBytes(16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
-  bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40; // Version 4
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80; // Variant 10
 
   const hex = bytes.toString('hex');
   return [
@@ -37,7 +37,12 @@ export async function delay(ms: number): Promise<void> {
  * Random choice from array
  */
 export function randomChoice<T>(array: T[]): T {
-  return array[Math.floor(Math.random() * array.length)];
+  const index = Math.floor(Math.random() * array.length);
+  const result = array[index];
+  if (result === undefined) {
+    throw new Error('Array is empty or index out of bounds');
+  }
+  return result;
 }
 
 /**

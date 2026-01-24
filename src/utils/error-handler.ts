@@ -3,7 +3,7 @@
  * Provides automatic error recovery and user-friendly error messages
  */
 
-import { logger, LogLevel } from './logger';
+import { logger } from './logger';
 import { isWindows } from './windows-compat';
 
 export enum ErrorCode {

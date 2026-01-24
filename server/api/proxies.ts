@@ -41,41 +41,64 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // PUT /api/proxies/:id - Update proxy
-router.put('/:id', (req: Request, res: Response) => {
-  const proxy = proxies.get(req.params.id);
+router.put('/:id', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Proxy ID is required' });
+    return;
+  }
+
+  const proxy = proxies.get(id);
   if (!proxy) {
-    return res.status(404).json({ error: 'Proxy not found' });
+    res.status(404).json({ error: 'Proxy not found' });
+    return;
   }
 
   const updated = { ...proxy, ...req.body, id: proxy.id };
-  proxies.set(req.params.id, updated);
+  proxies.set(id, updated);
   res.json(updated);
 });
 
 // DELETE /api/proxies/:id - Delete proxy
-router.delete('/:id', (req: Request, res: Response) => {
-  if (!proxies.has(req.params.id)) {
-    return res.status(404).json({ error: 'Proxy not found' });
+router.delete('/:id', (req: Request, res: Response): void => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Proxy ID is required' });
+    return;
   }
 
-  proxies.delete(req.params.id);
+  if (!proxies.has(id)) {
+    res.status(404).json({ error: 'Proxy not found' });
+    return;
+  }
+
+  proxies.delete(id);
   res.status(204).send();
 });
 
 // POST /api/proxies/:id/check - Check proxy
-router.post('/:id/check', async (req: Request, res: Response) => {
-  const proxy = proxies.get(req.params.id);
+router.post('/:id/check', async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id;
+  if (!id) {
+    res.status(400).json({ error: 'Proxy ID is required' });
+    return;
+  }
+
+  const proxy = proxies.get(id);
   if (!proxy) {
-    return res.status(404).json({ error: 'Proxy not found' });
+    res.status(404).json({ error: 'Proxy not found' });
+    return;
   }
 
   // Simulate proxy check
   proxy.status = 'checking';
-  proxies.set(req.params.id, proxy);
+  proxies.set(id, proxy);
 
   setTimeout(() => {
     proxy.status = Math.random() > 0.3 ? 'active' : 'inactive';
-    proxies.set(req.params.id, proxy);
+    if (id) {
+      proxies.set(id, proxy);
+    }
   }, 1000);
 
   res.json({

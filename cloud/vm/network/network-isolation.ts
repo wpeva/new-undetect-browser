@@ -225,13 +225,13 @@ export class NetworkIsolationManager {
    * Configure firewall rules for VM isolation
    */
   async configureFirewall(config: {
-    interface: string;
+    iface: string;
     allowedPorts?: number[];
     blockedIPs?: string[];
     rateLimiting?: boolean;
     dropInvalid?: boolean;
   }): Promise<void> {
-    const { interface: iface, allowedPorts, blockedIPs, rateLimiting, dropInvalid } = config;
+    const { iface, allowedPorts, blockedIPs, rateLimiting, dropInvalid } = config;
 
     console.log(`Configuring firewall for interface ${iface}`);
 
@@ -294,21 +294,21 @@ export class NetworkIsolationManager {
   /**
    * Remove firewall rules for interface
    */
-  async removeFirewall(interface: string): Promise<void> {
-    const chainName = `VM_${interface.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+  async removeFirewall(iface: string): Promise<void> {
+    const chainName = `VM_${iface.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
 
-    console.log(`Removing firewall rules for interface ${interface}`);
+    console.log(`Removing firewall rules for interface ${iface}`);
 
     try {
       // Remove rules referencing the chain
-      await execAsync(`iptables -D FORWARD -i ${interface} -j ${chainName}`);
-      await execAsync(`iptables -D FORWARD -o ${interface} -j ${chainName}`);
+      await execAsync(`iptables -D FORWARD -i ${iface} -j ${chainName}`);
+      await execAsync(`iptables -D FORWARD -o ${iface} -j ${chainName}`);
 
       // Flush and delete chain
       await execAsync(`iptables -F ${chainName}`);
       await execAsync(`iptables -X ${chainName}`);
 
-      console.log(`Firewall rules removed for interface ${interface}`);
+      console.log(`Firewall rules removed for interface ${iface}`);
     } catch (error) {
       console.error(`Failed to remove firewall rules:`, error);
     }
@@ -318,11 +318,11 @@ export class NetworkIsolationManager {
    * Configure DNS isolation
    */
   async configureDNS(config: {
-    interface: string;
+    iface: string;
     customDNS?: string[];
     blockDNSLeaks?: boolean;
   }): Promise<void> {
-    const { interface: iface, customDNS, blockDNSLeaks } = config;
+    const { iface, customDNS, blockDNSLeaks } = config;
 
     console.log(`Configuring DNS for interface ${iface}`);
 
@@ -353,7 +353,7 @@ export class NetworkIsolationManager {
     vmId: string,
     config: NetworkIsolationConfig
   ): Promise<{
-    interface: string;
+    iface: string;
     tapDevice: string;
   }> {
     if (!config.enabled) {
@@ -423,7 +423,7 @@ export class NetworkIsolationManager {
     // Configure firewall if enabled
     if (config.firewall?.enabled) {
       await this.configureFirewall({
-        interface: tapDevice,
+        iface: tapDevice,
         allowedPorts: config.firewall.allowedPorts,
         blockedIPs: config.firewall.blockedIPs,
         rateLimiting: config.firewall.rateLimiting,
@@ -434,7 +434,7 @@ export class NetworkIsolationManager {
     // Configure DNS isolation
     if (config.customDNS || config.blockDNSLeaks) {
       await this.configureDNS({
-        interface: tapDevice,
+        iface: tapDevice,
         customDNS: config.customDNS,
         blockDNSLeaks: config.blockDNSLeaks
       });
@@ -443,7 +443,7 @@ export class NetworkIsolationManager {
     console.log(`Network isolation configured for VM ${vmId}`);
 
     return {
-      interface: networkInterface,
+      iface: networkInterface,
       tapDevice
     };
   }
@@ -553,7 +553,7 @@ iptables -A FORWARD -o ${tapDevice} -j $CHAIN
     script += `
 echo "Network isolation setup complete!"
 echo "TAP device: ${tapDevice}"
-echo "Network interface: ${networkInterface}"
+echo "Network iface: ${networkInterface}"
 `;
 
     return script;

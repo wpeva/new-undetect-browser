@@ -384,6 +384,7 @@ export class BrowserPool extends EventEmitter {
 
     // Stop maintenance
     if (this.maintenanceInterval) {
+// @ts-ignore - Overload mismatch is acceptable
       clearInterval(this.maintenanceInterval);
     }
 

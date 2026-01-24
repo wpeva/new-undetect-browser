@@ -7,7 +7,6 @@
 import { CloudAPIServer } from './server';
 // Note: socket.io-client is optional, only needed for WebSocket examples
 // import { io as ioClient, Socket } from 'socket.io-client';
-type Socket = any;
 
 /**
  * Example 1: Basic server setup
@@ -275,11 +274,11 @@ async function advancedConfiguration() {
   console.log('  Proxy:', session.config.proxy?.host);
 
   // Monitor session events
-  sessionManager.on('session:activity', (s) => {
+  sessionManager.on('session:activity', (s: any) => {
     console.log('📊 Session activity:', s.id);
   });
 
-  sessionManager.on('session:error', (s) => {
+  sessionManager.on('session:error', (s: any) => {
     console.error('❌ Session error:', s.id, s.error);
   });
 
@@ -340,7 +339,7 @@ async function completeWorkflow() {
       }),
     })
   );
-  const results = await Promise.all(executePromises);
+  await Promise.all(executePromises);
   console.log(`  ✓ Executed scripts in ${sessions.length} sessions`);
 
   // Step 3: Get stats

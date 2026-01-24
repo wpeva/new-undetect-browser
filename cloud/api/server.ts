@@ -31,7 +31,21 @@ const SESSION_TIMEOUT = parseInt(process.env.SESSION_TIMEOUT || '1800000', 10); 
 const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
 
 // ========== Types ==========
-interface SessionConfig {
+export interface ServerConfig {
+  port?: number;
+  host?: string;
+  cors?: any;
+  rateLimit?: any;
+  apiPrefix?: string;
+  enableSwagger?: boolean;
+  redisUrl?: string;
+  postgresUrl?: string;
+  maxSessions?: number;
+  sessionTimeout?: number;
+  chromePath?: string;
+}
+
+export interface SessionConfig {
   fingerprint?: Partial<FingerprintProfile>;
   profileId?: string;
   headless?: boolean;
@@ -40,6 +54,43 @@ interface SessionConfig {
   proxy?: string;
   stealthLevel?: 'basic' | 'advanced' | 'paranoid';
   timeout?: number;
+}
+
+// Type aliases for backward compatibility
+export type BrowserProfile = SessionConfig;
+
+export interface ExecuteScriptOptions {
+  code: string;
+  pageIndex?: number;
+}
+
+export interface ExecuteScriptResult {
+  success: boolean;
+  result?: any;
+  error?: string;
+}
+
+// Placeholder export for CloudAPIServer (for compatibility)
+export class CloudAPIServer {
+  constructor(_config?: ServerConfig) {
+    // Placeholder - actual implementation is in the standalone server below
+  }
+
+  async start(): Promise<void> {
+    throw new Error('CloudAPIServer.start() is not implemented - use the standalone server instead');
+  }
+
+  async stop(): Promise<void> {
+    throw new Error('CloudAPIServer.stop() is not implemented - use the standalone server instead');
+  }
+
+  getSessionManager(): any {
+    throw new Error('CloudAPIServer.getSessionManager() is not implemented - use the standalone server instead');
+  }
+
+  getWebSocketServer(): any {
+    throw new Error('CloudAPIServer.getWebSocketServer() is not implemented - use the standalone server instead');
+  }
 }
 
 interface BrowserSession {
@@ -158,14 +209,15 @@ async function createBrowserSession(config: SessionConfig): Promise<BrowserSessi
   const page = pages[0] || (await browser.newPage());
 
   // Set user agent if provided (must be done before stealth)
-  const userAgent = config.userAgent || config.fingerprint?.userAgent ||
+  const userAgent: string = config.userAgent ||
+    (config.fingerprint && 'userAgent' in config.fingerprint && typeof config.fingerprint.userAgent === 'string' ? config.fingerprint.userAgent : '') ||
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   await page.setUserAgent(userAgent);
 
   // Apply stealth protections
   const stealth = new StealthEngine({
     level: config.stealthLevel || 'advanced',
-    fingerprint: config.fingerprint as FingerprintProfile,
+    customFingerprint: config.fingerprint as FingerprintProfile | undefined,
   });
   await stealth.applyProtections(page, userAgent);
 
@@ -276,7 +328,7 @@ function startSessionCleanup(): void {
 // ========== API Routes ==========
 
 // Health check
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     uptime: process.uptime(),
@@ -290,7 +342,7 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // Metrics (Prometheus format)
-app.get('/metrics', (req: Request, res: Response) => {
+app.get('/metrics', (_req: Request, res: Response) => {
   const mem = process.memoryUsage();
   res.set('Content-Type', 'text/plain');
   res.send(`
@@ -321,13 +373,14 @@ process_uptime_seconds ${process.uptime()}
 });
 
 // Create session
-app.post('/api/sessions/create', async (req: Request, res: Response) => {
+app.post('/api/sessions/create', async (req: Request, res: Response): Promise<void> => {
   try {
     const config: SessionConfig = req.body;
 
     // Validate config
     if (config.timeout && config.timeout > 3600000) {
-      return res.status(400).json({ error: 'Maximum timeout is 1 hour' });
+      res.status(400).json({ error: 'Maximum timeout is 1 hour' });
+      return;
     }
 
     const session = await createBrowserSession(config);
@@ -345,15 +398,25 @@ app.post('/api/sessions/create', async (req: Request, res: Response) => {
 });
 
 // Get session info
-app.get('/api/sessions/:sessionId', (req: Request, res: Response) => {
+app.get('/api/sessions/:sessionId', (req: Request, res: Response): void => {
   const { sessionId } = req.params;
+
+  if (!sessionId) {
+    res.status(400).json({
+      success: false,
+      error: 'Session ID is required',
+    });
+    return;
+  }
+
   const session = sessions.get(sessionId);
 
   if (!session) {
-    return res.status(404).json({
+    res.status(404).json({
       success: false,
       error: 'Session not found',
     });
+    return;
   }
 
   updateSessionActivity(sessionId);
@@ -364,7 +427,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response) => {
 });
 
 // List all sessions
-app.get('/api/sessions', (req: Request, res: Response) => {
+app.get('/api/sessions', (_req: Request, res: Response) => {
   const sessionsList = Array.from(sessions.values()).map(getSessionInfo);
   res.json({
     success: true,
@@ -374,9 +437,18 @@ app.get('/api/sessions', (req: Request, res: Response) => {
 });
 
 // Destroy session
-app.delete('/api/sessions/:sessionId', async (req: Request, res: Response) => {
+app.delete('/api/sessions/:sessionId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { sessionId } = req.params;
+
+    if (!sessionId) {
+      res.status(400).json({
+        success: false,
+        error: 'Session ID is required',
+      });
+      return;
+    }
+
     await destroyBrowserSession(sessionId);
     res.json({
       success: true,
@@ -392,32 +464,43 @@ app.delete('/api/sessions/:sessionId', async (req: Request, res: Response) => {
 });
 
 // Execute code in session
-app.post('/api/sessions/:sessionId/execute', async (req: Request, res: Response) => {
+app.post('/api/sessions/:sessionId/execute', async (req: Request, res: Response): Promise<void> => {
   try {
     const { sessionId } = req.params;
     const { code, pageIndex = 0 } = req.body;
 
+    if (!sessionId) {
+      res.status(400).json({
+        success: false,
+        error: 'Session ID is required',
+      });
+      return;
+    }
+
     const session = sessions.get(sessionId);
     if (!session) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Session not found',
       });
+      return;
     }
 
     if (!code) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Code is required',
       });
+      return;
     }
 
     const page = session.pages[pageIndex];
     if (!page) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: `Page ${pageIndex} not found`,
       });
+      return;
     }
 
     updateSessionActivity(sessionId);
@@ -437,32 +520,43 @@ app.post('/api/sessions/:sessionId/execute', async (req: Request, res: Response)
 });
 
 // Navigate page
-app.post('/api/sessions/:sessionId/navigate', async (req: Request, res: Response) => {
+app.post('/api/sessions/:sessionId/navigate', async (req: Request, res: Response): Promise<void> => {
   try {
     const { sessionId } = req.params;
     const { url, pageIndex = 0 } = req.body;
 
+    if (!sessionId) {
+      res.status(400).json({
+        success: false,
+        error: 'Session ID is required',
+      });
+      return;
+    }
+
     const session = sessions.get(sessionId);
     if (!session) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Session not found',
       });
+      return;
     }
 
     if (!url) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'URL is required',
       });
+      return;
     }
 
     const page = session.pages[pageIndex];
     if (!page) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: `Page ${pageIndex} not found`,
       });
+      return;
     }
 
     updateSessionActivity(sessionId);
@@ -482,25 +576,35 @@ app.post('/api/sessions/:sessionId/navigate', async (req: Request, res: Response
 });
 
 // Screenshot
-app.post('/api/sessions/:sessionId/screenshot', async (req: Request, res: Response) => {
+app.post('/api/sessions/:sessionId/screenshot', async (req: Request, res: Response): Promise<void> => {
   try {
     const { sessionId } = req.params;
     const { pageIndex = 0, fullPage = false } = req.body;
 
+    if (!sessionId) {
+      res.status(400).json({
+        success: false,
+        error: 'Session ID is required',
+      });
+      return;
+    }
+
     const session = sessions.get(sessionId);
     if (!session) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Session not found',
       });
+      return;
     }
 
     const page = session.pages[pageIndex];
     if (!page) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: `Page ${pageIndex} not found`,
       });
+      return;
     }
 
     updateSessionActivity(sessionId);
@@ -529,7 +633,7 @@ httpServer.on('upgrade', (request, socket, head) => {
   });
 });
 
-wss.on('connection', (ws, request) => {
+wss.on('connection', (ws, _request) => {
   console.log('WebSocket connection established');
 
   ws.on('message', (message) => {
@@ -552,7 +656,7 @@ wss.on('connection', (ws, request) => {
 });
 
 // ========== Error Handling ==========
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
     success: false,

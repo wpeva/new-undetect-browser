@@ -200,7 +200,7 @@ export class FingerprintScraper {
   private async scrapeWebGL(page: Page): Promise<WebGLFingerprint> {
     return await page.evaluate(() => {
       const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      const gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
 
       if (!gl) {
         throw new Error('WebGL not available');
@@ -453,7 +453,7 @@ export class FingerprintScraper {
   private async getBrowserVersion(page: Page): Promise<string> {
     return await page.evaluate(() => {
       const match = navigator.userAgent.match(/Chrome\/(\d+\.\d+\.\d+\.\d+)/);
-      return match ? match[1] : 'unknown';
+      return match?.[1] ?? 'unknown';
     });
   }
 

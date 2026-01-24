@@ -21,7 +21,7 @@ import { ProxyModel } from './models/Proxy';
 
 // Utilities
 import { checkProxy, ProxyCheckResult } from './utils/proxy-checker';
-import { getGeoIP, getGeoIPThroughProxy } from './utils/geoip';
+import { getGeoIP } from './utils/geoip';
 
 // Load environment variables
 import * as dotenv from 'dotenv';
@@ -168,11 +168,17 @@ app.get('/api/v2/profiles', cacheMiddleware(30000), async (req: Request, res: Re
 });
 
 // Get single profile
-app.get('/api/v2/profiles/:id', async (req: Request, res: Response) => {
+app.get('/api/v2/profiles/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const profile = await ProfileModel.findById(req.params.id);
+    const id = req.params.id;
+    if (!id) {
+      res.status(400).json({ success: false, error: 'Profile ID is required' });
+      return;
+    }
+    const profile = await ProfileModel.findById(id);
     if (!profile) {
-      return res.status(404).json({ success: false, error: 'Profile not found' });
+      res.status(404).json({ success: false, error: 'Profile not found' });
+      return;
     }
     res.json({ success: true, data: profile });
   } catch (error: any) {
@@ -192,11 +198,17 @@ app.post('/api/v2/profiles', async (req: Request, res: Response) => {
 });
 
 // Update profile
-app.put('/api/v2/profiles/:id', async (req: Request, res: Response) => {
+app.put('/api/v2/profiles/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const profile = await ProfileModel.update(req.params.id, req.body);
+    const id = req.params.id;
+    if (!id) {
+      res.status(400).json({ success: false, error: 'Profile ID is required' });
+      return;
+    }
+    const profile = await ProfileModel.update(id, req.body);
     if (!profile) {
-      return res.status(404).json({ success: false, error: 'Profile not found' });
+      res.status(404).json({ success: false, error: 'Profile not found' });
+      return;
     }
     io.emit('profile:updated', profile);
     res.json({ success: true, data: profile });
@@ -206,13 +218,19 @@ app.put('/api/v2/profiles/:id', async (req: Request, res: Response) => {
 });
 
 // Delete profile
-app.delete('/api/v2/profiles/:id', async (req: Request, res: Response) => {
+app.delete('/api/v2/profiles/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const deleted = await ProfileModel.delete(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ success: false, error: 'Profile not found' });
+    const id = req.params.id;
+    if (!id) {
+      res.status(400).json({ success: false, error: 'Profile ID is required' });
+      return;
     }
-    io.emit('profile:deleted', req.params.id);
+    const deleted = await ProfileModel.delete(id);
+    if (!deleted) {
+      res.status(404).json({ success: false, error: 'Profile not found' });
+      return;
+    }
+    io.emit('profile:deleted', id);
     res.json({ success: true, message: 'Profile deleted' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -220,11 +238,12 @@ app.delete('/api/v2/profiles/:id', async (req: Request, res: Response) => {
 });
 
 // Bulk delete profiles
-app.post('/api/v2/profiles/bulk-delete', async (req: Request, res: Response) => {
+app.post('/api/v2/profiles/bulk-delete', async (req: Request, res: Response): Promise<void> => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
-      return res.status(400).json({ success: false, error: 'ids must be an array' });
+      res.status(400).json({ success: false, error: 'ids must be an array' });
+      return;
     }
     const count = await ProfileModel.bulkDelete(ids);
     io.emit('profiles:bulk-deleted', ids);
@@ -237,8 +256,13 @@ app.post('/api/v2/profiles/bulk-delete', async (req: Request, res: Response) => 
 // Launch profile
 app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
   try {
-    await ProfileModel.updateStatus(req.params.id, 'active');
-    io.emit('profile:launched', req.params.id);
+    const id = req.params.id;
+    if (!id) {
+      res.status(400).json({ success: false, error: 'Profile ID is required' });
+      return;
+    }
+    await ProfileModel.updateStatus(id, 'active');
+    io.emit('profile:launched', id);
     res.json({ success: true, message: 'Profile launched' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -248,8 +272,13 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
 // Stop profile
 app.post('/api/v2/profiles/:id/stop', async (req: Request, res: Response) => {
   try {
-    await ProfileModel.updateStatus(req.params.id, 'idle');
-    io.emit('profile:stopped', req.params.id);
+    const id = req.params.id;
+    if (!id) {
+      res.status(400).json({ success: false, error: 'Profile ID is required' });
+      return;
+    }
+    await ProfileModel.updateStatus(id, 'idle');
+    io.emit('profile:stopped', id);
     res.json({ success: true, message: 'Profile stopped' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -287,11 +316,12 @@ app.post('/api/v2/proxies', async (req: Request, res: Response) => {
 });
 
 // Bulk import proxies
-app.post('/api/v2/proxies/bulk-import', async (req: Request, res: Response) => {
+app.post('/api/v2/proxies/bulk-import', async (req: Request, res: Response): Promise<void> => {
   try {
     const { proxies } = req.body;
     if (!Array.isArray(proxies)) {
-      return res.status(400).json({ success: false, error: 'proxies must be an array' });
+      res.status(400).json({ success: false, error: 'proxies must be an array' });
+      return;
     }
     const count = await ProxyModel.bulkCreate(proxies);
     io.emit('proxies:imported', count);
@@ -302,12 +332,18 @@ app.post('/api/v2/proxies/bulk-import', async (req: Request, res: Response) => {
 });
 
 // Check proxy - Real implementation with HTTP request through proxy
-app.post('/api/v2/proxies/:id/check', async (req: Request, res: Response) => {
+app.post('/api/v2/proxies/:id/check', async (req: Request, res: Response): Promise<void> => {
   try {
+    const id = req.params.id;
+    if (!id) {
+      res.status(400).json({ success: false, error: 'Proxy ID is required' });
+      return;
+    }
     // Get proxy from database
-    const proxy = await ProxyModel.findById(req.params.id);
+    const proxy = await ProxyModel.findById(id);
     if (!proxy) {
-      return res.status(404).json({ success: false, error: 'Proxy not found' });
+      res.status(404).json({ success: false, error: 'Proxy not found' });
+      return;
     }
 
     // Perform real proxy check
@@ -321,16 +357,16 @@ app.post('/api/v2/proxies/:id/check', async (req: Request, res: Response) => {
 
     if (result.success) {
       // Update proxy with real data
-      await ProxyModel.update(req.params.id, {
+      await ProxyModel.update(id, {
         status: 'working',
         speed: result.latencyMs,
         country: result.country || proxy.country,
         city: result.city || proxy.city,
       });
-      await ProxyModel.updateStatus(req.params.id, 'working', result.latencyMs);
+      await ProxyModel.updateStatus(id, 'working', result.latencyMs);
 
       io.emit('proxy:checked', {
-        id: req.params.id,
+        id: id,
         status: 'working',
         realIP: result.realIP,
         latency: result.latencyMs,
@@ -350,10 +386,10 @@ app.post('/api/v2/proxies/:id/check', async (req: Request, res: Response) => {
       });
     } else {
       // Mark proxy as failed
-      await ProxyModel.updateStatus(req.params.id, 'failed');
+      await ProxyModel.updateStatus(id, 'failed');
 
       io.emit('proxy:checked', {
-        id: req.params.id,
+        id: id,
         status: 'failed',
         error: result.error,
       });
@@ -370,7 +406,7 @@ app.post('/api/v2/proxies/:id/check', async (req: Request, res: Response) => {
 });
 
 // Check all proxies
-app.post('/api/v2/proxies/check-all', strictLimiter, async (req: Request, res: Response) => {
+app.post('/api/v2/proxies/check-all', strictLimiter, async (_req: Request, res: Response) => {
   try {
     const proxies = await ProxyModel.findAll();
 
@@ -426,7 +462,12 @@ app.post('/api/v2/proxies/check-all', strictLimiter, async (req: Request, res: R
 // Get geolocation for IP
 app.get('/api/v2/geoip/:ip', cacheMiddleware(300000), async (req: Request, res: Response) => {
   try {
-    const result = await getGeoIP(req.params.ip);
+    const ip = req.params.ip;
+    if (!ip) {
+      res.status(400).json({ success: false, error: 'IP address is required' });
+      return;
+    }
+    const result = await getGeoIP(ip);
     res.json({ success: result.success, data: result });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -437,7 +478,7 @@ app.get('/api/v2/geoip/:ip', cacheMiddleware(300000), async (req: Request, res: 
 // STATISTICS API with Caching
 // ============================================
 
-app.get('/api/v2/stats', cacheMiddleware(10000), async (req: Request, res: Response) => {
+app.get('/api/v2/stats', cacheMiddleware(10000), async (_req: Request, res: Response) => {
   try {
     const profileCount = await ProfileModel.count();
     const proxyStats = await ProxyModel.countByStatus();
@@ -525,8 +566,6 @@ function ensureDirectories(): void {
 
 // Auto-fix common startup issues
 async function autoFix(): Promise<boolean> {
-  let fixed = false;
-
   // Fix 1: Ensure data directories
   ensureDirectories();
 

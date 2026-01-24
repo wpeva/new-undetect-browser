@@ -110,7 +110,7 @@ export class DetectionMonitor {
 
     try {
       await page.goto('https://pixelscan.net', { waitUntil: 'networkidle2', timeout: 30000 });
-      await page.waitForTimeout(3000); // Wait for scans to complete
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for scans to complete
 
       // Check for detection indicators
       const results = await page.evaluate(() => {
@@ -175,7 +175,7 @@ export class DetectionMonitor {
         waitUntil: 'networkidle2',
         timeout: 30000,
       });
-      await page.waitForTimeout(5000); // Wait for tests to run
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for tests to run
 
       const results = await page.evaluate(() => {
         const getText = (selector: string) =>
@@ -243,7 +243,7 @@ export class DetectionMonitor {
         waitUntil: 'networkidle2',
         timeout: 30000,
       });
-      await page.waitForTimeout(3000);
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       const results = await page.evaluate(() => {
         const bodyText = document.body.innerText.toLowerCase();
@@ -296,7 +296,7 @@ export class DetectionMonitor {
 
     try {
       await page.goto('https://bot.incolumitas.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-      await page.waitForTimeout(4000);
+      await new Promise(resolve => setTimeout(resolve, 4000));
 
       const results = await page.evaluate(() => {
         const getResult = (testName: string) => {
@@ -356,7 +356,7 @@ export class DetectionMonitor {
 
     try {
       await page.goto('https://bot.sannysoft.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-      await page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       const results = await page.evaluate(() => {
         const checks = Array.from(document.querySelectorAll('tr')).map((row) => {

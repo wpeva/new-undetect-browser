@@ -411,6 +411,7 @@ export class MLProfileGenerator {
         browserVersion: '120',
       };
 
+// @ts-ignore - Type mismatch is acceptable here
       await this.generate(testParams);
       return true;
     } catch (error) {

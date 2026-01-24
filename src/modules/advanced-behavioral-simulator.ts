@@ -98,6 +98,7 @@ export class AdvancedBehavioralSimulator {
     // Execute movement
     for (let i = 0; i < curvePoints.length; i++) {
       const point = curvePoints[i];
+      if (!point) continue;
 
       // Add idle tremor
       const tremor = this.getIdleTremor();
@@ -135,6 +136,7 @@ export class AdvancedBehavioralSimulator {
 
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
+      if (!char) continue;
 
       // Check for typing error
       if (Math.random() < this.userProfile.errorRate * this.getFatigueFactor()) {
@@ -197,6 +199,7 @@ export class AdvancedBehavioralSimulator {
     while (Date.now() - startTime < readDuration) {
       // Pick random text element
       const element = textElements[Math.floor(Math.random() * textElements.length)];
+      if (!element) continue;
       const box = await element.boundingBox();
 
       if (!box) {continue;}
@@ -430,11 +433,11 @@ export class AdvancedBehavioralSimulator {
       const progress = (i + 1) / (correctionCount + 1);
       const index = correctionStart + Math.floor(progress * (points.length - correctionStart));
 
-      if (index < points.length) {
+      if (index < points.length && points[index]) {
         const deviation = randomRange(5, 15);
         points[index] = {
-          x: points[index].x + deviation * (Math.random() - 0.5),
-          y: points[index].y + deviation * (Math.random() - 0.5),
+          x: (points[index]?.x ?? 0) + deviation * (Math.random() - 0.5),
+          y: (points[index]?.y ?? 0) + deviation * (Math.random() - 0.5),
         };
       }
     }
@@ -455,9 +458,13 @@ export class AdvancedBehavioralSimulator {
       MOUSE_MOVEMENT_STATS.overshoot.distance.max
     );
 
+    const lastPoint = points[points.length - 1];
+    const secondLastPoint = points[points.length - 2];
+    if (!lastPoint || !secondLastPoint) return points;
+
     const angle = Math.atan2(
-      points[points.length - 1].y - points[points.length - 2].y,
-      points[points.length - 1].x - points[points.length - 2].x
+      lastPoint.y - secondLastPoint.y,
+      lastPoint.x - secondLastPoint.x
     );
 
     // Add overshoot point
@@ -470,9 +477,11 @@ export class AdvancedBehavioralSimulator {
     const correctionSteps = 5;
     for (let i = 1; i <= correctionSteps; i++) {
       const t = i / correctionSteps;
+      const prevPoint = points[points.length - 1];
+      if (!prevPoint) continue;
       points.push({
-        x: points[points.length - 1].x + (targetX - points[points.length - 1].x) * t,
-        y: points[points.length - 1].y + (targetY - points[points.length - 1].y) * t,
+        x: prevPoint.x + (targetX - prevPoint.x) * t,
+        y: prevPoint.y + (targetY - prevPoint.y) * t,
       });
     }
 
@@ -517,8 +526,8 @@ export class AdvancedBehavioralSimulator {
     const { digraphLatencies } = KEYBOARD_TIMING_STATS;
 
     // Check for common digraph
-    if (digraphLatencies.common[digraph]) {
-      return digraphLatencies.common[digraph];
+    if (digraph in digraphLatencies.common) {
+      return (digraphLatencies.common as Record<string, number>)[digraph] ?? 0;
     }
 
     // Check for same hand vs different hand

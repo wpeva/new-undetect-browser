@@ -452,7 +452,7 @@ export class ProfileGenerator {
    */
   private getFonts(osType: string): string[] {
     const osKey = this.capitalizeOS(osType).toLowerCase();
-    const fontList = distributions.fonts[osKey] || distributions.fonts.windows;
+    const fontList = (distributions.fonts[osKey] || distributions.fonts.windows) as string[];
 
     // Return 60-90% of fonts (not all users have all fonts)
     const percentage = 0.6 + Math.random() * 0.3;

@@ -18,11 +18,11 @@
 
 import { Browser, Page } from 'puppeteer';
 import { EventEmitter } from 'events';
-import { BrowserFingerprint } from '../../src/types';
+import { FingerprintProfile } from '../../src/types';
 
 // ========== Types ==========
 export interface SessionConfig {
-  fingerprint?: Partial<BrowserFingerprint>;
+  fingerprint?: Partial<FingerprintProfile>;
   profileId?: string;
   headless?: boolean;
   viewport?: { width: number; height: number };
@@ -84,6 +84,20 @@ export interface SessionStats {
   avgLifetime: number;
   totalRequests: number;
   totalErrors: number;
+}
+
+// Type aliases for backward compatibility
+export type BrowserProfile = SessionConfig;
+
+export interface ExecuteScriptOptions {
+  code: string;
+  pageIndex?: number;
+}
+
+export interface ExecuteScriptResult {
+  success: boolean;
+  result?: any;
+  error?: string;
 }
 
 // ========== Session Manager ==========
@@ -317,15 +331,20 @@ export class SessionManager extends EventEmitter {
         return false;
       }
 
-      // Check memory usage
-      const metrics = await session.browser.metrics();
-      const memoryMB = metrics.JSHeapUsedSize / (1024 * 1024);
-      session.metadata.memoryUsage = memoryMB;
+      // Check memory usage (browser.metrics() might not be available in all Puppeteer versions)
+      try {
+        const metrics = await (session.browser as any).metrics();
+        const memoryMB = metrics.JSHeapUsedSize / (1024 * 1024);
+        session.metadata.memoryUsage = memoryMB;
 
-      if (memoryMB > this.config.memoryThreshold) {
-        console.warn(`Session ${session.id} memory usage high: ${memoryMB.toFixed(2)} MB`);
-        session.status = SessionStatus.UNHEALTHY;
-        return false;
+        if (memoryMB > this.config.memoryThreshold) {
+          console.warn(`Session ${session.id} memory usage high: ${memoryMB.toFixed(2)} MB`);
+          session.status = SessionStatus.UNHEALTHY;
+          return false;
+        }
+      } catch (metricsError) {
+        // metrics() not available, skip memory check
+        console.debug('Browser metrics not available:', metricsError);
       }
 
       // Check if pages are responsive

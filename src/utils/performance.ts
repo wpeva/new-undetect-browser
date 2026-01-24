@@ -154,8 +154,8 @@ export class PerformanceMonitor {
     return {
       count: metrics.length,
       average: sum / metrics.length,
-      min: durations[0],
-      max: durations[durations.length - 1],
+      min: durations[0] ?? 0,
+      max: durations[durations.length - 1] ?? 0,
       total: sum,
       p50: this.percentile(durations, 50),
       p95: this.percentile(durations, 95),
@@ -168,7 +168,7 @@ export class PerformanceMonitor {
    */
   private percentile(sorted: number[], p: number): number {
     const index = Math.ceil((sorted.length * p) / 100) - 1;
-    return sorted[Math.max(0, index)];
+    return sorted[Math.max(0, index)] ?? 0;
   }
 
   /**
@@ -271,8 +271,8 @@ export async function benchmark(
   const sorted = samples.slice().sort((a, b) => a - b);
   const totalTime = samples.reduce((a, b) => a + b, 0);
   const averageTime = totalTime / samples.length;
-  const minTime = sorted[0];
-  const maxTime = sorted[sorted.length - 1];
+  const minTime = sorted[0] ?? 0;
+  const maxTime = sorted[sorted.length - 1] ?? 0;
 
   // Calculate standard deviation
   const squareDiffs = samples.map((value) => Math.pow(value - averageTime, 2));
@@ -318,6 +318,10 @@ export async function compareBenchmarks(
   logger.info('='.repeat(80));
 
   const fastest = results[0];
+  if (!fastest) {
+    logger.warn('No results to compare');
+    return;
+  }
 
   for (const result of results) {
     const relative = fastest === result ? '(fastest)' : `${(fastest.opsPerSecond / result.opsPerSecond).toFixed(2)}x slower`;
@@ -423,6 +427,9 @@ export class MemoryProfiler {
       for (let i = 1; i < this.snapshots.length; i++) {
         const from = this.snapshots[i - 1];
         const to = this.snapshots[i];
+        if (!from || !to) {
+          continue;
+        }
         const diff = {
           heapUsed: to.memory.heapUsed - from.memory.heapUsed,
           external: to.memory.external - from.memory.external,
