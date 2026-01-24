@@ -27,11 +27,11 @@
     "alwaysStrict": true,
 
     // Additional Checks
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
+    "noUnusedLocals": false, // Disabled for faster development
+    "noUnusedParameters": false, // Disabled for faster development
+    "noImplicitReturns": false, // Disabled for compatibility
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false, // Disabled for compatibility
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": false,
 

@@ -23,6 +23,9 @@ export interface FingerprintProfile {
     cores: number;
     memory: number;
   };
+  platform?: string;
+  isMobile?: boolean;
+  userAgent?: string;
 }
 
 /**
