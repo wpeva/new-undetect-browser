@@ -1,13 +1,13 @@
 @echo off
 :: UndetectBrowser - One Click Installer
-:: Автоматическая установка без консоли
+:: Automatic installation without console
 title UndetectBrowser - One Click Installer
 color 0B
 mode con: cols=80 lines=30
 
 cd /d "%~dp0"
 
-:: Создаем папку для логов
+:: Create logs folder
 if not exist "logs" mkdir logs
 set LOGFILE=logs\install_%date:~-4,4%%date:~-7,2%%date:~-10,2%_%time:~0,2%%time:~3,2%%time:~6,2%.txt
 set LOGFILE=%LOGFILE: =0%
@@ -15,19 +15,19 @@ set LOGFILE=%LOGFILE: =0%
 echo ================================================================
 echo.
 echo          UndetectBrowser - One Click Installer
-echo          Автоматическая установка и настройка
+echo          Automatic installation and setup
 echo.
 echo ================================================================
 echo.
-echo  Процесс установки займет 3-5 минут
-echo  Все будет установлено автоматически
+echo  Installation will take 3-5 minutes
+echo  Everything will be installed automatically
 echo.
-echo  Логи: %LOGFILE%
+echo  Logs: %LOGFILE%
 echo.
 echo ================================================================
 echo.
 
-:: Инициализация лога
+:: Initialize log
 echo ================================================================ > "%LOGFILE%"
 echo   UndetectBrowser - One Click Installation >> "%LOGFILE%"
 echo   Date: %date% %time% >> "%LOGFILE%"
@@ -35,9 +35,9 @@ echo ================================================================ >> "%LOGFI
 echo. >> "%LOGFILE%"
 
 :: ============================================================================
-:: ШАГ 1: Проверка Node.js
+:: STEP 1: Check Node.js
 :: ============================================================================
-echo [1/7] Проверка Node.js...
+echo [1/7] Checking Node.js...
 echo [1/7] Checking Node.js... >> "%LOGFILE%"
 
 where node >nul 2>&1
@@ -45,74 +45,74 @@ if %ERRORLEVEL% NEQ 0 (
     echo. >> "%LOGFILE%"
     echo ERROR: Node.js not found! >> "%LOGFILE%"
     echo.
-    echo  ОШИБКА: Node.js не установлен!
+    echo  ERROR: Node.js is not installed!
     echo.
-    echo  Необходимо установить Node.js 20 или выше
-    echo  Открываю страницу загрузки...
+    echo  You need to install Node.js 20 or higher
+    echo  Opening download page...
     echo.
     start https://nodejs.org/
-    echo  После установки Node.js:
-    echo  1. Перезагрузите компьютер
-    echo  2. Запустите этот файл снова
+    echo  After installing Node.js:
+    echo  1. Restart your computer
+    echo  2. Run this file again
     echo.
     pause
     exit /b 1
 )
 
 node --version >> "%LOGFILE%" 2>&1
-echo   ✓ Node.js установлен
+echo   [OK] Node.js installed
 echo   OK: Node.js installed >> "%LOGFILE%"
 echo.
 
 :: ============================================================================
-:: ШАГ 2: Проверка npm
+:: STEP 2: Check npm
 :: ============================================================================
-echo [2/7] Проверка npm...
+echo [2/7] Checking npm...
 echo [2/7] Checking npm... >> "%LOGFILE%"
 
 npm --version >> "%LOGFILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo   ОШИБКА: npm не найден!
+    echo   ERROR: npm not found!
     echo   ERROR: npm not found! >> "%LOGFILE%"
     pause
     exit /b 1
 )
 
-echo   ✓ npm доступен
+echo   [OK] npm available
 echo   OK: npm available >> "%LOGFILE%"
 echo.
 
 :: ============================================================================
-:: ШАГ 3: Очистка предыдущих установок (если есть)
+:: STEP 3: Clean previous installations (if any)
 :: ============================================================================
-echo [3/7] Очистка старых файлов...
+echo [3/7] Cleaning old files...
 echo [3/7] Cleaning old files... >> "%LOGFILE%"
 
 if exist "node_modules" (
-    echo   Удаление старых node_modules...
+    echo   Removing old node_modules...
     echo   Removing old node_modules... >> "%LOGFILE%"
     rmdir /s /q node_modules 2>> "%LOGFILE%"
 )
 
 if exist "dist" (
-    echo   Удаление старого dist...
+    echo   Removing old dist...
     echo   Removing old dist... >> "%LOGFILE%"
     rmdir /s /q dist 2>> "%LOGFILE%"
 )
 
 if exist "package-lock.json" (
-    echo   Удаление package-lock.json...
+    echo   Removing package-lock.json...
     del /f /q package-lock.json 2>> "%LOGFILE%"
 )
 
-echo   ✓ Очистка завершена
+echo   [OK] Cleanup complete
 echo   OK: Cleanup complete >> "%LOGFILE%"
 echo.
 
 :: ============================================================================
-:: ШАГ 4: Создание необходимых папок
+:: STEP 4: Create necessary folders
 :: ============================================================================
-echo [4/7] Создание папок проекта...
+echo [4/7] Creating project folders...
 echo [4/7] Creating project folders... >> "%LOGFILE%"
 
 mkdir data 2>nul
@@ -123,18 +123,18 @@ mkdir data\cache 2>nul
 mkdir build 2>nul
 mkdir logs 2>nul
 
-echo   ✓ Папки созданы
+echo   [OK] Folders created
 echo   OK: Folders created >> "%LOGFILE%"
 echo.
 
 :: ============================================================================
-:: ШАГ 5: Создание .env файла
+:: STEP 5: Create .env file
 :: ============================================================================
-echo [5/7] Настройка конфигурации...
+echo [5/7] Configuring environment...
 echo [5/7] Configuring environment... >> "%LOGFILE%"
 
 if not exist ".env" (
-    echo   Создание .env файла...
+    echo   Creating .env file...
     (
         echo # UndetectBrowser - Auto Generated Configuration
         echo PORT=3000
@@ -162,37 +162,37 @@ if not exist ".env" (
         echo LOG_LEVEL=info
         echo LOG_PATH=./data/logs
     ) > .env
-    echo   ✓ .env создан
+    echo   [OK] .env created
     echo   OK: .env created >> "%LOGFILE%"
 ) else (
-    echo   ✓ .env уже существует
+    echo   [OK] .env already exists
     echo   OK: .env already exists >> "%LOGFILE%"
 )
 echo.
 
 :: ============================================================================
-:: ШАГ 6: Установка зависимостей
+:: STEP 6: Install dependencies
 :: ============================================================================
-echo [6/7] Установка зависимостей (3-5 минут)...
+echo [6/7] Installing dependencies (3-5 minutes)...
 echo [6/7] Installing dependencies... >> "%LOGFILE%"
 echo.
-echo   Это может занять несколько минут...
-echo   Пожалуйста, подождите...
+echo   This may take several minutes...
+echo   Please wait...
 echo.
 
 echo   [6.1] Backend dependencies...
 call npm install --legacy-peer-deps --loglevel=error 2>&1 >> "%LOGFILE%"
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo   ОШИБКА при установке backend зависимостей!
+    echo   ERROR installing backend dependencies!
     echo   ERROR: Backend dependencies installation failed! >> "%LOGFILE%"
     echo.
-    echo   Проверьте лог: %LOGFILE%
+    echo   Check log: %LOGFILE%
     echo.
     pause
     exit /b 1
 )
-echo   ✓ Backend зависимости установлены
+echo   [OK] Backend dependencies installed
 
 echo   [6.2] Frontend dependencies...
 cd frontend
@@ -200,74 +200,74 @@ call npm install --loglevel=error 2>&1 >> "..\%LOGFILE%"
 if %ERRORLEVEL% NEQ 0 (
     cd ..
     echo.
-    echo   ОШИБКА при установке frontend зависимостей!
+    echo   ERROR installing frontend dependencies!
     echo   ERROR: Frontend dependencies installation failed! >> "%LOGFILE%"
     echo.
-    echo   Проверьте лог: %LOGFILE%
+    echo   Check log: %LOGFILE%
     echo.
     pause
     exit /b 1
 )
 cd ..
-echo   ✓ Frontend зависимости установлены
+echo   [OK] Frontend dependencies installed
 echo.
 
 :: ============================================================================
-:: ШАГ 7: Компиляция TypeScript
+:: STEP 7: Compile TypeScript
 :: ============================================================================
-echo [7/7] Компиляция проекта...
+echo [7/7] Compiling project...
 echo [7/7] Building project... >> "%LOGFILE%"
 
 call npx tsc --skipLibCheck 2>&1 >> "%LOGFILE%"
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo   ПРЕДУПРЕЖДЕНИЕ: Есть ошибки TypeScript
+    echo   WARNING: TypeScript errors found
     echo   WARNING: TypeScript errors found >> "%LOGFILE%"
     echo.
-    echo   Продолжаем, используя существующий код...
+    echo   Continuing with existing code...
     echo.
 )
 
-echo   ✓ Компиляция завершена
+echo   [OK] Compilation complete
 echo   OK: Build complete >> "%LOGFILE%"
 echo.
 
 :: ============================================================================
-:: ПРОВЕРКА РЕЗУЛЬТАТОВ
+:: CHECK RESULTS
 :: ============================================================================
 echo.
 echo ================================================================
-echo                ПРОВЕРКА УСТАНОВКИ
+echo                INSTALLATION CHECK
 echo ================================================================
 echo.
 
 set INSTALL_OK=1
 
 if exist "node_modules\puppeteer" (
-    echo  ✓ Backend dependencies
+    echo  [OK] Backend dependencies
 ) else (
-    echo  ✗ Backend dependencies - FAILED
+    echo  [FAIL] Backend dependencies - FAILED
     set INSTALL_OK=0
 )
 
 if exist "frontend\node_modules" (
-    echo  ✓ Frontend dependencies
+    echo  [OK] Frontend dependencies
 ) else (
-    echo  ✗ Frontend dependencies - FAILED
+    echo  [FAIL] Frontend dependencies - FAILED
     set INSTALL_OK=0
 )
 
 if exist ".env" (
-    echo  ✓ Configuration file
+    echo  [OK] Configuration file
 ) else (
-    echo  ✗ Configuration file - MISSING
+    echo  [FAIL] Configuration file - MISSING
     set INSTALL_OK=0
 )
 
 if exist "dist\server" (
-    echo  ✓ TypeScript compiled
+    echo  [OK] TypeScript compiled
 ) else (
-    echo  ✗ TypeScript compiled - FAILED
+    echo  [FAIL] TypeScript compiled - FAILED
     set INSTALL_OK=0
 )
 
@@ -279,9 +279,9 @@ echo ================================================================ >> "%LOGFI
 
 if %INSTALL_OK% EQU 0 (
     echo.
-    echo  УСТАНОВКА ЗАВЕРШЕНА С ОШИБКАМИ!
+    echo  INSTALLATION COMPLETED WITH ERRORS!
     echo.
-    echo  Проверьте лог: %LOGFILE%
+    echo  Check log: %LOGFILE%
     echo.
     pause
     exit /b 1
@@ -289,35 +289,35 @@ if %INSTALL_OK% EQU 0 (
 
 echo.
 echo ================================================================
-echo              УСТАНОВКА ЗАВЕРШЕНА УСПЕШНО!
+echo              INSTALLATION COMPLETED SUCCESSFULLY!
 echo ================================================================
 echo.
-echo  Все компоненты установлены и настроены
+echo  All components installed and configured
 echo.
-echo  Для запуска используйте:
-echo  • START_ONE_CLICK.vbs - Запуск без консоли (рекомендуется)
-echo  • START_SIMPLE.bat     - Запуск с консолью
+echo  To start, use:
+echo  * START_ONE_CLICK.vbs - Start without console (recommended)
+echo  * START_SIMPLE.bat    - Start with console
 echo.
-echo  Лог установки сохранен: %LOGFILE%
+echo  Installation log saved: %LOGFILE%
 echo.
 echo ================================================================
 echo.
 
-:: Создаем ярлык на рабочем столе (опционально)
-set /p CREATE_SHORTCUT="Создать ярлык на рабочем столе? (Y/N): "
+:: Create desktop shortcut (optional)
+set /p CREATE_SHORTCUT="Create desktop shortcut? (Y/N): "
 if /i "%CREATE_SHORTCUT%"=="Y" (
     echo.
-    echo  Создание ярлыка...
-    powershell -Command "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%USERPROFILE%\Desktop\UndetectBrowser.lnk'); $Shortcut.TargetPath = '%CD%\START_ONE_CLICK.vbs'; $Shortcut.WorkingDirectory = '%CD%'; $Shortcut.Description = 'UndetectBrowser - Антидетект Браузер'; $Shortcut.Save()"
-    echo  ✓ Ярлык создан на рабочем столе
+    echo  Creating shortcut...
+    powershell -Command "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%USERPROFILE%\Desktop\UndetectBrowser.lnk'); $Shortcut.TargetPath = '%CD%\START_ONE_CLICK.vbs'; $Shortcut.WorkingDirectory = '%CD%'; $Shortcut.Description = 'UndetectBrowser - Antidetect Browser'; $Shortcut.Save()"
+    echo  [OK] Shortcut created on desktop
     echo.
 )
 
 echo.
-echo  Нажмите любую клавишу для запуска приложения...
+echo  Press any key to launch the application...
 pause >nul
 
-:: Запускаем приложение
+:: Launch application
 if exist "START_ONE_CLICK.vbs" (
     start "" "START_ONE_CLICK.vbs"
 ) else (

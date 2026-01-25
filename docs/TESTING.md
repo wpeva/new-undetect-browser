@@ -663,7 +663,7 @@ npm test -- --maxWorkers=4
 - [Jest Documentation](https://jestjs.io/docs/getting-started)
 - [Playwright Testing](https://playwright.dev/docs/test-intro)
 - [k6 Documentation](https://k6.io/docs/)
-- [Detection Services](docs/DETECTION_SERVICES.md)
+- [Detection Services](./DETECTION_SERVICES.md)
 
 ## Контакты и поддержка
 

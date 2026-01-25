@@ -1,132 +1,131 @@
 @echo off
-:: UndetectBrowser - Простая установка для Windows
-:: Работает с Node.js v18, v20, v22, v24 и выше
-chcp 65001 >nul
-title UndetectBrowser - Установка
+:: UndetectBrowser - Simple Windows Installer
+:: Works with Node.js v18, v20, v22, v24+
+title UndetectBrowser - Installation
 color 0B
 cls
 
 cd /d "%~dp0"
 
 echo.
-echo ════════════════════════════════════════════════════════════
+echo ================================================================
 echo.
-echo         UndetectBrowser - Установка
+echo         UndetectBrowser - Installation
 echo.
-echo ════════════════════════════════════════════════════════════
+echo ================================================================
 echo.
 
 :: ============================================================================
-:: ШАГ 1: Проверка Node.js
+:: STEP 1: Check Node.js
 :: ============================================================================
-echo [1/5] Проверка Node.js...
+echo [1/5] Checking Node.js...
 
 where node >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo  ❌ Node.js не найден!
-    echo  📥 Откройте: https://nodejs.org/
+    echo  [ERROR] Node.js not found!
+    echo  [INFO] Opening: https://nodejs.org/
     echo.
     start https://nodejs.org/
-    echo  После установки перезапустите этот файл
+    echo  After installation, restart this file
     echo.
     pause
     exit /b 1
 )
 
-:: Получаем версию без проверки (любая 18+ подойдет)
+:: Get version
 for /f "tokens=*" %%i in ('node --version') do set NODE_VERSION=%%i
-echo   ✅ Node.js %NODE_VERSION% обнаружен
+echo   [OK] Node.js %NODE_VERSION% detected
 echo.
 
 :: ============================================================================
-:: ШАГ 2: Очистка (важно для v24!)
+:: STEP 2: Cleanup (important for v24!)
 :: ============================================================================
-echo [2/5] Очистка старых файлов...
+echo [2/5] Cleaning old files...
 
 if exist "node_modules" (
-    echo   🗑️  Удаление node_modules...
+    echo   [CLEAN] Removing node_modules...
     rmdir /s /q node_modules 2>nul
 )
 
 if exist "frontend\node_modules" (
-    echo   🗑️  Удаление frontend\node_modules...
+    echo   [CLEAN] Removing frontend\node_modules...
     rmdir /s /q frontend\node_modules 2>nul
 )
 
 if exist "package-lock.json" (
-    echo   🗑️  Удаление package-lock.json...
+    echo   [CLEAN] Removing package-lock.json...
     del /f /q package-lock.json 2>nul
 )
 
 if exist "frontend\package-lock.json" (
-    echo   🗑️  Удаление frontend\package-lock.json...
+    echo   [CLEAN] Removing frontend\package-lock.json...
     del /f /q frontend\package-lock.json 2>nul
 )
 
 if exist "dist" (
-    echo   🗑️  Удаление dist...
+    echo   [CLEAN] Removing dist...
     rmdir /s /q dist 2>nul
 )
 
-echo   ✅ Очистка завершена
+echo   [OK] Cleanup completed
 echo.
 
 :: ============================================================================
-:: ШАГ 3: Установка backend зависимостей
+:: STEP 3: Install backend dependencies
 :: ============================================================================
-echo [3/5] Установка зависимостей (это займет 2-3 минуты)...
-echo   ⏳ Пожалуйста подождите...
+echo [3/5] Installing dependencies (this will take 2-3 minutes)...
+echo   [WAIT] Please wait...
 echo.
 
-:: Используем --force чтобы игнорировать предупреждения о версии
+:: Use --force to ignore version warnings
 call npm install --legacy-peer-deps --force --loglevel=error
 
 if errorlevel 1 (
     echo.
-    echo  ❌ Ошибка при установке зависимостей!
-    echo  💡 Попробуйте:
-    echo     1. Запустить от имени администратора
-    echo     2. Удалить папку node_modules вручную
-    echo     3. Проверить интернет соединение
+    echo  [ERROR] Failed to install dependencies!
+    echo  [TIP] Try:
+    echo     1. Run as Administrator
+    echo     2. Delete node_modules folder manually
+    echo     3. Check internet connection
     echo.
     pause
     exit /b 1
 )
 
 echo.
-echo   ✅ Backend зависимости установлены
+echo   [OK] Backend dependencies installed
 echo.
 
 :: ============================================================================
-:: ШАГ 3.5: Установка frontend зависимостей
+:: STEP 3.5: Install frontend dependencies
 :: ============================================================================
 if exist "frontend" (
-    echo   📦 Установка frontend зависимостей...
+    echo   [INSTALL] Installing frontend dependencies...
     cd frontend
     call npm install --force --loglevel=error
     cd ..
-    echo   ✅ Frontend зависимости установлены
+    echo   [OK] Frontend dependencies installed
     echo.
 )
 
 :: ============================================================================
-:: ШАГ 4: Компиляция TypeScript
+:: STEP 4: Compile TypeScript
 :: ============================================================================
-echo [4/5] Компиляция проекта...
+echo [4/5] Compiling project...
 
 call npm run build:safe >nul 2>&1
 if errorlevel 1 (
-    echo   ⚠️  Есть предупреждения, но продолжаем...
+    echo   [WARN] There are warnings, but continuing...
 ) else (
-    echo   ✅ Проект скомпилирован успешно
+    echo   [OK] Project compiled successfully
 )
 echo.
 
 :: ============================================================================
-:: ШАГ 5: Создание конфигурации
+:: STEP 5: Create configuration
 :: ============================================================================
-echo [5/5] Создание конфигурации...
+echo [5/5] Creating configuration...
 
 if not exist ".env" (
     (
@@ -149,12 +148,12 @@ if not exist ".env" (
         echo # Logging
         echo LOG_LEVEL=info
     ) > .env
-    echo   ✅ Файл .env создан
+    echo   [OK] File .env created
 ) else (
-    echo   ℹ️  Файл .env уже существует
+    echo   [INFO] File .env already exists
 )
 
-:: Создание необходимых папок
+:: Create necessary folders
 mkdir data 2>nul
 mkdir data\profiles 2>nul
 mkdir data\sessions 2>nul
@@ -162,31 +161,31 @@ mkdir data\logs 2>nul
 mkdir logs 2>nul
 mkdir build 2>nul
 
-echo   ✅ Папки созданы
+echo   [OK] Folders created
 echo.
 
 :: ============================================================================
-:: ГОТОВО!
+:: DONE!
 :: ============================================================================
 echo.
-echo ════════════════════════════════════════════════════════════
+echo ================================================================
 echo.
-echo               ✅ УСТАНОВКА ЗАВЕРШЕНА!
+echo               [SUCCESS] INSTALLATION COMPLETED!
 echo.
-echo ════════════════════════════════════════════════════════════
+echo ================================================================
 echo.
-echo  🚀 ДЛЯ ЗАПУСКА используйте:
+echo  TO START use:
 echo.
-echo    Двойной клик на: START_ONE_CLICK.vbs
+echo    Double-click on: START_ONE_CLICK.vbs
 echo.
-echo    Или запустите:   START_SIMPLE.bat
+echo    Or run:          START_SIMPLE.bat
 echo.
-echo  📱 Режимы работы:
-echo     1 - Desktop приложение (Electron)
-echo     2 - Веб-интерфейс (http://localhost:3001)
-echo     3 - Тест антидетекта
+echo  MODES:
+echo     1 - Desktop application (Electron)
+echo     2 - Web interface (http://localhost:3001)
+echo     3 - Anti-detect test
 echo.
-echo ════════════════════════════════════════════════════════════
+echo ================================================================
 echo.
-echo  💡 Нажмите любую клавишу для выхода...
+echo  Press any key to exit...
 pause >nul
