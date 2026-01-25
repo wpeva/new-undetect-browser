@@ -1,0 +1,58 @@
+{
+  "name": "@anthropic/antidetect-sdk",
+  "version": "1.0.0",
+  "description": "Official JavaScript/TypeScript SDK for UndetectBrowser Anti-Detection Platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "module": "dist/index.esm.js",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.esm.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc && tsc -p tsconfig.esm.json",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "antidetect",
+    "browser",
+    "automation",
+    "puppeteer",
+    "playwright",
+    "fingerprint",
+    "stealth",
+    "undetectable"
+  ],
+  "author": "UndetectBrowser Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wpeva/new-undetect-browser.git",
+    "directory": "sdk/javascript"
+  },
+  "homepage": "https://github.com/wpeva/new-undetect-browser#readme",
+  "bugs": {
+    "url": "https://github.com/wpeva/new-undetect-browser/issues"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

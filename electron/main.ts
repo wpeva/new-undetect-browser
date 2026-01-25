@@ -371,6 +371,7 @@ ipcMain.handle('proxy:check', async (_event, proxyId) => {
     // Create temporary browser to test proxy
     const browser = await createRealisticBrowser({
       proxy: {
+        enabled: true,
         type: proxy.type,
         host: proxy.host,
         port: proxy.port,
@@ -538,8 +539,8 @@ ipcMain.handle('settings:get', async () => {
  * Update settings
  */
 ipcMain.handle('settings:update', async (_event, newSettings) => {
-  const currentSettings = store.get('settings', {});
-  const updated = { ...currentSettings, ...newSettings };
+  const currentSettings = store.get('settings', {}) as Record<string, any>;
+  const updated = { ...currentSettings, ...(newSettings || {}) };
   store.set('settings', updated);
 
   return { success: true, data: updated };

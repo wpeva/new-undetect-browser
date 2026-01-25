@@ -296,9 +296,7 @@ export class HardwareSpoofing {
       });
 
       // Spoof Keyboard Layout
-      // @ts-expect-error - keyboard property is defined in browser-types.d.ts
       if (navigator.keyboard) {
-        // @ts-expect-error - keyboard property is defined in browser-types.d.ts
         Object.defineProperty(navigator.keyboard, 'getLayoutMap', {
           value: function (): Promise<Map<string, string>> {
             // Return US keyboard layout
