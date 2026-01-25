@@ -7,15 +7,6 @@ export default defineConfig({
     react({
       // Enable Fast Refresh
       fastRefresh: true,
-      // Babel optimizations
-      babel: {
-        plugins: [
-          // Remove PropTypes in production
-          process.env.NODE_ENV === 'production' && 'transform-react-remove-prop-types',
-          // Remove console in production
-          process.env.NODE_ENV === 'production' && 'transform-remove-console',
-        ].filter(Boolean),
-      },
     }),
   ],
   resolve: {

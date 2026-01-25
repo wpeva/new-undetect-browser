@@ -25,7 +25,7 @@ interface ProxyStore {
   removeProxy: (id: string) => void;
 }
 
-export const useProxyStore = create<ProxyStore>((set, get) => ({
+export const useProxyStore = create<ProxyStore>((set) => ({
   proxies: [],
   loading: false,
   checkingProxy: null,
@@ -33,8 +33,10 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
   fetchProxies: async () => {
     set({ loading: true });
     try {
-      const { data } = await proxiesApi.getAll();
-      set({ proxies: data, loading: false });
+      const response = await proxiesApi.getAll();
+      // Handle both {data: [...]} and [...] response formats
+      const proxies = (response.data as { data?: ProxyConfig[] })?.data || response.data || [];
+      set({ proxies: Array.isArray(proxies) ? proxies : [], loading: false });
     } catch (error) {
       console.error('Failed to fetch proxies:', error);
       toast.error('Failed to load proxies');
@@ -42,9 +44,9 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
     }
   },
 
-  createProxy: async (data) => {
+  createProxy: async (data: Partial<ProxyConfig>) => {
     try {
-      const { data: newProxy } = await proxiesApi.create(data);
+      await proxiesApi.create(data);
       // WebSocket will handle adding to state
       toast.success('Proxy created');
     } catch (error) {
@@ -54,11 +56,12 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
     }
   },
 
-  updateProxy: async (id, data) => {
+  updateProxy: async (id: string, data: Partial<ProxyConfig>) => {
     try {
-      const { data: updated } = await proxiesApi.update(id, data);
-      set((state) => ({
-        proxies: state.proxies.map((p) => (p.id === id ? updated : p)),
+      const response = await proxiesApi.update(id, data);
+      const updated = (response.data as { data?: ProxyConfig })?.data || response.data;
+      set((state: ProxyStore) => ({
+        proxies: state.proxies.map((p: ProxyConfig) => (p.id === id ? { ...p, ...updated } : p)),
       }));
       toast.success('Proxy updated');
     } catch (error) {
@@ -68,11 +71,11 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
     }
   },
 
-  deleteProxy: async (id) => {
+  deleteProxy: async (id: string) => {
     try {
       await proxiesApi.delete(id);
-      set((state) => ({
-        proxies: state.proxies.filter((p) => p.id !== id),
+      set((state: ProxyStore) => ({
+        proxies: state.proxies.filter((p: ProxyConfig) => p.id !== id),
       }));
       toast.success('Proxy deleted');
     } catch (error) {
@@ -82,10 +85,11 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
     }
   },
 
-  checkProxy: async (id) => {
+  checkProxy: async (id: string) => {
     set({ checkingProxy: id });
     try {
-      const { data } = await proxiesApi.check(id);
+      const response = await proxiesApi.check(id);
+      const data = response.data;
       // WebSocket will handle the update
       if (data.status === 'working') {
         toast.success(`Proxy working (${data.latency}ms)`);
@@ -101,25 +105,25 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
   },
 
   // Local state actions for WebSocket updates
-  addProxy: (proxy) => {
-    set((state) => {
+  addProxy: (proxy: ProxyConfig) => {
+    set((state: ProxyStore) => {
       // Avoid duplicates
-      if (state.proxies.some((p) => p.id === proxy.id)) {
+      if (state.proxies.some((p: ProxyConfig) => p.id === proxy.id)) {
         return state;
       }
       return { proxies: [...state.proxies, proxy] };
     });
   },
 
-  updateProxyLocal: (id, data) => {
-    set((state) => ({
-      proxies: state.proxies.map((p) => (p.id === id ? { ...p, ...data } : p)),
+  updateProxyLocal: (id: string, data: Partial<ProxyConfig>) => {
+    set((state: ProxyStore) => ({
+      proxies: state.proxies.map((p: ProxyConfig) => (p.id === id ? { ...p, ...data } : p)),
     }));
   },
 
-  removeProxy: (id) => {
-    set((state) => ({
-      proxies: state.proxies.filter((p) => p.id !== id),
+  removeProxy: (id: string) => {
+    set((state: ProxyStore) => ({
+      proxies: state.proxies.filter((p: ProxyConfig) => p.id !== id),
     }));
   },
 }));

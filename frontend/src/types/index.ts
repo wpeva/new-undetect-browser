@@ -40,7 +40,8 @@ export interface ProxyConfig {
   password?: string;
   country?: string;
   city?: string;
-  status: 'active' | 'inactive' | 'checking';
+  latency?: number;
+  status: 'active' | 'inactive' | 'checking' | 'working' | 'failed';
 }
 
 export interface Cookie {

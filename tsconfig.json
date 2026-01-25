@@ -87,7 +87,8 @@
     "virtualization",
     "benchmarks",
     "web",
-    "*.md"
+    "*.md",
+    "cloud/vm/example.ts"
   ],
   "ts-node": {
     "compilerOptions": {
