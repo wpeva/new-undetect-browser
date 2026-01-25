@@ -532,10 +532,35 @@ io.on('connection', (socket) => {
 });
 
 // ============================================
+// BACKWARD COMPATIBILITY - Redirect /api to /api/v2
+// ============================================
+
+// Profiles aliases
+app.get('/api/profiles', (req, res, next) => { req.url = '/api/v2/profiles' + (req.url.split('?')[1] ? '?' + req.url.split('?')[1] : ''); next('route'); });
+app.get('/api/profiles/:id', (req, res) => res.redirect(`/api/v2/profiles/${req.params.id}`));
+app.post('/api/profiles', (req, res, next) => { req.url = '/api/v2/profiles'; next('route'); });
+app.put('/api/profiles/:id', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}`; next('route'); });
+app.delete('/api/profiles/:id', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}`; next('route'); });
+app.post('/api/profiles/:id/launch', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}/launch`; next('route'); });
+app.post('/api/profiles/:id/stop', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}/stop`; next('route'); });
+
+// Proxies aliases
+app.get('/api/proxies', (req, res, next) => { req.url = '/api/v2/proxies' + (req.url.split('?')[1] ? '?' + req.url.split('?')[1] : ''); next('route'); });
+app.post('/api/proxies', (req, res, next) => { req.url = '/api/v2/proxies'; next('route'); });
+app.post('/api/proxies/:id/check', (req, res, next) => { req.url = `/api/v2/proxies/${req.params.id}/check`; next('route'); });
+
+// Stats alias
+app.get('/api/stats', (req, res, next) => { req.url = '/api/v2/stats'; next('route'); });
+
+// ============================================
 // HEALTH & ERROR HANDLING
 // ============================================
 
 app.get('/api/v2/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', version: '2.0', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', version: '2.0', timestamp: new Date().toISOString() });
 });
 

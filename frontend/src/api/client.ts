@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { BrowserProfile, ProxyConfig, AutomationTask, Statistics } from '@/types';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: '/api/v2',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
