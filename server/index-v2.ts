@@ -305,10 +305,22 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
       }
     }
 
-    // Convert proxy config
+    // Convert proxy config - fingerprint may contain proxy settings as JSON string
     let proxyConfig: BrowserProxyConfig | undefined;
-    if (profile.proxy && (profile.proxy as any).enabled) {
-      const p = profile.proxy as any;
+    let fingerprintData: any = {};
+
+    try {
+      if (profile.fingerprint) {
+        fingerprintData = typeof profile.fingerprint === 'string'
+          ? JSON.parse(profile.fingerprint)
+          : profile.fingerprint;
+      }
+    } catch {
+      fingerprintData = {};
+    }
+
+    if (fingerprintData.proxy && fingerprintData.proxy.enabled) {
+      const p = fingerprintData.proxy;
       proxyConfig = {
         enabled: true,
         type: p.type || 'http',
@@ -323,8 +335,8 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
     console.log(`[BROWSER] Launching browser for profile: ${profile.name} (${id})`);
     const browser = await createRealisticBrowser({
       proxy: proxyConfig,
-      country: profile.country || 'US',
-      userSeed: profile.fingerprint?.userSeed || `seed-${id}`,
+      country: fingerprintData.country || 'US',
+      userSeed: fingerprintData.userSeed || `seed-${id}`,
       launchOptions: {
         headless: process.env.HEADLESS === 'true',
         args: ['--start-maximized'],
@@ -339,7 +351,7 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
     await page.goto('https://www.google.com');
 
     // Update profile status
-    await ProfileModel.updateStatus(id, 'running');
+    await ProfileModel.updateStatus(id, 'active');
 
     // Emit socket event
     io.emit('profile:launched', { id, name: profile.name });
@@ -349,13 +361,16 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
       message: 'Browser launched successfully',
       data: {
         profileId: id,
-        status: 'running',
+        status: 'active',
         fingerprint: browser.getFingerprint()
       }
     });
   } catch (error: any) {
     console.error(`[BROWSER] Failed to launch browser:`, error);
-    await ProfileModel.updateStatus(id, 'error');
+    const profileId = req.params.id;
+    if (profileId) {
+      await ProfileModel.updateStatus(profileId, 'error');
+    }
     res.status(500).json({ success: false, error: error.message || 'Failed to launch browser' });
   }
 });

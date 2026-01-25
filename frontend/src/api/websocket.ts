@@ -37,65 +37,65 @@ export function initWebSocket(): Socket {
     toast.success('Connected to server', { id: 'ws-connected' });
   });
 
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', (reason: string) => {
     console.log('WebSocket disconnected:', reason);
     if (reason === 'io server disconnect') {
       toast.error('Server disconnected', { id: 'ws-disconnected' });
     }
   });
 
-  socket.on('connect_error', (error) => {
+  socket.on('connect_error', (error: Error) => {
     console.error('WebSocket connection error:', error);
   });
 
   // Profile events
-  socket.on('profile:created', (profile) => {
+  socket.on('profile:created', (profile: { id: string; name: string }) => {
     console.log('Profile created via WS:', profile);
-    useProfileStore.getState().addProfile(profile);
+    useProfileStore.getState().addProfile(profile as any);
     toast.success(`Profile "${profile.name}" created`, { id: `profile-created-${profile.id}` });
   });
 
-  socket.on('profile:updated', (profile) => {
+  socket.on('profile:updated', (profile: { id: string }) => {
     console.log('Profile updated via WS:', profile);
     useProfileStore.getState().updateProfileLocal(profile.id, profile);
   });
 
-  socket.on('profile:deleted', (profileId) => {
+  socket.on('profile:deleted', (profileId: string) => {
     console.log('Profile deleted via WS:', profileId);
     useProfileStore.getState().removeProfile(profileId);
   });
 
-  socket.on('profile:launched', (profileId) => {
+  socket.on('profile:launched', (profileId: string) => {
     console.log('Profile launched via WS:', profileId);
     useProfileStore.getState().updateProfileLocal(profileId, { status: 'active' });
     toast.success('Browser launched', { id: `profile-launched-${profileId}` });
   });
 
-  socket.on('profile:stopped', (profileId) => {
+  socket.on('profile:stopped', (profileId: string) => {
     console.log('Profile stopped via WS:', profileId);
     useProfileStore.getState().updateProfileLocal(profileId, { status: 'stopped' });
-    toast.info('Browser stopped', { id: `profile-stopped-${profileId}` });
+    toast('Browser stopped', { id: `profile-stopped-${profileId}`, icon: '🛑' });
   });
 
-  socket.on('profile:status', ({ profileId, status }) => {
+  socket.on('profile:status', ({ profileId, status }: { profileId: string; status: string }) => {
     console.log('Profile status changed via WS:', profileId, status);
-    useProfileStore.getState().updateProfileLocal(profileId, { status });
+    useProfileStore.getState().updateProfileLocal(profileId, { status: status as any });
   });
 
-  socket.on('profiles:bulk-deleted', (ids) => {
+  socket.on('profiles:bulk-deleted', (ids: string[]) => {
     console.log('Profiles bulk deleted via WS:', ids);
     ids.forEach((id: string) => useProfileStore.getState().removeProfile(id));
     toast.success(`Deleted ${ids.length} profiles`);
   });
 
   // Proxy events
-  socket.on('proxy:created', (proxy) => {
+  socket.on('proxy:created', (proxy: { id: string }) => {
     console.log('Proxy created via WS:', proxy);
-    useProxyStore.getState().addProxy(proxy);
+    useProxyStore.getState().addProxy(proxy as any);
     toast.success('Proxy added', { id: `proxy-created-${proxy.id}` });
   });
 
-  socket.on('proxy:checked', (data) => {
+  socket.on('proxy:checked', (data: { id: string; status: string; latency?: number; country?: string; city?: string }) => {
     console.log('Proxy checked via WS:', data);
     if (data.status === 'working') {
       useProxyStore.getState().updateProxyLocal(data.id, {
@@ -109,19 +109,19 @@ export function initWebSocket(): Socket {
     }
   });
 
-  socket.on('proxies:imported', (count) => {
+  socket.on('proxies:imported', (count: number) => {
     console.log('Proxies imported via WS:', count);
     useProxyStore.getState().fetchProxies();
     toast.success(`Imported ${count} proxies`);
   });
 
-  socket.on('proxies:check-complete', ({ total }) => {
+  socket.on('proxies:check-complete', ({ total }: { total: number }) => {
     console.log('Proxies check complete:', total);
     toast.success(`Checked ${total} proxies`);
   });
 
   // Error events
-  socket.on('error', (error) => {
+  socket.on('error', (error: { message?: string }) => {
     console.error('WebSocket error:', error);
     toast.error(error.message || 'Server error');
   });

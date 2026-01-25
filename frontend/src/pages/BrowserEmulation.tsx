@@ -6,13 +6,7 @@ import {
   Activity,
   Network,
   Eye,
-  Cpu,
-  Globe,
-  Lock,
   Zap,
-  Radio,
-  Headphones,
-  Monitor,
   Smartphone
 } from 'lucide-react';
 
@@ -61,7 +55,7 @@ export default function BrowserEmulation() {
     bluetoothUsbProtection: true,
   });
 
-  const toggleProtection = (key: string) => {
+  const toggleProtection = (key: keyof typeof protections) => {
     setProtections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
