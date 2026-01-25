@@ -23,6 +23,10 @@ import { ProxyModel } from './models/Proxy';
 import { checkProxy, ProxyCheckResult } from './utils/proxy-checker';
 import { getGeoIP } from './utils/geoip';
 
+// Browser management
+import { createRealisticBrowser, RealisticBrowserInstance } from '../src/core/realistic-browser-factory';
+import type { ProxyConfig as BrowserProxyConfig } from '../src/core/proxy-manager';
+
 // Load environment variables
 import * as dotenv from 'dotenv';
 dotenv.config();
@@ -41,6 +45,27 @@ const io = new Server(httpServer, {
 
 const PORT = process.env.PORT || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// ============================================
+// BROWSER SESSION MANAGEMENT
+// ============================================
+
+// Active browser instances
+const activeBrowsers = new Map<string, RealisticBrowserInstance>();
+
+// Cleanup browser on exit
+async function cleanupBrowsers() {
+  console.log('[CLEANUP] Closing all active browsers...');
+  for (const [profileId, browser] of activeBrowsers.entries()) {
+    try {
+      await browser.close();
+      console.log(`[CLEANUP] Closed browser for profile: ${profileId}`);
+    } catch (error) {
+      console.error(`[CLEANUP] Failed to close browser ${profileId}:`, error);
+    }
+  }
+  activeBrowsers.clear();
+}
 
 // ============================================
 // PERFORMANCE & SECURITY MIDDLEWARE
@@ -261,11 +286,77 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, error: 'Profile ID is required' });
       return;
     }
-    await ProfileModel.updateStatus(id, 'active');
-    io.emit('profile:launched', id);
-    res.json({ success: true, message: 'Profile launched' });
+
+    // Get profile data
+    const profile = await ProfileModel.findById(id);
+    if (!profile) {
+      res.status(404).json({ success: false, error: 'Profile not found' });
+      return;
+    }
+
+    // Close existing browser if any
+    if (activeBrowsers.has(id)) {
+      try {
+        const existingBrowser = activeBrowsers.get(id);
+        await existingBrowser?.close();
+        activeBrowsers.delete(id);
+      } catch (error) {
+        console.error(`Failed to close existing browser for ${id}:`, error);
+      }
+    }
+
+    // Convert proxy config
+    let proxyConfig: BrowserProxyConfig | undefined;
+    if (profile.proxy && (profile.proxy as any).enabled) {
+      const p = profile.proxy as any;
+      proxyConfig = {
+        enabled: true,
+        type: p.type || 'http',
+        host: p.host,
+        port: p.port,
+        username: p.username,
+        password: p.password,
+      };
+    }
+
+    // Launch browser
+    console.log(`[BROWSER] Launching browser for profile: ${profile.name} (${id})`);
+    const browser = await createRealisticBrowser({
+      proxy: proxyConfig,
+      country: profile.country || 'US',
+      userSeed: profile.fingerprint?.userSeed || `seed-${id}`,
+      launchOptions: {
+        headless: process.env.HEADLESS === 'true',
+        args: ['--start-maximized'],
+      },
+    });
+
+    // Store browser instance
+    activeBrowsers.set(id, browser);
+
+    // Open initial page
+    const page = await browser.newPage();
+    await page.goto('https://www.google.com');
+
+    // Update profile status
+    await ProfileModel.updateStatus(id, 'running');
+
+    // Emit socket event
+    io.emit('profile:launched', { id, name: profile.name });
+
+    res.json({
+      success: true,
+      message: 'Browser launched successfully',
+      data: {
+        profileId: id,
+        status: 'running',
+        fingerprint: browser.getFingerprint()
+      }
+    });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error(`[BROWSER] Failed to launch browser:`, error);
+    await ProfileModel.updateStatus(id, 'error');
+    res.status(500).json({ success: false, error: error.message || 'Failed to launch browser' });
   }
 });
 
@@ -277,11 +368,29 @@ app.post('/api/v2/profiles/:id/stop', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, error: 'Profile ID is required' });
       return;
     }
+
+    // Close browser if active
+    if (activeBrowsers.has(id)) {
+      try {
+        console.log(`[BROWSER] Closing browser for profile: ${id}`);
+        const browser = activeBrowsers.get(id);
+        await browser?.close();
+        activeBrowsers.delete(id);
+      } catch (error) {
+        console.error(`[BROWSER] Failed to close browser:`, error);
+      }
+    }
+
+    // Update profile status
     await ProfileModel.updateStatus(id, 'idle');
-    io.emit('profile:stopped', id);
-    res.json({ success: true, message: 'Profile stopped' });
+
+    // Emit socket event
+    io.emit('profile:stopped', { id });
+
+    res.json({ success: true, message: 'Browser stopped successfully' });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error(`[BROWSER] Failed to stop browser:`, error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to stop browser' });
   }
 });
 
@@ -532,10 +641,35 @@ io.on('connection', (socket) => {
 });
 
 // ============================================
+// BACKWARD COMPATIBILITY - Redirect /api to /api/v2
+// ============================================
+
+// Profiles aliases
+app.get('/api/profiles', (req, res, next) => { req.url = '/api/v2/profiles' + (req.url.split('?')[1] ? '?' + req.url.split('?')[1] : ''); next('route'); });
+app.get('/api/profiles/:id', (req, res) => res.redirect(`/api/v2/profiles/${req.params.id}`));
+app.post('/api/profiles', (req, res, next) => { req.url = '/api/v2/profiles'; next('route'); });
+app.put('/api/profiles/:id', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}`; next('route'); });
+app.delete('/api/profiles/:id', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}`; next('route'); });
+app.post('/api/profiles/:id/launch', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}/launch`; next('route'); });
+app.post('/api/profiles/:id/stop', (req, res, next) => { req.url = `/api/v2/profiles/${req.params.id}/stop`; next('route'); });
+
+// Proxies aliases
+app.get('/api/proxies', (req, res, next) => { req.url = '/api/v2/proxies' + (req.url.split('?')[1] ? '?' + req.url.split('?')[1] : ''); next('route'); });
+app.post('/api/proxies', (req, res, next) => { req.url = '/api/v2/proxies'; next('route'); });
+app.post('/api/proxies/:id/check', (req, res, next) => { req.url = `/api/v2/proxies/${req.params.id}/check`; next('route'); });
+
+// Stats alias
+app.get('/api/stats', (req, res, next) => { req.url = '/api/v2/stats'; next('route'); });
+
+// ============================================
 // HEALTH & ERROR HANDLING
 // ============================================
 
 app.get('/api/v2/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', version: '2.0', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', version: '2.0', timestamp: new Date().toISOString() });
 });
 
@@ -649,6 +783,13 @@ async function startServer() {
     // Graceful shutdown handlers
     const shutdown = async (signal: string) => {
       console.log(`\n[SHUTDOWN] ${signal} received, closing server...`);
+      try {
+        // Close all browsers first
+        await cleanupBrowsers();
+        console.log('[SHUTDOWN] Browsers closed');
+      } catch (e) {
+        console.log('[SHUTDOWN] Browser cleanup error (ignoring)');
+      }
       try {
         await closeDatabase();
         console.log('[SHUTDOWN] Database closed');
