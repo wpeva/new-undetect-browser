@@ -19,7 +19,7 @@ echo.
 echo ================================================================
 echo.
 
-REM Получение локального IP
+REM Get local IP
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
     set LOCAL_IP=%%a
     goto :ip_found
@@ -29,7 +29,7 @@ set LOCAL_IP=%LOCAL_IP:~1%
 
 echo Checking installation... >> %LOGFILE%
 
-REM Проверка Node.js
+REM Check Node.js
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo.
@@ -41,7 +41,7 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-REM Установка зависимостей если нужно
+REM Install dependencies if needed
 if not exist "node_modules" (
     echo.
     echo [1/3] Installing backend dependencies...
@@ -57,23 +57,25 @@ if not exist "node_modules" (
     )
 )
 
-if not exist "frontend\node_modules" (
-    echo.
-    echo [2/3] Installing frontend dependencies...
-    cd frontend
-    call npm install 2>&1 >> ..\%LOGFILE%
-    cd ..
-    if %ERRORLEVEL% NEQ 0 (
-        echo ERROR: Failed to install frontend dependencies! >> %LOGFILE%
+if exist "frontend" (
+    if not exist "frontend\node_modules" (
         echo.
-        echo [ERROR] Failed to install frontend dependencies!
-        echo Check %LOGFILE% for details
-        pause
-        exit /b 1
+        echo [2/3] Installing frontend dependencies...
+        cd frontend
+        call npm install 2>&1 >> ..\%LOGFILE%
+        cd ..
+        if %ERRORLEVEL% NEQ 0 (
+            echo ERROR: Failed to install frontend dependencies! >> %LOGFILE%
+            echo.
+            echo [ERROR] Failed to install frontend dependencies!
+            echo Check %LOGFILE% for details
+            pause
+            exit /b 1
+        )
     )
 )
 
-REM Компиляция если нужно
+REM Build if needed
 if not exist "dist\server" (
     echo.
     echo [3/3] Building project...
@@ -89,7 +91,7 @@ if not exist "dist\server" (
     )
 )
 
-REM Создание .env файла
+REM Create .env if missing
 if not exist ".env" (
     echo Creating .env... >> %LOGFILE%
     (
@@ -166,7 +168,7 @@ echo ================================================================
 echo.
 echo Starting Web Interface... >> %LOGFILE%
 
-REM Проверка портов
+REM Check ports
 netstat -ano | findstr :3000 >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo.
@@ -190,19 +192,19 @@ echo.
 echo [*] Starting Backend API...
 echo [*] Backend will be available at: http://localhost:3000
 echo.
-start "UndetectBrowser Backend" cmd /c "node dist/server/index-v2.js 2>&1 | tee -a %LOGFILE%"
+start "UndetectBrowser Backend" cmd /c "node dist/server/index-v2.js 2>&1"
 
-REM Ждем запуска backend
+REM Wait for backend
 timeout /t 5 /nobreak >nul
 
 echo [*] Starting Frontend UI...
 echo [*] Frontend will be available at: http://localhost:3001
 echo.
 cd frontend
-start "UndetectBrowser Frontend" cmd /c "npm run dev 2>&1 | tee -a ..\%LOGFILE%"
+start "UndetectBrowser Frontend" cmd /c "npm run dev"
 cd ..
 
-REM Ждем запуска frontend
+REM Wait for frontend
 timeout /t 5 /nobreak >nul
 
 echo.
@@ -225,7 +227,7 @@ echo ================================================================
 
 pause >nul
 
-REM Открыть браузер
+REM Open browser
 start http://localhost:3001
 
 echo.
