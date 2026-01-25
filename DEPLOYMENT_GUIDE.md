@@ -789,7 +789,7 @@ sudo systemctl restart nginx
 ### Resources
 
 - **Documentation**: [docs/](./docs/)
-- **API Reference**: [API.md](./API.md)
+- **API Reference**: [API.md](docs/API.md)
 - **Changelog**: [CHANGELOG.md](./CHANGELOG.md)
 - **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
 
