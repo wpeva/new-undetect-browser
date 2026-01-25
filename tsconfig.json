@@ -88,7 +88,9 @@
     "benchmarks",
     "web",
     "*.md",
-    "cloud/vm/example.ts"
+    "cloud/vm/example.ts",
+    "cloud/api/**/*",
+    "server/api/**/*"
   ],
   "ts-node": {
     "compilerOptions": {

@@ -16,6 +16,7 @@
     "dev": "tsc --watch",
     "start": "npm run prestart && node dist/server/index-v2.js",
     "start:quick": "node dist/server/index-v2.js",
+    "start:all": "node start.js",
     "server": "npm run build:win && node dist/server/index.js",
     "server:v2": "npm run build:win && node dist/server/index-v2.js",
     "server:dev": "nodemon --watch server --exec \"npm run build:win && node dist/server/index.js\"",
