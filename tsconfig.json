@@ -57,10 +57,11 @@
 
     // Type Roots
     "types": ["node", "jest"],
-    "typeRoots": ["./node_modules/@types", "./types"]
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": [
     "src/**/*",
+    "src/types/**/*",
     "server/**/*",
     "cloud/**/*",
     "ml/**/*",

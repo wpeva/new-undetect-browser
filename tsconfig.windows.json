@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "target": "ES2022",
+    "lib": ["ES2022", "ES2023", "DOM", "DOM.Iterable"],
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "./dist",
@@ -33,10 +33,12 @@
     "incremental": true,
     "isolatedModules": false,
     "preserveConstEnums": true,
-    "noEmitOnError": false
+    "noEmitOnError": false,
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": [
     "src/**/*.ts",
+    "src/types/**/*.d.ts",
     "server/**/*.ts",
     "electron/**/*.ts"
   ],
@@ -45,7 +47,6 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "**/*.d.ts",
     "tests",
     "frontend",
     "examples",
