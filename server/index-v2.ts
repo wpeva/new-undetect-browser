@@ -319,7 +319,24 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
       fingerprintData = {};
     }
 
-    if (fingerprintData.proxy && fingerprintData.proxy.enabled) {
+    // Check if profile has proxy_id and load proxy config
+    if (profile.proxy_id) {
+      const proxy = await ProxyModel.findById(profile.proxy_id);
+      if (proxy) {
+        proxyConfig = {
+          enabled: true,
+          type: proxy.type || 'http',
+          host: proxy.host,
+          port: proxy.port,
+          username: proxy.username,
+          password: proxy.password,
+        };
+        console.log(`[BROWSER] Using proxy: ${proxy.host}:${proxy.port}`);
+      }
+    }
+
+    // Also check fingerprint data for legacy proxy config
+    if (!proxyConfig && fingerprintData.proxy && fingerprintData.proxy.enabled) {
       const p = fingerprintData.proxy;
       proxyConfig = {
         enabled: true,
@@ -339,16 +356,22 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
       userSeed: fingerprintData.userSeed || `seed-${id}`,
       launchOptions: {
         headless: process.env.HEADLESS === 'true',
-        args: ['--start-maximized'],
+        args: [
+          '--start-maximized',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
       },
     });
 
     // Store browser instance
     activeBrowsers.set(id, browser);
 
-    // Open initial page
+    // Open initial page (use about:blank to avoid DNS issues on first load)
     const page = await browser.newPage();
-    await page.goto('https://www.google.com');
+    await page.goto('about:blank');
 
     // Update profile status
     await ProfileModel.updateStatus(id, 'active');
