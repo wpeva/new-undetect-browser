@@ -130,6 +130,14 @@ export class RealisticBrowserInstance {
   async newPage(): Promise<RealisticPage> {
     const page = await this.browserInstance.newPage();
 
+    // Set viewport to match fingerprint resolution - CRITICAL for screen size detection
+    await page.setViewport({
+      width: this.fingerprint.resolution.width,
+      height: this.fingerprint.resolution.height,
+      deviceScaleFactor: this.fingerprint.pixelRatio,
+    });
+    logger.debug(`Viewport set to ${this.fingerprint.resolution.width}x${this.fingerprint.resolution.height}`);
+
     // Apply proxy authentication if needed
     if (this.config.proxy && this.config.proxy.username && this.config.proxy.password) {
       await page.authenticate({
@@ -309,9 +317,13 @@ export class RealisticBrowserFactory {
       ...config.launchOptions,
       args: [
         ...enhancedArgs,
+        `--window-size=${fingerprint.resolution.width},${fingerprint.resolution.height}`,
         ...(config.launchOptions?.args || []),
       ],
     };
+
+    // Log all launch arguments for debugging
+    logger.info(`Launch args: ${launchOptions.args?.join(' ')}`);
 
     if (config.proxy) {
       const webrtcMode = config.webrtc?.mode || 'spoof';
@@ -337,15 +349,37 @@ export class RealisticBrowserFactory {
       config
     );
 
-    // Step 7: Setup first page if proxy auth is needed
-    if (config.proxy && config.proxy.username && config.proxy.password) {
-      const pages = await browserInstance.pages();
-      if (pages.length > 0) {
-        await pages[0].authenticate({
+    // Step 7: Setup first page - viewport, fingerprint, and proxy auth
+    const pages = await browserInstance.pages();
+    if (pages.length > 0) {
+      const firstPage = pages[0];
+
+      // Set viewport to match fingerprint
+      await firstPage.setViewport({
+        width: fingerprint.resolution.width,
+        height: fingerprint.resolution.height,
+        deviceScaleFactor: fingerprint.pixelRatio,
+      });
+
+      // Apply fingerprint to first page
+      await applyConsistentFingerprint(firstPage, fingerprint);
+
+      // Apply enhanced privacy protection
+      await applyEnhancedPrivacyProtection(firstPage, {
+        proxyIP: config.proxy?.host,
+        webrtc: config.webrtc,
+        ...config.privacy,
+      });
+
+      // Proxy authentication if needed
+      if (config.proxy && config.proxy.username && config.proxy.password) {
+        await firstPage.authenticate({
           username: config.proxy.username,
           password: config.proxy.password,
         });
       }
+
+      logger.debug(`First page configured: ${fingerprint.resolution.width}x${fingerprint.resolution.height}`);
     }
 
     logger.info('Realistic browser ready');
