@@ -328,10 +328,15 @@ app.post('/api/v2/profiles/:id/launch', async (req: Request, res: Response) => {
           type: proxy.type || 'http',
           host: proxy.host,
           port: proxy.port,
-          username: proxy.username,
-          password: proxy.password,
+          username: proxy.username || undefined,
+          password: proxy.password || undefined,
         };
-        console.log(`[BROWSER] Using proxy: ${proxy.host}:${proxy.port}`);
+        console.log(`[BROWSER] ====== PROXY CONFIG ======`);
+        console.log(`[BROWSER] Type: ${proxy.type}`);
+        console.log(`[BROWSER] Host: ${proxy.host}`);
+        console.log(`[BROWSER] Port: ${proxy.port}`);
+        console.log(`[BROWSER] Auth: ${proxy.username ? 'Yes' : 'No'}`);
+        console.log(`[BROWSER] ============================`);
       }
     }
 

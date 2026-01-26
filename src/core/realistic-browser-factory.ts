@@ -130,6 +130,15 @@ export class RealisticBrowserInstance {
   async newPage(): Promise<RealisticPage> {
     const page = await this.browserInstance.newPage();
 
+    // Apply proxy authentication if needed
+    if (this.config.proxy && this.config.proxy.username && this.config.proxy.password) {
+      await page.authenticate({
+        username: this.config.proxy.username,
+        password: this.config.proxy.password,
+      });
+      logger.debug('Proxy authentication applied to new page');
+    }
+
     // Get proxy IP for WebRTC spoofing
     const proxyIP = this.config.proxy ? this.config.proxy.host : undefined;
 
