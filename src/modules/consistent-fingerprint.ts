@@ -272,22 +272,29 @@ export function generateConsistentFingerprint(
     { width: 1536, height: 864 },
     { width: 1440, height: 900 },
   ];
-  const resolution = resolutions[Math.floor(seededRandom() * resolutions.length)];
+  const resolutionIndex = Math.floor(seededRandom() * resolutions.length);
+  const resolution = resolutions[resolutionIndex] || resolutions[0]!;
 
   // WebGL configuration
   const gpuVendors = ['NVIDIA', 'Intel', 'AMD'];
   const gpuWeights = [0.5, 0.3, 0.2];
   const gpuVendor = weightedChoice(gpuVendors, gpuWeights, seededRandom);
   const webglConfigs = WEBGL_CONFIGS[gpuVendor] || WEBGL_CONFIGS.NVIDIA!;
-  const webglConfig = webglConfigs[Math.floor(seededRandom() * webglConfigs.length)]!;
+  const webglIndex = Math.floor(seededRandom() * webglConfigs.length);
+  const webglConfig = webglConfigs[webglIndex] || webglConfigs[0] || {
+    vendor: 'Google Inc.',
+    renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)'
+  };
 
   // Hardware specs
-  const hardwareConcurrency = [2, 4, 6, 8, 12, 16][Math.floor(seededRandom() * 6)];
-  const deviceMemory = [2, 4, 8, 16][Math.floor(seededRandom() * 4)];
+  const cpuCores = [2, 4, 6, 8, 12, 16];
+  const hardwareConcurrency = cpuCores[Math.floor(seededRandom() * cpuCores.length)] || 8;
+  const memoryOptions = [2, 4, 8, 16];
+  const deviceMemory = memoryOptions[Math.floor(seededRandom() * memoryOptions.length)] || 8;
 
   // Pixel ratio
   const pixelRatios = [1, 1.25, 1.5, 2];
-  const pixelRatio = pixelRatios[Math.floor(seededRandom() * pixelRatios.length)];
+  const pixelRatio = pixelRatios[Math.floor(seededRandom() * pixelRatios.length)] || 1;
 
   return {
     userAgent,
@@ -297,11 +304,11 @@ export function generateConsistentFingerprint(
     languages: geo.languages,
     timezone: geo.timezone,
     locale: geo.locale,
-    resolution: resolution!,
+    resolution,
     colorDepth: 24,
-    pixelRatio: pixelRatio!,
-    hardwareConcurrency: hardwareConcurrency!,
-    deviceMemory: deviceMemory!,
+    pixelRatio,
+    hardwareConcurrency,
+    deviceMemory,
     canvas: {
       noise: 0.001 + seededRandom() * 0.004, // 0.001-0.005
       seed: randomSeed,
