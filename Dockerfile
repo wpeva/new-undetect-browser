@@ -41,8 +41,8 @@ COPY optimization ./optimization
 COPY security ./security
 COPY analytics ./analytics
 
-# Build TypeScript with optimizations
-RUN npm run build \
+# Build TypeScript with optimizations (use build:ci for stricter exclude rules)
+RUN npm run build:ci \
     && rm -rf src server cloud ml ml-profiles optimization security analytics
 
 # ==================================
