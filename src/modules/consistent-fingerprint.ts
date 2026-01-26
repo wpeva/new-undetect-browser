@@ -345,7 +345,119 @@ export async function applyConsistentFingerprint(
   fingerprint: ConsistentFingerprint
 ): Promise<void> {
   await page.evaluateOnNewDocument((fp) => {
+    // ============================================================
+    // CRITICAL: Anti-Bot Detection - Must be first!
+    // ============================================================
+
+    // Remove webdriver flag - MOST IMPORTANT for bot detection
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+      configurable: true,
+    });
+
+    // Delete webdriver completely
+    delete (navigator as any).webdriver;
+
+    // Override userAgent to match fingerprint (prevents HTTP vs JS mismatch)
+    Object.defineProperty(navigator, 'userAgent', {
+      get: () => fp.userAgent,
+      configurable: true,
+    });
+
+    // Remove automation indicators
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => {
+        const plugins = fp.plugins.map((p: any) => {
+          const plugin: any = {
+            name: p.name,
+            filename: p.filename,
+            description: p.description,
+            length: p.mimeTypes?.length || 0,
+          };
+          // Add mimeTypes
+          if (p.mimeTypes) {
+            p.mimeTypes.forEach((mt: any, i: number) => {
+              plugin[i] = {
+                type: mt.type,
+                suffixes: mt.suffixes,
+                description: mt.description,
+                enabledPlugin: plugin,
+              };
+            });
+          }
+          plugin.item = (i: number) => plugin[i];
+          plugin.namedItem = (name: string) => plugin[name];
+          plugin[Symbol.iterator] = function* () {
+            for (let i = 0; i < plugin.length; i++) yield plugin[i];
+          };
+          return plugin;
+        });
+        const pluginArray: any = plugins;
+        pluginArray.item = (i: number) => plugins[i];
+        pluginArray.namedItem = (name: string) => plugins.find((p: any) => p.name === name);
+        pluginArray.refresh = () => {};
+        pluginArray[Symbol.iterator] = function* () {
+          for (const p of plugins) yield p;
+        };
+        return pluginArray;
+      },
+      configurable: true,
+    });
+
+    // Chrome-specific properties
+    if (!(window as any).chrome) {
+      (window as any).chrome = {};
+    }
+    (window as any).chrome.runtime = {
+      PlatformOs: { MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux', OPENBSD: 'openbsd' },
+      PlatformArch: { ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64', MIPS: 'mips', MIPS64: 'mips64' },
+      PlatformNaclArch: { ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64', MIPS: 'mips', MIPS64: 'mips64' },
+      RequestUpdateCheckStatus: { THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available' },
+      OnInstalledReason: { INSTALL: 'install', UPDATE: 'update', CHROME_UPDATE: 'chrome_update', SHARED_MODULE_UPDATE: 'shared_module_update' },
+      OnRestartRequiredReason: { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' },
+    };
+
+    // Remove Puppeteer/Playwright indicators
+    delete (window as any).__puppeteer_evaluation_script__;
+    delete (window as any).__webdriver_evaluate;
+    delete (window as any).__selenium_evaluate;
+    delete (window as any).__webdriver_script_function;
+    delete (window as any).__webdriver_script_func;
+    delete (window as any).__webdriver_script_fn;
+    delete (window as any).__fxdriver_evaluate;
+    delete (window as any).__driver_unwrapped;
+    delete (window as any).__webdriver_unwrapped;
+    delete (window as any).__driver_evaluate;
+    delete (window as any).__selenium_unwrapped;
+    delete (window as any).__fxdriver_unwrapped;
+    delete (window as any)._Selenium_IDE_Recorder;
+    delete (window as any)._selenium;
+    delete (window as any).callSelenium;
+    delete (window as any).calledSelenium;
+    delete (window as any).$chrome_asyncScriptInfo;
+    delete (window as any).$cdc_asdjflasutopfhvcZLmcfl_;
+    delete (window as any).$cdc_asdjflasutopfhvcZLmcfl__;
+
+    // Hide automation in permissions
+    const originalQuery = navigator.permissions.query;
+    navigator.permissions.query = function(parameters: any): Promise<PermissionStatus> {
+      if (parameters.name === 'notifications') {
+        return Promise.resolve({
+          state: Notification.permission as PermissionState,
+          name: 'notifications',
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => true,
+        } as unknown as PermissionStatus);
+      }
+      return originalQuery.call(navigator.permissions, parameters);
+    };
+
+    // ============================================================
     // Override navigator properties
+    // ============================================================
+
     Object.defineProperty(navigator, 'platform', {
       get: () => fp.platform,
     });
@@ -417,7 +529,9 @@ export async function applyConsistentFingerprint(
     Intl.DateTimeFormat.prototype = originalDateTimeFormat.prototype;
     Intl.DateTimeFormat.supportedLocalesOf = originalDateTimeFormat.supportedLocalesOf;
 
-    // Override Date.prototype.getTimezoneOffset - CRITICAL for whoer.net
+    // ============================================================
+    // COMPREHENSIVE TIMEZONE SPOOFING
+    // ============================================================
     const timezoneOffsets: Record<string, number> = {
       'America/New_York': 300, // UTC-5
       'America/Chicago': 360, // UTC-6
@@ -435,9 +549,92 @@ export async function applyConsistentFingerprint(
       'Asia/Tokyo': -540, // UTC+9
       'Australia/Sydney': -600, // UTC+10
     };
+
+    const timezoneNames: Record<string, string> = {
+      'America/New_York': 'Eastern Standard Time',
+      'America/Chicago': 'Central Standard Time',
+      'America/Denver': 'Mountain Standard Time',
+      'America/Los_Angeles': 'Pacific Standard Time',
+      'America/Toronto': 'Eastern Standard Time',
+      'America/Sao_Paulo': 'Brasilia Standard Time',
+      'Europe/London': 'Greenwich Mean Time',
+      'Europe/Paris': 'Central European Standard Time',
+      'Europe/Berlin': 'Central European Standard Time',
+      'Europe/Madrid': 'Central European Standard Time',
+      'Europe/Rome': 'Central European Standard Time',
+      'Europe/Moscow': 'Moscow Standard Time',
+      'Asia/Shanghai': 'China Standard Time',
+      'Asia/Tokyo': 'Japan Standard Time',
+      'Australia/Sydney': 'Australian Eastern Standard Time',
+    };
+
+    const timezoneAbbrs: Record<string, string> = {
+      'America/New_York': 'EST',
+      'America/Chicago': 'CST',
+      'America/Denver': 'MST',
+      'America/Los_Angeles': 'PST',
+      'America/Toronto': 'EST',
+      'America/Sao_Paulo': 'BRT',
+      'Europe/London': 'GMT',
+      'Europe/Paris': 'CET',
+      'Europe/Berlin': 'CET',
+      'Europe/Madrid': 'CET',
+      'Europe/Rome': 'CET',
+      'Europe/Moscow': 'MSK',
+      'Asia/Shanghai': 'CST',
+      'Asia/Tokyo': 'JST',
+      'Australia/Sydney': 'AEST',
+    };
+
     const targetOffset = timezoneOffsets[fp.timezone] ?? 0;
+    const targetTzName = timezoneNames[fp.timezone] ?? fp.timezone;
+    const targetTzAbbr = timezoneAbbrs[fp.timezone] ?? 'UTC';
+
+    // Override getTimezoneOffset
     Date.prototype.getTimezoneOffset = function() {
       return targetOffset;
+    };
+
+    // Override toString to show correct timezone
+    const origToString = Date.prototype.toString;
+    Date.prototype.toString = function() {
+      const str = origToString.call(this);
+      // Replace timezone part (e.g., GMT-0500 (Eastern Standard Time))
+      const gmtOffset = targetOffset <= 0
+        ? `+${String(Math.abs(targetOffset / 60)).padStart(2, '0')}00`
+        : `-${String(targetOffset / 60).padStart(2, '0')}00`;
+      return str.replace(/GMT[+-]\d{4} \([^)]+\)/, `GMT${gmtOffset} (${targetTzName})`);
+    };
+
+    // Override toTimeString
+    const origToTimeString = Date.prototype.toTimeString;
+    Date.prototype.toTimeString = function() {
+      const str = origToTimeString.call(this);
+      const gmtOffset = targetOffset <= 0
+        ? `+${String(Math.abs(targetOffset / 60)).padStart(2, '0')}00`
+        : `-${String(targetOffset / 60).padStart(2, '0')}00`;
+      return str.replace(/GMT[+-]\d{4} \([^)]+\)/, `GMT${gmtOffset} (${targetTzName})`);
+    };
+
+    // Override toLocaleString to use correct timezone
+    const origToLocaleString = Date.prototype.toLocaleString;
+    Date.prototype.toLocaleString = function(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+      const opts = { ...options, timeZone: fp.timezone };
+      return origToLocaleString.call(this, locales || fp.locale, opts);
+    };
+
+    // Override toLocaleDateString
+    const origToLocaleDateString = Date.prototype.toLocaleDateString;
+    Date.prototype.toLocaleDateString = function(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+      const opts = { ...options, timeZone: fp.timezone };
+      return origToLocaleDateString.call(this, locales || fp.locale, opts);
+    };
+
+    // Override toLocaleTimeString
+    const origToLocaleTimeString = Date.prototype.toLocaleTimeString;
+    Date.prototype.toLocaleTimeString = function(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+      const opts = { ...options, timeZone: fp.timezone };
+      return origToLocaleTimeString.call(this, locales || fp.locale, opts);
     };
 
     // Override geolocation
@@ -649,8 +846,10 @@ function generateConsistentUserAgent(
   _locale: string,
   random: () => number
 ): string {
-  const chromeVersions = ['120', '121', '122', '123'];
-  const chromeVersion = chromeVersions[Math.floor(random() * chromeVersions.length)];
+  // IMPORTANT: Use current Chrome versions to avoid mismatch detection
+  // The browser will send real Chrome version in HTTP headers
+  const chromeVersions = ['130', '131', '132', '133'];
+  const chromeVersion = chromeVersions[Math.floor(random() * chromeVersions.length)] || '131';
 
   if (platform === 'Windows') {
     const windowsVersions = ['10.0', '11.0'];

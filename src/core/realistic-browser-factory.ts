@@ -130,6 +130,10 @@ export class RealisticBrowserInstance {
   async newPage(): Promise<RealisticPage> {
     const page = await this.browserInstance.newPage();
 
+    // CRITICAL: Set HTTP User-Agent header to match fingerprint
+    // This prevents UserAgent mismatch detection (HTTP vs JS)
+    await page.setUserAgent(this.fingerprint.userAgent);
+
     // Set viewport to match fingerprint resolution - CRITICAL for screen size detection
     await page.setViewport({
       width: this.fingerprint.resolution.width,
@@ -353,6 +357,9 @@ export class RealisticBrowserFactory {
     const pages = await browserInstance.pages();
     if (pages.length > 0) {
       const firstPage = pages[0];
+
+      // CRITICAL: Set HTTP User-Agent to match fingerprint (prevents mismatch detection)
+      await firstPage.setUserAgent(fingerprint.userAgent);
 
       // Set viewport to match fingerprint
       await firstPage.setViewport({
