@@ -33,11 +33,13 @@ export default function Dashboard() {
     try {
       // Fetch profiles
       const profilesRes = await profilesApi.getAll();
-      const profiles = profilesRes.data || [];
+      const profilesData = (profilesRes.data as any)?.data || profilesRes.data || [];
+      const profiles = Array.isArray(profilesData) ? profilesData : [];
 
       // Fetch proxies
       const proxiesRes = await proxiesApi.getAll();
-      const proxies = proxiesRes.data || [];
+      const proxiesData = (proxiesRes.data as any)?.data || proxiesRes.data || [];
+      const proxies = Array.isArray(proxiesData) ? proxiesData : [];
 
       // Calculate stats
       const runningProfiles = profiles.filter((p: any) => p.status === 'running');
