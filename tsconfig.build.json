@@ -40,6 +40,9 @@
     "virtualization",
     "benchmarks",
     "web",
-    "*.md"
+    "*.md",
+    "cloud/vm/example.ts",
+    "cloud/api/**/*",
+    "server/api/**/*"
   ]
 }

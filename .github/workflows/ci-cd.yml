@@ -11,6 +11,8 @@ on:
 
 env:
   NODE_VERSION: '20.x'
+  PUPPETEER_SKIP_DOWNLOAD: 'true'
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
 jobs:
   # Quick validation - always passes
