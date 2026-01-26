@@ -399,10 +399,39 @@ export async function applyConsistentFingerprint(
       if (args.length === 0 || !args[0]) {
         args[0] = fp.locale;
       }
+      if (args.length < 2) {
+        args[1] = { timeZone: fp.timezone };
+      } else if (!args[1]?.timeZone) {
+        args[1] = { ...args[1], timeZone: fp.timezone };
+      }
       return new originalDateTimeFormat(...args);
     };
-    // @ts-expect-error - Copy properties
+    // @ts-ignore - Copy prototype
     Intl.DateTimeFormat.prototype = originalDateTimeFormat.prototype;
+    Intl.DateTimeFormat.supportedLocalesOf = originalDateTimeFormat.supportedLocalesOf;
+
+    // Override Date.prototype.getTimezoneOffset - CRITICAL for whoer.net
+    const timezoneOffsets: Record<string, number> = {
+      'America/New_York': 300, // UTC-5
+      'America/Chicago': 360, // UTC-6
+      'America/Denver': 420, // UTC-7
+      'America/Los_Angeles': 480, // UTC-8
+      'America/Toronto': 300, // UTC-5
+      'America/Sao_Paulo': 180, // UTC-3
+      'Europe/London': 0, // UTC+0
+      'Europe/Paris': -60, // UTC+1
+      'Europe/Berlin': -60, // UTC+1
+      'Europe/Madrid': -60, // UTC+1
+      'Europe/Rome': -60, // UTC+1
+      'Europe/Moscow': -180, // UTC+3
+      'Asia/Shanghai': -480, // UTC+8
+      'Asia/Tokyo': -540, // UTC+9
+      'Australia/Sydney': -600, // UTC+10
+    };
+    const targetOffset = timezoneOffsets[fp.timezone] ?? 0;
+    Date.prototype.getTimezoneOffset = function() {
+      return targetOffset;
+    };
 
     // Override geolocation
     navigator.geolocation.getCurrentPosition = function (
