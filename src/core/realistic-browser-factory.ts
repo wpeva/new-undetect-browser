@@ -313,6 +313,9 @@ export class RealisticBrowserFactory {
       ],
     };
 
+    // Log all launch arguments for debugging
+    logger.info(`Launch args: ${launchOptions.args?.join(' ')}`);
+
     if (config.proxy) {
       const webrtcMode = config.webrtc?.mode || 'spoof';
       logger.info(`Using proxy: ${proxyServer}`);

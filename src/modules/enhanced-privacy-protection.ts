@@ -27,24 +27,15 @@ import {
 export function getEnhancedPrivacyArgs(proxyServer?: string): string[] {
   const args = [
     // ============================================================================
-    // WEBRTC PROTECTION - CRITICAL FOR IP LEAK PREVENTION
+    // WEBRTC PROTECTION - Prevent IP leaks via WebRTC
     // ============================================================================
-    '--disable-webrtc',
-    '--disable-rtc-smoothness-algorithm',
-    '--disable-webrtc-hw-decoding',
-    '--disable-webrtc-hw-encoding',
-    '--disable-webrtc-encryption',
-    '--disable-webrtc-hw-vp8-encoding',
     '--enforce-webrtc-ip-permission-check',
     '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
     '--webrtc-ip-handling-policy=disable_non_proxied_udp',
 
     // ============================================================================
-    // DNS LEAK PROTECTION
+    // DNS LEAK PROTECTION (relaxed - allows proxy DNS resolution)
     // ============================================================================
-    '--enable-features=DnsOverHttps',
-    '--dns-over-https-templates=https://cloudflare-dns.com/dns-query',
-    '--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost',
     '--disable-dns-prefetch',
 
     // ============================================================================
