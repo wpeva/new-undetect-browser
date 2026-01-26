@@ -404,10 +404,13 @@ export async function applyConsistentFingerprint(
       configurable: true,
     });
 
-    // Chrome-specific properties
+    // ============================================================
+    // COMPREHENSIVE CHROME OBJECT (Anti-Headless Detection)
+    // ============================================================
     if (!(window as any).chrome) {
       (window as any).chrome = {};
     }
+
     (window as any).chrome.runtime = {
       PlatformOs: { MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux', OPENBSD: 'openbsd' },
       PlatformArch: { ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64', MIPS: 'mips', MIPS64: 'mips64' },
@@ -415,6 +418,146 @@ export async function applyConsistentFingerprint(
       RequestUpdateCheckStatus: { THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available' },
       OnInstalledReason: { INSTALL: 'install', UPDATE: 'update', CHROME_UPDATE: 'chrome_update', SHARED_MODULE_UPDATE: 'shared_module_update' },
       OnRestartRequiredReason: { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' },
+      connect: () => {},
+      sendMessage: () => {},
+      id: undefined,
+    };
+
+    // chrome.app - exists in real Chrome
+    (window as any).chrome.app = {
+      isInstalled: false,
+      InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+      RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
+      getDetails: () => null,
+      getIsInstalled: () => false,
+      runningState: () => 'cannot_run',
+    };
+
+    // chrome.csi - timing info
+    (window as any).chrome.csi = () => ({
+      onloadT: Date.now(),
+      startE: Date.now() - Math.floor(Math.random() * 1000),
+      pageT: Math.floor(Math.random() * 1000) + 500,
+      tran: 15,
+    });
+
+    // chrome.loadTimes - deprecated but still checked
+    (window as any).chrome.loadTimes = () => ({
+      commitLoadTime: Date.now() / 1000,
+      connectionInfo: 'h2',
+      finishDocumentLoadTime: Date.now() / 1000 + 0.1,
+      finishLoadTime: Date.now() / 1000 + 0.2,
+      firstPaintAfterLoadTime: 0,
+      firstPaintTime: Date.now() / 1000 + 0.05,
+      navigationType: 'Other',
+      npnNegotiatedProtocol: 'h2',
+      requestTime: Date.now() / 1000 - 0.5,
+      startLoadTime: Date.now() / 1000 - 0.3,
+      wasAlternateProtocolAvailable: false,
+      wasFetchedViaSpdy: true,
+      wasNpnNegotiated: true,
+    });
+
+    // ============================================================
+    // WINDOW PROPERTIES (Anti-Headless Detection)
+    // ============================================================
+
+    // outerWidth/outerHeight - headless has these as 0
+    Object.defineProperty(window, 'outerWidth', {
+      get: () => fp.resolution.width,
+      configurable: true,
+    });
+
+    Object.defineProperty(window, 'outerHeight', {
+      get: () => fp.resolution.height,
+      configurable: true,
+    });
+
+    // innerWidth/innerHeight
+    Object.defineProperty(window, 'innerWidth', {
+      get: () => fp.resolution.width,
+      configurable: true,
+    });
+
+    Object.defineProperty(window, 'innerHeight', {
+      get: () => fp.resolution.height - 40, // Account for browser chrome
+      configurable: true,
+    });
+
+    // screenX/screenY - window position
+    Object.defineProperty(window, 'screenX', {
+      get: () => 0,
+      configurable: true,
+    });
+
+    Object.defineProperty(window, 'screenY', {
+      get: () => 0,
+      configurable: true,
+    });
+
+    // ============================================================
+    // NOTIFICATION (Anti-Headless Detection)
+    // ============================================================
+    // In headless mode, Notification.permission is often "denied" by default
+    if (typeof Notification !== 'undefined') {
+      Object.defineProperty(Notification, 'permission', {
+        get: () => 'default',
+        configurable: true,
+      });
+    }
+
+    // ============================================================
+    // NAVIGATOR CONNECTION (Network Information API)
+    // ============================================================
+    if ((navigator as any).connection) {
+      Object.defineProperty((navigator as any).connection, 'rtt', {
+        get: () => 50 + Math.floor(Math.random() * 50),
+        configurable: true,
+      });
+      Object.defineProperty((navigator as any).connection, 'downlink', {
+        get: () => 10 + Math.random() * 5,
+        configurable: true,
+      });
+      Object.defineProperty((navigator as any).connection, 'effectiveType', {
+        get: () => '4g',
+        configurable: true,
+      });
+      Object.defineProperty((navigator as any).connection, 'saveData', {
+        get: () => false,
+        configurable: true,
+      });
+    }
+
+    // ============================================================
+    // DOCUMENT PROPERTIES
+    // ============================================================
+    // document.hidden should be false (visible tab)
+    Object.defineProperty(document, 'hidden', {
+      get: () => false,
+      configurable: true,
+    });
+
+    Object.defineProperty(document, 'visibilityState', {
+      get: () => 'visible',
+      configurable: true,
+    });
+
+    // ============================================================
+    // CONSOLE (Hide "cdc_" markers used by ChromeDriver)
+    // ============================================================
+    // Remove any console markers
+    const originalConsoleLog = console.log;
+    console.log = function(...args: any[]) {
+      // Filter out potential detection markers
+      const filtered = args.filter(arg => {
+        if (typeof arg === 'string') {
+          return !arg.includes('cdc_') && !arg.includes('webdriver');
+        }
+        return true;
+      });
+      if (filtered.length > 0) {
+        originalConsoleLog.apply(console, filtered);
+      }
     };
 
     // Remove Puppeteer/Playwright indicators
@@ -636,6 +779,273 @@ export async function applyConsistentFingerprint(
       const opts = { ...options, timeZone: fp.timezone };
       return origToLocaleTimeString.call(this, locales || fp.locale, opts);
     };
+
+    // ============================================================
+    // COMPREHENSIVE LOCALE/LANGUAGE SPOOFING
+    // ============================================================
+
+    // Override Intl.NumberFormat to use correct locale
+    const originalNumberFormat = Intl.NumberFormat;
+    // @ts-expect-error - Overriding Intl
+    Intl.NumberFormat = function (...args: any[]) {
+      if (args.length === 0 || !args[0]) {
+        args[0] = fp.locale;
+      }
+      return new originalNumberFormat(...args);
+    };
+    // @ts-ignore
+    Intl.NumberFormat.prototype = originalNumberFormat.prototype;
+    Intl.NumberFormat.supportedLocalesOf = originalNumberFormat.supportedLocalesOf;
+
+    // Override Intl.Collator
+    const originalCollator = Intl.Collator;
+    // @ts-expect-error - Overriding Intl
+    Intl.Collator = function (...args: any[]) {
+      if (args.length === 0 || !args[0]) {
+        args[0] = fp.locale;
+      }
+      return new originalCollator(...args);
+    };
+    // @ts-ignore
+    Intl.Collator.prototype = originalCollator.prototype;
+    Intl.Collator.supportedLocalesOf = originalCollator.supportedLocalesOf;
+
+    // Override Intl.PluralRules
+    const originalPluralRules = Intl.PluralRules;
+    // @ts-expect-error - Overriding Intl
+    Intl.PluralRules = function (...args: any[]) {
+      if (args.length === 0 || !args[0]) {
+        args[0] = fp.locale;
+      }
+      return new originalPluralRules(...args);
+    };
+    // @ts-ignore
+    Intl.PluralRules.prototype = originalPluralRules.prototype;
+    Intl.PluralRules.supportedLocalesOf = originalPluralRules.supportedLocalesOf;
+
+    // Override Intl.RelativeTimeFormat
+    if ((Intl as any).RelativeTimeFormat) {
+      const originalRelativeTimeFormat = (Intl as any).RelativeTimeFormat;
+      (Intl as any).RelativeTimeFormat = function (...args: any[]) {
+        if (args.length === 0 || !args[0]) {
+          args[0] = fp.locale;
+        }
+        return new originalRelativeTimeFormat(...args);
+      };
+      (Intl as any).RelativeTimeFormat.prototype = originalRelativeTimeFormat.prototype;
+      (Intl as any).RelativeTimeFormat.supportedLocalesOf = originalRelativeTimeFormat.supportedLocalesOf;
+    }
+
+    // Override Intl.ListFormat
+    if ((Intl as any).ListFormat) {
+      const originalListFormat = (Intl as any).ListFormat;
+      (Intl as any).ListFormat = function (...args: any[]) {
+        if (args.length === 0 || !args[0]) {
+          args[0] = fp.locale;
+        }
+        return new originalListFormat(...args);
+      };
+      (Intl as any).ListFormat.prototype = originalListFormat.prototype;
+      (Intl as any).ListFormat.supportedLocalesOf = originalListFormat.supportedLocalesOf;
+    }
+
+    // Override Number.prototype.toLocaleString
+    const origNumberToLocaleString = Number.prototype.toLocaleString;
+    Number.prototype.toLocaleString = function(locales?: string | string[], options?: Intl.NumberFormatOptions) {
+      return origNumberToLocaleString.call(this, locales || fp.locale, options);
+    };
+
+    // Override String.prototype.localeCompare
+    const origLocaleCompare = String.prototype.localeCompare;
+    String.prototype.localeCompare = function(that: string, locales?: string | string[], options?: Intl.CollatorOptions) {
+      return origLocaleCompare.call(this, that, locales || fp.locale, options);
+    };
+
+    // Override Array.prototype.toLocaleString
+    const origArrayToLocaleString = Array.prototype.toLocaleString;
+    Array.prototype.toLocaleString = function(locales?: string | string[], options?: any) {
+      return origArrayToLocaleString.call(this, locales || fp.locale, options);
+    };
+
+    // ============================================================
+    // AUDIO FINGERPRINT PROTECTION
+    // ============================================================
+
+    // Add noise to AudioContext to prevent audio fingerprinting
+    const audioNoise = fp.audio.noise;
+    const audioOscillator = fp.audio.oscillator;
+
+    // Override AudioContext
+    const OriginalAudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (OriginalAudioContext) {
+      const ModifiedAudioContext = function(this: any, options?: AudioContextOptions) {
+        const ctx = new OriginalAudioContext(options);
+
+        // Override createAnalyser to add noise
+        const originalCreateAnalyser = ctx.createAnalyser.bind(ctx);
+        ctx.createAnalyser = function() {
+          const analyser = originalCreateAnalyser();
+
+          // Override getFloatFrequencyData
+          const originalGetFloatFrequencyData = analyser.getFloatFrequencyData.bind(analyser);
+          analyser.getFloatFrequencyData = function(array: Float32Array) {
+            originalGetFloatFrequencyData(array);
+            // Add consistent noise based on fingerprint
+            for (let i = 0; i < array.length; i++) {
+              array[i] = array[i] + (audioNoise * (audioOscillator - 0.5) * 2);
+            }
+          };
+
+          // Override getByteFrequencyData
+          const originalGetByteFrequencyData = analyser.getByteFrequencyData.bind(analyser);
+          analyser.getByteFrequencyData = function(array: Uint8Array) {
+            originalGetByteFrequencyData(array);
+            for (let i = 0; i < array.length; i++) {
+              const noise = Math.floor(audioNoise * 10 * (audioOscillator - 0.5));
+              array[i] = Math.max(0, Math.min(255, array[i] + noise));
+            }
+          };
+
+          return analyser;
+        };
+
+        // Override createOscillator to vary slightly
+        const originalCreateOscillator = ctx.createOscillator.bind(ctx);
+        ctx.createOscillator = function() {
+          const osc = originalCreateOscillator();
+          // Add tiny frequency variation
+          const originalSetFrequency = osc.frequency.setValueAtTime.bind(osc.frequency);
+          osc.frequency.setValueAtTime = function(value: number, startTime: number) {
+            const variance = value * audioNoise * 0.001;
+            return originalSetFrequency(value + variance, startTime);
+          };
+          return osc;
+        };
+
+        // Override getChannelData for OfflineAudioContext compatibility
+        const originalCreateBuffer = ctx.createBuffer?.bind(ctx);
+        if (originalCreateBuffer) {
+          ctx.createBuffer = function(numberOfChannels: number, length: number, sampleRate: number) {
+            const buffer = originalCreateBuffer(numberOfChannels, length, sampleRate);
+
+            // Override getChannelData
+            const originalGetChannelData = buffer.getChannelData.bind(buffer);
+            buffer.getChannelData = function(channel: number) {
+              const data = originalGetChannelData(channel);
+              // Add very small noise that doesn't affect sound quality
+              for (let i = 0; i < data.length; i++) {
+                data[i] = data[i] + (audioNoise * 0.0001 * (Math.random() - 0.5));
+              }
+              return data;
+            };
+
+            return buffer;
+          };
+        }
+
+        return ctx;
+      };
+
+      ModifiedAudioContext.prototype = OriginalAudioContext.prototype;
+      (window as any).AudioContext = ModifiedAudioContext;
+      (window as any).webkitAudioContext = ModifiedAudioContext;
+    }
+
+    // Override OfflineAudioContext
+    const OriginalOfflineAudioContext = (window as any).OfflineAudioContext;
+    if (OriginalOfflineAudioContext) {
+      const ModifiedOfflineAudioContext = function(
+        this: any,
+        numberOfChannels: number,
+        length: number,
+        sampleRate: number
+      ) {
+        const ctx = new OriginalOfflineAudioContext(numberOfChannels, length, sampleRate);
+
+        // Override startRendering
+        const originalStartRendering = ctx.startRendering.bind(ctx);
+        ctx.startRendering = function() {
+          return originalStartRendering().then((renderedBuffer: AudioBuffer) => {
+            // Add noise to the rendered buffer
+            for (let channel = 0; channel < renderedBuffer.numberOfChannels; channel++) {
+              const data = renderedBuffer.getChannelData(channel);
+              for (let i = 0; i < data.length; i++) {
+                data[i] = data[i] + (audioNoise * 0.0001 * (audioOscillator - 0.5));
+              }
+            }
+            return renderedBuffer;
+          });
+        };
+
+        return ctx;
+      };
+
+      ModifiedOfflineAudioContext.prototype = OriginalOfflineAudioContext.prototype;
+      (window as any).OfflineAudioContext = ModifiedOfflineAudioContext;
+    }
+
+    // ============================================================
+    // WORKER CONTEXT SPOOFING
+    // ============================================================
+
+    // Intercept Worker creation to inject our overrides
+    const OriginalWorker = window.Worker;
+    window.Worker = function(scriptURL: string | URL, options?: WorkerOptions): Worker {
+      // Create a blob that injects our timezone/locale settings
+      const injectScript = `
+        // Inject timezone offset
+        Date.prototype.getTimezoneOffset = function() { return ${targetOffset}; };
+
+        // Inject locale
+        const fpLocale = '${fp.locale}';
+        const fpTimezone = '${fp.timezone}';
+        const fpLanguages = ${JSON.stringify(fp.languages)};
+
+        // Override navigator in worker
+        Object.defineProperty(self.navigator, 'language', { get: () => fpLanguages[0] });
+        Object.defineProperty(self.navigator, 'languages', { get: () => fpLanguages });
+
+        // Override Intl in worker
+        const origDTF = Intl.DateTimeFormat;
+        Intl.DateTimeFormat = function(...args) {
+          if (!args[0]) args[0] = fpLocale;
+          if (!args[1]) args[1] = { timeZone: fpTimezone };
+          else if (!args[1].timeZone) args[1] = { ...args[1], timeZone: fpTimezone };
+          return new origDTF(...args);
+        };
+        Intl.DateTimeFormat.prototype = origDTF.prototype;
+        Intl.DateTimeFormat.supportedLocalesOf = origDTF.supportedLocalesOf;
+
+        const origNF = Intl.NumberFormat;
+        Intl.NumberFormat = function(...args) {
+          if (!args[0]) args[0] = fpLocale;
+          return new origNF(...args);
+        };
+        Intl.NumberFormat.prototype = origNF.prototype;
+        Intl.NumberFormat.supportedLocalesOf = origNF.supportedLocalesOf;
+
+        // Import the original script
+        importScripts('${scriptURL}');
+      `;
+
+      // For module workers or when we can't inject, just use original
+      if (options?.type === 'module' || typeof scriptURL !== 'string') {
+        return new OriginalWorker(scriptURL, options);
+      }
+
+      try {
+        const blob = new Blob([injectScript], { type: 'application/javascript' });
+        const blobURL = URL.createObjectURL(blob);
+        const worker = new OriginalWorker(blobURL, options);
+        // Clean up blob URL when worker terminates
+        worker.addEventListener('error', () => URL.revokeObjectURL(blobURL));
+        return worker;
+      } catch {
+        // Fallback to original if injection fails
+        return new OriginalWorker(scriptURL, options);
+      }
+    } as any;
+    (window.Worker as any).prototype = OriginalWorker.prototype;
 
     // Override geolocation
     navigator.geolocation.getCurrentPosition = function (
