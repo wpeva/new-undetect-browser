@@ -182,7 +182,12 @@ export async function applyWebRTCSpoofing(
         }
       };
 
-      // Override onicecandidate property
+      // Override onicecandidate property - use the original property descriptor
+      const origOnicecandidateDescriptor = Object.getOwnPropertyDescriptor(
+        RTCPeerConnection.prototype,
+        'onicecandidate'
+      );
+
       let _onicecandidate: ((ev: RTCPeerConnectionIceEvent) => any) | null = null;
 
       Object.defineProperty(pc, 'onicecandidate', {
@@ -192,19 +197,18 @@ export async function applyWebRTCSpoofing(
         set(handler: ((ev: RTCPeerConnectionIceEvent) => any) | null) {
           _onicecandidate = handler;
 
-          // Set the internal handler
-          (pc as any).__onicecandidate_internal = handler
-            ? function (event: RTCPeerConnectionIceEvent) {
+          // Create wrapped handler that modifies events
+          const wrappedHandler = handler
+            ? function (this: RTCPeerConnection, event: RTCPeerConnectionIceEvent) {
                 const modifiedEvent = createModifiedIceEvent(event);
-                handler.call(pc, modifiedEvent);
+                handler.call(this, modifiedEvent);
               }
             : null;
 
-          origAddEventListener.call(
-            pc,
-            'icecandidate',
-            (pc as any).__onicecandidate_internal
-          );
+          // Use original setter to set the handler
+          if (origOnicecandidateDescriptor?.set) {
+            origOnicecandidateDescriptor.set.call(pc, wrappedHandler);
+          }
         },
         configurable: true,
       });
