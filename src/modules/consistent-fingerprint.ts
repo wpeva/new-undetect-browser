@@ -365,10 +365,10 @@ export async function applyConsistentFingerprint(
     });
 
     // ============================================================
-    // PLUGINS SPOOFING - Must look like real Chrome plugins
+    // PLUGINS & MIMETYPES SPOOFING - Use prototype override
     // ============================================================
 
-    // Create plugins that look exactly like Chrome's default plugins
+    // Chrome's default plugins (PDF viewers)
     const chromePlugins = [
       {
         name: 'PDF Viewer',
@@ -395,86 +395,87 @@ export async function applyConsistentFingerprint(
           { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
         ]
       },
-      {
-        name: 'Microsoft Edge PDF Viewer',
-        filename: 'internal-pdf-viewer',
-        description: 'Portable Document Format',
-        mimeTypes: [
-          { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
-        ]
-      },
-      {
-        name: 'WebKit built-in PDF',
-        filename: 'internal-pdf-viewer',
-        description: 'Portable Document Format',
-        mimeTypes: [
-          { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
-        ]
-      }
     ];
 
-    // Create proper PluginArray-like structure
-    const createPluginArray = () => {
-      const plugins = chromePlugins.map((p) => {
-        const mimeTypesObj: any = {};
-        p.mimeTypes.forEach((mt, i) => {
-          const mimeType = {
-            type: mt.type,
-            suffixes: mt.suffixes,
-            description: mt.description,
-            enabledPlugin: null as any, // Will be set after
-          };
-          mimeTypesObj[i] = mimeType;
-        });
-
-        const plugin: any = {
-          name: p.name,
-          filename: p.filename,
-          description: p.description,
-          length: p.mimeTypes.length,
-          ...mimeTypesObj,
-        };
-
-        // Set enabledPlugin reference
-        Object.values(mimeTypesObj).forEach((mt: any) => {
-          mt.enabledPlugin = plugin;
-        });
-
-        plugin.item = (index: number) => mimeTypesObj[index];
-        plugin.namedItem = (name: string) => Object.values(mimeTypesObj).find((mt: any) => mt.type === name);
-        plugin[Symbol.iterator] = function* () {
-          for (let i = 0; i < p.mimeTypes.length; i++) {
-            yield mimeTypesObj[i];
-          }
-        };
-
-        return plugin;
+    // Build fake Plugin objects
+    const fakePlugins: any[] = chromePlugins.map((p, idx) => {
+      const plugin: any = Object.create(Plugin.prototype);
+      Object.defineProperties(plugin, {
+        name: { value: p.name, enumerable: true },
+        filename: { value: p.filename, enumerable: true },
+        description: { value: p.description, enumerable: true },
+        length: { value: p.mimeTypes.length, enumerable: true },
       });
-
-      // Create PluginArray
-      const pluginArray: any = {
-        length: plugins.length,
-      };
-
-      // Add indexed access
-      plugins.forEach((plugin, i) => {
-        pluginArray[i] = plugin;
+      p.mimeTypes.forEach((mt, i) => {
+        const mimeType: any = Object.create(MimeType.prototype);
+        Object.defineProperties(mimeType, {
+          type: { value: mt.type, enumerable: true },
+          suffixes: { value: mt.suffixes, enumerable: true },
+          description: { value: mt.description, enumerable: true },
+          enabledPlugin: { value: plugin, enumerable: true },
+        });
+        Object.defineProperty(plugin, i, { value: mimeType, enumerable: true });
       });
-
-      pluginArray.item = (index: number) => plugins[index];
-      pluginArray.namedItem = (name: string) => plugins.find((p: any) => p.name === name);
-      pluginArray.refresh = () => {};
-      pluginArray[Symbol.iterator] = function* () {
-        for (const p of plugins) yield p;
+      plugin.item = function(i: number) { return this[i]; };
+      plugin.namedItem = function(name: string) {
+        for (let i = 0; i < this.length; i++) {
+          if (this[i]?.type === name) return this[i];
+        }
+        return null;
       };
-
-      return pluginArray;
-    };
-
-    Object.defineProperty(navigator, 'plugins', {
-      get: createPluginArray,
-      configurable: true,
+      return plugin;
     });
+
+    // Build fake PluginArray
+    const fakePluginArray: any = Object.create(PluginArray.prototype);
+    Object.defineProperty(fakePluginArray, 'length', { value: fakePlugins.length, enumerable: true });
+    fakePlugins.forEach((plugin, i) => {
+      Object.defineProperty(fakePluginArray, i, { value: plugin, enumerable: true });
+    });
+    fakePluginArray.item = function(i: number) { return fakePlugins[i]; };
+    fakePluginArray.namedItem = function(name: string) { return fakePlugins.find(p => p.name === name) || null; };
+    fakePluginArray.refresh = function() {};
+    fakePluginArray[Symbol.iterator] = function*() { for (const p of fakePlugins) yield p; };
+
+    // Build fake MimeTypeArray
+    const allMimeTypes: any[] = [];
+    fakePlugins.forEach(plugin => {
+      for (let i = 0; i < plugin.length; i++) {
+        allMimeTypes.push(plugin[i]);
+      }
+    });
+    const fakeMimeTypeArray: any = Object.create(MimeTypeArray.prototype);
+    Object.defineProperty(fakeMimeTypeArray, 'length', { value: allMimeTypes.length, enumerable: true });
+    allMimeTypes.forEach((mt, i) => {
+      Object.defineProperty(fakeMimeTypeArray, i, { value: mt, enumerable: true });
+    });
+    fakeMimeTypeArray.item = function(i: number) { return allMimeTypes[i]; };
+    fakeMimeTypeArray.namedItem = function(name: string) { return allMimeTypes.find(m => m.type === name) || null; };
+    fakeMimeTypeArray[Symbol.iterator] = function*() { for (const m of allMimeTypes) yield m; };
+
+    // Override navigator.plugins using getter on Navigator.prototype
+    try {
+      Object.defineProperty(Navigator.prototype, 'plugins', {
+        get: function() { return fakePluginArray; },
+        configurable: true,
+      });
+      Object.defineProperty(Navigator.prototype, 'mimeTypes', {
+        get: function() { return fakeMimeTypeArray; },
+        configurable: true,
+      });
+    } catch {
+      // Fallback: try direct property
+      try {
+        Object.defineProperty(navigator, 'plugins', {
+          get: () => fakePluginArray,
+          configurable: true,
+        });
+        Object.defineProperty(navigator, 'mimeTypes', {
+          get: () => fakeMimeTypeArray,
+          configurable: true,
+        });
+      } catch { /* ignore */ }
+    }
 
     // ============================================================
     // COMPREHENSIVE CHROME OBJECT (Anti-Headless Detection)
@@ -1268,86 +1269,143 @@ export async function applyConsistentFingerprint(
     };
 
     // ============================================================
-    // SPEECH RECOGNITION SPOOFING
+    // SPEECH SYNTHESIS & RECOGNITION SPOOFING
     // ============================================================
-    // Mock speech recognition to look like a real browser
-    if (!(window as any).webkitSpeechRecognition) {
-      (window as any).webkitSpeechRecognition = function() {
-        return {
-          continuous: false,
-          interimResults: false,
-          lang: fp.locale,
-          maxAlternatives: 1,
-          onaudioend: null,
-          onaudiostart: null,
-          onend: null,
-          onerror: null,
-          onnomatch: null,
-          onresult: null,
-          onsoundend: null,
-          onsoundstart: null,
-          onspeechend: null,
-          onspeechstart: null,
-          onstart: null,
-          start: function() {},
-          stop: function() {},
-          abort: function() {},
-        };
+
+    // SpeechSynthesis - create fake voices for the locale
+    const fakeVoices: SpeechSynthesisVoice[] = [
+      {
+        voiceURI: 'Microsoft David - English (United States)',
+        name: 'Microsoft David - English (United States)',
+        lang: 'en-US',
+        localService: true,
+        default: true,
+      } as SpeechSynthesisVoice,
+      {
+        voiceURI: 'Microsoft Zira - English (United States)',
+        name: 'Microsoft Zira - English (United States)',
+        lang: 'en-US',
+        localService: true,
+        default: false,
+      } as SpeechSynthesisVoice,
+      {
+        voiceURI: 'Google US English',
+        name: 'Google US English',
+        lang: 'en-US',
+        localService: false,
+        default: false,
+      } as SpeechSynthesisVoice,
+    ];
+
+    // Override speechSynthesis.getVoices
+    if (window.speechSynthesis) {
+      const originalGetVoices = window.speechSynthesis.getVoices.bind(window.speechSynthesis);
+      window.speechSynthesis.getVoices = function(): SpeechSynthesisVoice[] {
+        const realVoices = originalGetVoices();
+        // Return fake voices if real ones are empty (common in automated browsers)
+        return realVoices.length > 0 ? realVoices : fakeVoices;
       };
+
+      // Also override onvoiceschanged to trigger with fake voices
+      Object.defineProperty(window.speechSynthesis, 'onvoiceschanged', {
+        get: () => null,
+        set: (handler) => {
+          if (handler) {
+            setTimeout(() => handler(new Event('voiceschanged')), 100);
+          }
+        },
+        configurable: true,
+      });
     }
 
-    if (!(window as any).SpeechRecognition) {
+    // SpeechRecognition - ensure it exists
+    if (!(window as any).webkitSpeechRecognition) {
+      const FakeSpeechRecognition = function(this: any) {
+        this.continuous = false;
+        this.interimResults = false;
+        this.lang = fp.locale;
+        this.maxAlternatives = 1;
+        this.grammars = null;
+        this.onaudioend = null;
+        this.onaudiostart = null;
+        this.onend = null;
+        this.onerror = null;
+        this.onnomatch = null;
+        this.onresult = null;
+        this.onsoundend = null;
+        this.onsoundstart = null;
+        this.onspeechend = null;
+        this.onspeechstart = null;
+        this.onstart = null;
+        this.start = function() { if (this.onstart) this.onstart(new Event('start')); };
+        this.stop = function() { if (this.onend) this.onend(new Event('end')); };
+        this.abort = function() { if (this.onend) this.onend(new Event('end')); };
+      };
+      (window as any).webkitSpeechRecognition = FakeSpeechRecognition;
+      (window as any).SpeechRecognition = FakeSpeechRecognition;
+    } else if (!(window as any).SpeechRecognition) {
       (window as any).SpeechRecognition = (window as any).webkitSpeechRecognition;
     }
 
     // ============================================================
     // CLIENT HINTS API (Navigator UAData)
     // ============================================================
+    // Extract Chrome version from userAgent
+    const chromeVersionMatch = fp.userAgent.match(/Chrome\/(\d+)/);
+    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '130';
+    const chromeFullVersion = `${chromeVersion}.0.0.0`;
+
+    // Determine platform version from userAgent
+    const isWin11 = fp.userAgent.includes('Windows NT 11');
+    const platformVersion = isWin11 ? '15.0.0' : '10.0.0';
+
     // Modern browsers use User-Agent Client Hints
-    if ((navigator as any).userAgentData) {
-      Object.defineProperty(navigator, 'userAgentData', {
-        get: () => ({
-          brands: [
-            { brand: 'Google Chrome', version: '131' },
-            { brand: 'Chromium', version: '131' },
-            { brand: 'Not_A Brand', version: '24' },
-          ],
-          mobile: false,
-          platform: 'Windows',
-          getHighEntropyValues: async (hints: string[]) => {
-            const result: any = {
-              brands: [
-                { brand: 'Google Chrome', version: '131' },
-                { brand: 'Chromium', version: '131' },
-                { brand: 'Not_A Brand', version: '24' },
-              ],
-              mobile: false,
-              platform: 'Windows',
-            };
-            if (hints.includes('platformVersion')) result.platformVersion = '10.0.0';
-            if (hints.includes('architecture')) result.architecture = 'x86';
-            if (hints.includes('bitness')) result.bitness = '64';
-            if (hints.includes('model')) result.model = '';
-            if (hints.includes('uaFullVersion')) result.uaFullVersion = '131.0.0.0';
-            if (hints.includes('fullVersionList')) {
-              result.fullVersionList = [
-                { brand: 'Google Chrome', version: '131.0.0.0' },
-                { brand: 'Chromium', version: '131.0.0.0' },
-                { brand: 'Not_A Brand', version: '24.0.0.0' },
-              ];
-            }
-            return result;
-          },
-          toJSON: () => ({
+    if ((navigator as any).userAgentData || true) {
+      const uaData = {
+        brands: [
+          { brand: 'Google Chrome', version: chromeVersion },
+          { brand: 'Chromium', version: chromeVersion },
+          { brand: 'Not_A Brand', version: '24' },
+        ],
+        mobile: false,
+        platform: 'Windows',
+        getHighEntropyValues: async (hints: string[]) => {
+          const result: any = {
             brands: [
-              { brand: 'Google Chrome', version: '131' },
-              { brand: 'Chromium', version: '131' },
+              { brand: 'Google Chrome', version: chromeVersion },
+              { brand: 'Chromium', version: chromeVersion },
               { brand: 'Not_A Brand', version: '24' },
             ],
             mobile: false,
             platform: 'Windows',
-          }),
+          };
+          if (hints.includes('platformVersion')) result.platformVersion = platformVersion;
+          if (hints.includes('architecture')) result.architecture = 'x86';
+          if (hints.includes('bitness')) result.bitness = '64';
+          if (hints.includes('model')) result.model = '';
+          if (hints.includes('uaFullVersion')) result.uaFullVersion = chromeFullVersion;
+          if (hints.includes('fullVersionList')) {
+            result.fullVersionList = [
+              { brand: 'Google Chrome', version: chromeFullVersion },
+              { brand: 'Chromium', version: chromeFullVersion },
+              { brand: 'Not_A Brand', version: '24.0.0.0' },
+            ];
+          }
+          return result;
+        },
+        toJSON: () => ({
+          brands: [
+            { brand: 'Google Chrome', version: chromeVersion },
+            { brand: 'Chromium', version: chromeVersion },
+            { brand: 'Not_A Brand', version: '24' },
+          ],
+          mobile: false,
+          platform: 'Windows',
         }),
+      };
+
+      Object.defineProperty(navigator, 'userAgentData', {
+        get: () => uaData,
         configurable: true,
       });
     }
