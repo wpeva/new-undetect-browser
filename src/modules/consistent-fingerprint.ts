@@ -1532,6 +1532,25 @@ export async function applyConsistentFingerprint(
       return Promise.resolve(devices);
     };
 
+    // getUserMedia - return fake stream, NOT block!
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = async function(constraints?: MediaStreamConstraints): Promise<MediaStream> {
+        // Return a mock MediaStream that looks real
+        try {
+          // Try to get real stream first (for functionality)
+          const stream = await originalGetUserMedia(constraints);
+          return stream;
+        } catch {
+          // If fails, return empty MediaStream (looks like permission denied by user)
+          // This is better than throwing an error which looks like blocking
+          const audioContext = new AudioContext();
+          const destination = audioContext.createMediaStreamDestination();
+          return destination.stream;
+        }
+      };
+    }
+
     console.log('[ConsistentFingerprint] Applied:', {
       country: fp.geolocation.country,
       timezone: fp.timezone,
