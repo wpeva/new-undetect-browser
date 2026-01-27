@@ -26,8 +26,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
-# Profiles
+# Profiles (user data)
 profiles/
+!cloud/vm/profiles/
 *.profile
 
 # Runtime data
