@@ -1124,6 +1124,235 @@ export async function applyConsistentFingerprint(
     }
 
     // ============================================================
+    // DOMRECT / SVGRECT NOISE (Anti-Fingerprinting)
+    // ============================================================
+    const rectNoise = fp.canvas.noise * 0.00001; // Very small noise
+
+    // Override Element.getBoundingClientRect
+    const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function(): DOMRect {
+      const rect = originalGetBoundingClientRect.call(this);
+      // Add tiny consistent noise based on element
+      const noise = rectNoise;
+      return new DOMRect(
+        rect.x + noise,
+        rect.y + noise,
+        rect.width + noise,
+        rect.height + noise
+      );
+    };
+
+    // Override Element.getClientRects
+    const originalGetClientRects = Element.prototype.getClientRects;
+    Element.prototype.getClientRects = function(): DOMRectList {
+      const rects = originalGetClientRects.call(this);
+      // Create a modified DOMRectList-like object
+      const modifiedRects: any = [];
+      for (let i = 0; i < rects.length; i++) {
+        const rect = rects[i];
+        modifiedRects.push(new DOMRect(
+          rect.x + rectNoise,
+          rect.y + rectNoise,
+          rect.width + rectNoise,
+          rect.height + rectNoise
+        ));
+      }
+      modifiedRects.item = (index: number) => modifiedRects[index];
+      return modifiedRects as DOMRectList;
+    };
+
+    // Override Range.getBoundingClientRect
+    const originalRangeGetBoundingClientRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function(): DOMRect {
+      const rect = originalRangeGetBoundingClientRect.call(this);
+      return new DOMRect(
+        rect.x + rectNoise,
+        rect.y + rectNoise,
+        rect.width + rectNoise,
+        rect.height + rectNoise
+      );
+    };
+
+    // Override Range.getClientRects
+    const originalRangeGetClientRects = Range.prototype.getClientRects;
+    Range.prototype.getClientRects = function(): DOMRectList {
+      const rects = originalRangeGetClientRects.call(this);
+      const modifiedRects: any = [];
+      for (let i = 0; i < rects.length; i++) {
+        const rect = rects[i];
+        modifiedRects.push(new DOMRect(
+          rect.x + rectNoise,
+          rect.y + rectNoise,
+          rect.width + rectNoise,
+          rect.height + rectNoise
+        ));
+      }
+      modifiedRects.item = (index: number) => modifiedRects[index];
+      return modifiedRects as DOMRectList;
+    };
+
+    // ============================================================
+    // MATH OPERATIONS NOISE (Anti-Fingerprinting)
+    // ============================================================
+    // Add tiny noise to Math functions that are used for fingerprinting
+    const mathNoise = fp.canvas.noise * 0.0000001;
+
+    const originalMathSin = Math.sin;
+    Math.sin = function(x: number): number {
+      return originalMathSin(x) + mathNoise;
+    };
+
+    const originalMathCos = Math.cos;
+    Math.cos = function(x: number): number {
+      return originalMathCos(x) + mathNoise;
+    };
+
+    const originalMathTan = Math.tan;
+    Math.tan = function(x: number): number {
+      return originalMathTan(x) + mathNoise;
+    };
+
+    const originalMathLog = Math.log;
+    Math.log = function(x: number): number {
+      return originalMathLog(x) + mathNoise;
+    };
+
+    const originalMathExp = Math.exp;
+    Math.exp = function(x: number): number {
+      return originalMathExp(x) * (1 + mathNoise);
+    };
+
+    // ============================================================
+    // CSS MEDIA QUERIES SPOOFING
+    // ============================================================
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = function(query: string): MediaQueryList {
+      const result = originalMatchMedia.call(window, query);
+
+      // Override specific queries that are used for fingerprinting
+      const queryLower = query.toLowerCase();
+
+      // prefers-color-scheme - report as "light" (most common)
+      if (queryLower.includes('prefers-color-scheme')) {
+        if (queryLower.includes('dark')) {
+          return {
+            ...result,
+            matches: false,
+            media: query,
+          } as MediaQueryList;
+        }
+        if (queryLower.includes('light')) {
+          return {
+            ...result,
+            matches: true,
+            media: query,
+          } as MediaQueryList;
+        }
+      }
+
+      // prefers-reduced-motion - report as "no-preference"
+      if (queryLower.includes('prefers-reduced-motion')) {
+        if (queryLower.includes('reduce')) {
+          return { ...result, matches: false, media: query } as MediaQueryList;
+        }
+      }
+
+      // prefers-contrast - report as "no-preference"
+      if (queryLower.includes('prefers-contrast')) {
+        if (queryLower.includes('high') || queryLower.includes('more')) {
+          return { ...result, matches: false, media: query } as MediaQueryList;
+        }
+      }
+
+      return result;
+    };
+
+    // ============================================================
+    // SPEECH RECOGNITION SPOOFING
+    // ============================================================
+    // Mock speech recognition to look like a real browser
+    if (!(window as any).webkitSpeechRecognition) {
+      (window as any).webkitSpeechRecognition = function() {
+        return {
+          continuous: false,
+          interimResults: false,
+          lang: fp.locale,
+          maxAlternatives: 1,
+          onaudioend: null,
+          onaudiostart: null,
+          onend: null,
+          onerror: null,
+          onnomatch: null,
+          onresult: null,
+          onsoundend: null,
+          onsoundstart: null,
+          onspeechend: null,
+          onspeechstart: null,
+          onstart: null,
+          start: function() {},
+          stop: function() {},
+          abort: function() {},
+        };
+      };
+    }
+
+    if (!(window as any).SpeechRecognition) {
+      (window as any).SpeechRecognition = (window as any).webkitSpeechRecognition;
+    }
+
+    // ============================================================
+    // CLIENT HINTS API (Navigator UAData)
+    // ============================================================
+    // Modern browsers use User-Agent Client Hints
+    if ((navigator as any).userAgentData) {
+      Object.defineProperty(navigator, 'userAgentData', {
+        get: () => ({
+          brands: [
+            { brand: 'Google Chrome', version: '131' },
+            { brand: 'Chromium', version: '131' },
+            { brand: 'Not_A Brand', version: '24' },
+          ],
+          mobile: false,
+          platform: 'Windows',
+          getHighEntropyValues: async (hints: string[]) => {
+            const result: any = {
+              brands: [
+                { brand: 'Google Chrome', version: '131' },
+                { brand: 'Chromium', version: '131' },
+                { brand: 'Not_A Brand', version: '24' },
+              ],
+              mobile: false,
+              platform: 'Windows',
+            };
+            if (hints.includes('platformVersion')) result.platformVersion = '10.0.0';
+            if (hints.includes('architecture')) result.architecture = 'x86';
+            if (hints.includes('bitness')) result.bitness = '64';
+            if (hints.includes('model')) result.model = '';
+            if (hints.includes('uaFullVersion')) result.uaFullVersion = '131.0.0.0';
+            if (hints.includes('fullVersionList')) {
+              result.fullVersionList = [
+                { brand: 'Google Chrome', version: '131.0.0.0' },
+                { brand: 'Chromium', version: '131.0.0.0' },
+                { brand: 'Not_A Brand', version: '24.0.0.0' },
+              ];
+            }
+            return result;
+          },
+          toJSON: () => ({
+            brands: [
+              { brand: 'Google Chrome', version: '131' },
+              { brand: 'Chromium', version: '131' },
+              { brand: 'Not_A Brand', version: '24' },
+            ],
+            mobile: false,
+            platform: 'Windows',
+          }),
+        }),
+        configurable: true,
+      });
+    }
+
+    // ============================================================
     // WORKER CONTEXT SPOOFING
     // ============================================================
 
