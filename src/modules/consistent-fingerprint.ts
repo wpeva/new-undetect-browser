@@ -364,43 +364,115 @@ export async function applyConsistentFingerprint(
       configurable: true,
     });
 
-    // Remove automation indicators
-    Object.defineProperty(navigator, 'plugins', {
-      get: () => {
-        const plugins = fp.plugins.map((p: any) => {
-          const plugin: any = {
-            name: p.name,
-            filename: p.filename,
-            description: p.description,
-            length: p.mimeTypes?.length || 0,
-          };
-          // Add mimeTypes
-          if (p.mimeTypes) {
-            p.mimeTypes.forEach((mt: any, i: number) => {
-              plugin[i] = {
-                type: mt.type,
-                suffixes: mt.suffixes,
-                description: mt.description,
-                enabledPlugin: plugin,
-              };
-            });
-          }
-          plugin.item = (i: number) => plugin[i];
-          plugin.namedItem = (name: string) => plugin[name];
-          plugin[Symbol.iterator] = function* () {
-            for (let i = 0; i < plugin.length; i++) yield plugin[i];
-          };
-          return plugin;
-        });
-        const pluginArray: any = plugins;
-        pluginArray.item = (i: number) => plugins[i];
-        pluginArray.namedItem = (name: string) => plugins.find((p: any) => p.name === name);
-        pluginArray.refresh = () => {};
-        pluginArray[Symbol.iterator] = function* () {
-          for (const p of plugins) yield p;
-        };
-        return pluginArray;
+    // ============================================================
+    // PLUGINS SPOOFING - Must look like real Chrome plugins
+    // ============================================================
+
+    // Create plugins that look exactly like Chrome's default plugins
+    const chromePlugins = [
+      {
+        name: 'PDF Viewer',
+        filename: 'internal-pdf-viewer',
+        description: 'Portable Document Format',
+        mimeTypes: [
+          { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' },
+          { type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
+        ]
       },
+      {
+        name: 'Chrome PDF Viewer',
+        filename: 'internal-pdf-viewer',
+        description: 'Portable Document Format',
+        mimeTypes: [
+          { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
+        ]
+      },
+      {
+        name: 'Chromium PDF Viewer',
+        filename: 'internal-pdf-viewer',
+        description: 'Portable Document Format',
+        mimeTypes: [
+          { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
+        ]
+      },
+      {
+        name: 'Microsoft Edge PDF Viewer',
+        filename: 'internal-pdf-viewer',
+        description: 'Portable Document Format',
+        mimeTypes: [
+          { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
+        ]
+      },
+      {
+        name: 'WebKit built-in PDF',
+        filename: 'internal-pdf-viewer',
+        description: 'Portable Document Format',
+        mimeTypes: [
+          { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
+        ]
+      }
+    ];
+
+    // Create proper PluginArray-like structure
+    const createPluginArray = () => {
+      const plugins = chromePlugins.map((p) => {
+        const mimeTypesObj: any = {};
+        p.mimeTypes.forEach((mt, i) => {
+          const mimeType = {
+            type: mt.type,
+            suffixes: mt.suffixes,
+            description: mt.description,
+            enabledPlugin: null as any, // Will be set after
+          };
+          mimeTypesObj[i] = mimeType;
+        });
+
+        const plugin: any = {
+          name: p.name,
+          filename: p.filename,
+          description: p.description,
+          length: p.mimeTypes.length,
+          ...mimeTypesObj,
+        };
+
+        // Set enabledPlugin reference
+        Object.values(mimeTypesObj).forEach((mt: any) => {
+          mt.enabledPlugin = plugin;
+        });
+
+        plugin.item = (index: number) => mimeTypesObj[index];
+        plugin.namedItem = (name: string) => Object.values(mimeTypesObj).find((mt: any) => mt.type === name);
+        plugin[Symbol.iterator] = function* () {
+          for (let i = 0; i < p.mimeTypes.length; i++) {
+            yield mimeTypesObj[i];
+          }
+        };
+
+        return plugin;
+      });
+
+      // Create PluginArray
+      const pluginArray: any = {
+        length: plugins.length,
+      };
+
+      // Add indexed access
+      plugins.forEach((plugin, i) => {
+        pluginArray[i] = plugin;
+      });
+
+      pluginArray.item = (index: number) => plugins[index];
+      pluginArray.namedItem = (name: string) => plugins.find((p: any) => p.name === name);
+      pluginArray.refresh = () => {};
+      pluginArray[Symbol.iterator] = function* () {
+        for (const p of plugins) yield p;
+      };
+
+      return pluginArray;
+    };
+
+    Object.defineProperty(navigator, 'plugins', {
+      get: createPluginArray,
       configurable: true,
     });
 
@@ -459,32 +531,47 @@ export async function applyConsistentFingerprint(
     });
 
     // ============================================================
-    // WINDOW PROPERTIES (Anti-Headless Detection)
+    // WINDOW/VIEWPORT PROPERTIES - MUST BE CONSISTENT
     // ============================================================
 
-    // outerWidth/outerHeight - headless has these as 0
+    // Standard scrollbar width on Windows
+    const scrollbarWidth = 17;
+    const browserChromeHeight = 0; // For maximized window
+    const taskbarHeight = 40;
+
+    // Calculate consistent values
+    const screenW = fp.resolution.width;
+    const screenH = fp.resolution.height;
+    const availH = screenH - taskbarHeight;
+
+    // For maximized window: inner = avail - scrollbar (if page has scrollbar)
+    // We'll report the same for consistency
+    const innerW = screenW;
+    const innerH = availH;
+
+    // outerWidth/outerHeight - browser window size
     Object.defineProperty(window, 'outerWidth', {
-      get: () => fp.resolution.width,
+      get: () => screenW,
       configurable: true,
     });
 
     Object.defineProperty(window, 'outerHeight', {
-      get: () => fp.resolution.height,
+      get: () => screenH,
       configurable: true,
     });
 
-    // innerWidth/innerHeight
+    // innerWidth/innerHeight - viewport size
     Object.defineProperty(window, 'innerWidth', {
-      get: () => fp.resolution.width,
+      get: () => innerW,
       configurable: true,
     });
 
     Object.defineProperty(window, 'innerHeight', {
-      get: () => fp.resolution.height - 40, // Account for browser chrome
+      get: () => innerH,
       configurable: true,
     });
 
-    // screenX/screenY - window position
+    // screenX/screenY - window position (0 for maximized)
     Object.defineProperty(window, 'screenX', {
       get: () => 0,
       configurable: true,
@@ -494,6 +581,48 @@ export async function applyConsistentFingerprint(
       get: () => 0,
       configurable: true,
     });
+
+    Object.defineProperty(window, 'screenLeft', {
+      get: () => 0,
+      configurable: true,
+    });
+
+    Object.defineProperty(window, 'screenTop', {
+      get: () => 0,
+      configurable: true,
+    });
+
+    // VisualViewport API - IMPORTANT for consistency
+    if (window.visualViewport) {
+      Object.defineProperty(window.visualViewport, 'width', {
+        get: () => innerW,
+        configurable: true,
+      });
+      Object.defineProperty(window.visualViewport, 'height', {
+        get: () => innerH,
+        configurable: true,
+      });
+      Object.defineProperty(window.visualViewport, 'offsetLeft', {
+        get: () => 0,
+        configurable: true,
+      });
+      Object.defineProperty(window.visualViewport, 'offsetTop', {
+        get: () => 0,
+        configurable: true,
+      });
+      Object.defineProperty(window.visualViewport, 'pageLeft', {
+        get: () => 0,
+        configurable: true,
+      });
+      Object.defineProperty(window.visualViewport, 'pageTop', {
+        get: () => 0,
+        configurable: true,
+      });
+      Object.defineProperty(window.visualViewport, 'scale', {
+        get: () => 1,
+        configurable: true,
+      });
+    }
 
     // ============================================================
     // NOTIFICATION (Anti-Headless Detection)
@@ -654,23 +783,33 @@ export async function applyConsistentFingerprint(
       get: () => fp.pixelRatio,
     });
 
-    // Override timezone
+    // Override timezone - COMPLETE OVERRIDE including resolvedOptions
     const originalDateTimeFormat = Intl.DateTimeFormat;
-    // @ts-expect-error - Overriding Intl
-    Intl.DateTimeFormat = function (...args: any[]) {
-      if (args.length === 0 || !args[0]) {
-        args[0] = fp.locale;
+
+    class SpoofedDateTimeFormat extends originalDateTimeFormat {
+      constructor(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+        const spoofedOptions = {
+          ...options,
+          timeZone: options?.timeZone || fp.timezone,
+        };
+        super(locales || fp.locale, spoofedOptions);
       }
-      if (args.length < 2) {
-        args[1] = { timeZone: fp.timezone };
-      } else if (!args[1]?.timeZone) {
-        args[1] = { ...args[1], timeZone: fp.timezone };
+
+      override resolvedOptions(): Intl.ResolvedDateTimeFormatOptions {
+        const original = super.resolvedOptions();
+        return {
+          ...original,
+          timeZone: fp.timezone,
+          locale: fp.locale,
+        };
       }
-      return new originalDateTimeFormat(...args);
-    };
-    // @ts-ignore - Copy prototype
-    Intl.DateTimeFormat.prototype = originalDateTimeFormat.prototype;
-    Intl.DateTimeFormat.supportedLocalesOf = originalDateTimeFormat.supportedLocalesOf;
+    }
+
+    // Copy static methods
+    (SpoofedDateTimeFormat as any).supportedLocalesOf = originalDateTimeFormat.supportedLocalesOf;
+
+    // Replace Intl.DateTimeFormat
+    (Intl as any).DateTimeFormat = SpoofedDateTimeFormat;
 
     // ============================================================
     // COMPREHENSIVE TIMEZONE SPOOFING
@@ -1263,13 +1402,13 @@ function generateConsistentUserAgent(
 
   if (platform === 'Windows') {
     const windowsVersions = ['10.0', '11.0'];
-    const winVersion = windowsVersions[Math.floor(random() * windowsVersions.length)];
+    const winVersion = windowsVersions[Math.floor(random() * windowsVersions.length)] || '10.0';
     return `Mozilla/5.0 (Windows NT ${winVersion}; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`;
   }
 
   if (platform === 'macOS') {
     const macVersions = ['10_15_7', '11_6_0', '12_5_0', '13_0_0'];
-    const macVersion = macVersions[Math.floor(random() * macVersions.length)];
+    const macVersion = macVersions[Math.floor(random() * macVersions.length)] || '10_15_7';
     return `Mozilla/5.0 (Macintosh; Intel Mac OS X ${macVersion}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`;
   }
 
