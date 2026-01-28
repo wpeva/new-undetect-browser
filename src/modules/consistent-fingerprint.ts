@@ -346,23 +346,54 @@ export async function applyConsistentFingerprint(
 ): Promise<void> {
   await page.evaluateOnNewDocument((fp) => {
     // ============================================================
+    // NATIVE FUNCTION SPOOFING UTILITY
+    // Makes our overridden functions look like native browser functions
+    // ============================================================
+    const nativeToString = Function.prototype.toString;
+    const nativeFunctionStr = 'function () { [native code] }';
+
+    // Map to store original function names for toString spoofing
+    const spoofedFunctions = new WeakMap<Function, string>();
+
+    // Helper to make a function appear native
+    function makeNative<T extends Function>(fn: T, name: string): T {
+      spoofedFunctions.set(fn, name);
+      return fn;
+    }
+
+    // Override Function.prototype.toString to return native code for our functions
+    Function.prototype.toString = function() {
+      if (spoofedFunctions.has(this)) {
+        const name = spoofedFunctions.get(this);
+        return `function ${name}() { [native code] }`;
+      }
+      return nativeToString.call(this);
+    };
+    // Make toString itself look native
+    spoofedFunctions.set(Function.prototype.toString, 'toString');
+
+    // ============================================================
     // CRITICAL: Anti-Bot Detection - Must be first!
     // ============================================================
 
     // Remove webdriver flag - MOST IMPORTANT for bot detection
     Object.defineProperty(navigator, 'webdriver', {
-      get: () => undefined,
+      get: makeNative(() => undefined, 'get webdriver'),
       configurable: true,
     });
 
     // Delete webdriver completely
     delete (navigator as any).webdriver;
 
-    // Override userAgent to match fingerprint (prevents HTTP vs JS mismatch)
-    Object.defineProperty(navigator, 'userAgent', {
-      get: () => fp.userAgent,
-      configurable: true,
-    });
+    // IMPORTANT: Do NOT override userAgent - it causes mismatch with HTTP headers
+    // The browser sends real userAgent in HTTP headers, changing it in JS = detection
+    // Only override if explicitly set (non-empty)
+    if (fp.userAgent && fp.userAgent.length > 0) {
+      Object.defineProperty(navigator, 'userAgent', {
+        get: () => fp.userAgent,
+        configurable: true,
+      });
+    }
 
     // ============================================================
     // PLUGINS & MIMETYPES SPOOFING - Use prototype override
@@ -690,30 +721,66 @@ export async function applyConsistentFingerprint(
       }
     };
 
-    // Remove Puppeteer/Playwright indicators
-    delete (window as any).__puppeteer_evaluation_script__;
-    delete (window as any).__webdriver_evaluate;
-    delete (window as any).__selenium_evaluate;
-    delete (window as any).__webdriver_script_function;
-    delete (window as any).__webdriver_script_func;
-    delete (window as any).__webdriver_script_fn;
-    delete (window as any).__fxdriver_evaluate;
-    delete (window as any).__driver_unwrapped;
-    delete (window as any).__webdriver_unwrapped;
-    delete (window as any).__driver_evaluate;
-    delete (window as any).__selenium_unwrapped;
-    delete (window as any).__fxdriver_unwrapped;
-    delete (window as any)._Selenium_IDE_Recorder;
-    delete (window as any)._selenium;
-    delete (window as any).callSelenium;
-    delete (window as any).calledSelenium;
-    delete (window as any).$chrome_asyncScriptInfo;
-    delete (window as any).$cdc_asdjflasutopfhvcZLmcfl_;
-    delete (window as any).$cdc_asdjflasutopfhvcZLmcfl__;
+    // Remove Puppeteer/Playwright/Selenium indicators
+    const automationProps = [
+      '__puppeteer_evaluation_script__',
+      '__webdriver_evaluate',
+      '__selenium_evaluate',
+      '__webdriver_script_function',
+      '__webdriver_script_func',
+      '__webdriver_script_fn',
+      '__fxdriver_evaluate',
+      '__driver_unwrapped',
+      '__webdriver_unwrapped',
+      '__driver_evaluate',
+      '__selenium_unwrapped',
+      '__fxdriver_unwrapped',
+      '_Selenium_IDE_Recorder',
+      '_selenium',
+      'callSelenium',
+      'calledSelenium',
+      '$chrome_asyncScriptInfo',
+    ];
 
-    // Hide automation in permissions
+    // Delete all known automation properties
+    automationProps.forEach(prop => {
+      try { delete (window as any)[prop]; } catch {}
+    });
+
+    // Remove ALL cdc_ prefixed properties (Chrome DevTools Protocol markers)
+    // These are dynamically generated, so we need to find and remove them
+    Object.getOwnPropertyNames(window).forEach(prop => {
+      if (prop.match(/^\$?cdc_/i) || prop.match(/^[\$_]*[Cc]dc/)) {
+        try {
+          delete (window as any)[prop];
+        } catch {}
+      }
+    });
+
+    // Also check document for automation markers
+    Object.getOwnPropertyNames(document).forEach(prop => {
+      if (prop.match(/^\$?cdc_/i) || prop.match(/^[\$_]*[Cc]dc/) || prop.match(/webdriver|selenium|puppeteer/i)) {
+        try {
+          delete (document as any)[prop];
+        } catch {}
+      }
+    });
+
+    // Prevent new automation properties from being added
+    const originalDefineProperty = Object.defineProperty;
+    Object.defineProperty = function(obj: any, prop: PropertyKey, descriptor: PropertyDescriptor) {
+      const propStr = String(prop);
+      // Block automation-related properties from being defined
+      if (propStr.match(/^\$?cdc_/i) || propStr.match(/webdriver|selenium|puppeteer/i)) {
+        return obj; // Silently ignore
+      }
+      return originalDefineProperty.call(Object, obj, prop, descriptor);
+    };
+    spoofedFunctions.set(Object.defineProperty, 'defineProperty');
+
+    // Hide automation in permissions - make it look native
     const originalQuery = navigator.permissions.query;
-    navigator.permissions.query = function(parameters: any): Promise<PermissionStatus> {
+    navigator.permissions.query = makeNative(function(parameters: any): Promise<PermissionStatus> {
       if (parameters.name === 'notifications') {
         return Promise.resolve({
           state: Notification.permission as PermissionState,
@@ -725,7 +792,68 @@ export async function applyConsistentFingerprint(
         } as unknown as PermissionStatus);
       }
       return originalQuery.call(navigator.permissions, parameters);
+    }, 'query');
+
+    // ============================================================
+    // COMPREHENSIVE HEADLESS DETECTION EVASION
+    // ============================================================
+
+    // Override navigator.languages to ensure it's an array (headless can have issues)
+    if (!navigator.languages || navigator.languages.length === 0) {
+      Object.defineProperty(navigator, 'languages', {
+        get: makeNative(() => ['en-US', 'en'], 'get languages'),
+        configurable: true,
+      });
+    }
+
+    // Ensure navigator.cookieEnabled is true
+    Object.defineProperty(navigator, 'cookieEnabled', {
+      get: makeNative(() => true, 'get cookieEnabled'),
+      configurable: true,
+    });
+
+    // Ensure navigator.onLine is true
+    Object.defineProperty(navigator, 'onLine', {
+      get: makeNative(() => true, 'get onLine'),
+      configurable: true,
+    });
+
+    // Ensure navigator.javaEnabled returns false (normal for modern browsers)
+    navigator.javaEnabled = makeNative(() => false, 'javaEnabled');
+
+    // Fix navigator.maxTouchPoints for desktop (0 for non-touch devices)
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      get: makeNative(() => 0, 'get maxTouchPoints'),
+      configurable: true,
+    });
+
+    // Fix window.chrome existence check
+    if (typeof (window as any).chrome === 'undefined') {
+      (window as any).chrome = {};
+    }
+
+    // Ensure Error stack traces don't reveal automation
+    const originalError = Error;
+    (window as any).Error = function(message?: string) {
+      const error = new originalError(message);
+      // Clean up stack trace
+      if (error.stack) {
+        error.stack = error.stack
+          .replace(/puppeteer/gi, 'chrome')
+          .replace(/playwright/gi, 'chrome')
+          .replace(/selenium/gi, 'chrome')
+          .replace(/webdriver/gi, 'chrome');
+      }
+      return error;
     };
+    (window as any).Error.prototype = originalError.prototype;
+    Object.getOwnPropertyNames(originalError).forEach(prop => {
+      if (prop !== 'prototype' && prop !== 'length' && prop !== 'name') {
+        try {
+          (window as any).Error[prop] = (originalError as any)[prop];
+        } catch {}
+      }
+    });
 
     // ============================================================
     // Override navigator properties
@@ -873,52 +1001,53 @@ export async function applyConsistentFingerprint(
     const targetTzName = timezoneNames[fp.timezone] ?? fp.timezone;
     const targetTzAbbr = timezoneAbbrs[fp.timezone] ?? 'UTC';
 
-    // Override getTimezoneOffset
-    Date.prototype.getTimezoneOffset = function() {
+    // Override getTimezoneOffset - make it look native
+    const origGetTimezoneOffset = Date.prototype.getTimezoneOffset;
+    Date.prototype.getTimezoneOffset = makeNative(function(this: Date) {
       return targetOffset;
-    };
+    }, 'getTimezoneOffset');
 
     // Override toString to show correct timezone
     const origToString = Date.prototype.toString;
-    Date.prototype.toString = function() {
+    Date.prototype.toString = makeNative(function(this: Date) {
       const str = origToString.call(this);
       // Replace timezone part (e.g., GMT-0500 (Eastern Standard Time))
       const gmtOffset = targetOffset <= 0
         ? `+${String(Math.abs(targetOffset / 60)).padStart(2, '0')}00`
         : `-${String(targetOffset / 60).padStart(2, '0')}00`;
       return str.replace(/GMT[+-]\d{4} \([^)]+\)/, `GMT${gmtOffset} (${targetTzName})`);
-    };
+    }, 'toString');
 
     // Override toTimeString
     const origToTimeString = Date.prototype.toTimeString;
-    Date.prototype.toTimeString = function() {
+    Date.prototype.toTimeString = makeNative(function(this: Date) {
       const str = origToTimeString.call(this);
       const gmtOffset = targetOffset <= 0
         ? `+${String(Math.abs(targetOffset / 60)).padStart(2, '0')}00`
         : `-${String(targetOffset / 60).padStart(2, '0')}00`;
       return str.replace(/GMT[+-]\d{4} \([^)]+\)/, `GMT${gmtOffset} (${targetTzName})`);
-    };
+    }, 'toTimeString');
 
     // Override toLocaleString to use correct timezone
     const origToLocaleString = Date.prototype.toLocaleString;
-    Date.prototype.toLocaleString = function(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+    Date.prototype.toLocaleString = makeNative(function(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
       const opts = { ...options, timeZone: fp.timezone };
       return origToLocaleString.call(this, locales || fp.locale, opts);
-    };
+    }, 'toLocaleString');
 
     // Override toLocaleDateString
     const origToLocaleDateString = Date.prototype.toLocaleDateString;
-    Date.prototype.toLocaleDateString = function(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+    Date.prototype.toLocaleDateString = makeNative(function(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
       const opts = { ...options, timeZone: fp.timezone };
       return origToLocaleDateString.call(this, locales || fp.locale, opts);
-    };
+    }, 'toLocaleDateString');
 
     // Override toLocaleTimeString
     const origToLocaleTimeString = Date.prototype.toLocaleTimeString;
-    Date.prototype.toLocaleTimeString = function(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
+    Date.prototype.toLocaleTimeString = makeNative(function(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
       const opts = { ...options, timeZone: fp.timezone };
       return origToLocaleTimeString.call(this, locales || fp.locale, opts);
-    };
+    }, 'toLocaleTimeString');
 
     // ============================================================
     // COMPREHENSIVE LOCALE/LANGUAGE SPOOFING
@@ -1350,17 +1479,25 @@ export async function applyConsistentFingerprint(
     // ============================================================
     // CLIENT HINTS API (Navigator UAData)
     // ============================================================
-    // Extract Chrome version from userAgent
-    const chromeVersionMatch = fp.userAgent.match(/Chrome\/(\d+)/);
-    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '130';
-    const chromeFullVersion = `${chromeVersion}.0.0.0`;
+    // IMPORTANT: Extract Chrome version from REAL navigator.userAgent, not fp.userAgent
+    // This ensures userAgentData matches the actual browser version
+    const realUserAgent = navigator.userAgent;
+    const chromeVersionMatch = realUserAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '120';
+    const chromeFullVersion = chromeVersionMatch
+      ? `${chromeVersionMatch[1]}.${chromeVersionMatch[2]}.${chromeVersionMatch[3]}.${chromeVersionMatch[4]}`
+      : '120.0.0.0';
 
-    // Determine platform version from userAgent
-    const isWin11 = fp.userAgent.includes('Windows NT 11');
+    // Determine platform from real userAgent
+    const isWindows = realUserAgent.includes('Windows');
+    const isMac = realUserAgent.includes('Macintosh');
+    const realPlatform = isMac ? 'macOS' : (isWindows ? 'Windows' : 'Linux');
+    const isWin11 = realUserAgent.includes('Windows NT 11');
     const platformVersion = isWin11 ? '15.0.0' : '10.0.0';
 
-    // Modern browsers use User-Agent Client Hints
-    if ((navigator as any).userAgentData || true) {
+    // Only override userAgentData if it doesn't exist (for consistency)
+    // If it exists, the browser provides correct values
+    if (!(navigator as any).userAgentData) {
       const uaData = {
         brands: [
           { brand: 'Google Chrome', version: chromeVersion },
@@ -1368,7 +1505,7 @@ export async function applyConsistentFingerprint(
           { brand: 'Not_A Brand', version: '24' },
         ],
         mobile: false,
-        platform: 'Windows',
+        platform: realPlatform,
         getHighEntropyValues: async (hints: string[]) => {
           const result: any = {
             brands: [
@@ -1377,7 +1514,7 @@ export async function applyConsistentFingerprint(
               { brand: 'Not_A Brand', version: '24' },
             ],
             mobile: false,
-            platform: 'Windows',
+            platform: realPlatform,
           };
           if (hints.includes('platformVersion')) result.platformVersion = platformVersion;
           if (hints.includes('architecture')) result.architecture = 'x86';
@@ -1400,7 +1537,7 @@ export async function applyConsistentFingerprint(
             { brand: 'Not_A Brand', version: '24' },
           ],
           mobile: false,
-          platform: 'Windows',
+          platform: realPlatform,
         }),
       };
 
@@ -1695,31 +1832,17 @@ function weightedChoice<T>(
 
 /**
  * Generate consistent user agent
+ * IMPORTANT: We return empty string here - the actual userAgent will be
+ * taken from the real browser to avoid HTTP header mismatch detection
  */
 function generateConsistentUserAgent(
-  platform: string,
+  _platform: string,
   _locale: string,
-  random: () => number
+  _random: () => number
 ): string {
-  // IMPORTANT: Use current Chrome versions to avoid mismatch detection
-  // The browser will send real Chrome version in HTTP headers
-  const chromeVersions = ['130', '131', '132', '133'];
-  const chromeVersion = chromeVersions[Math.floor(random() * chromeVersions.length)] || '131';
-
-  if (platform === 'Windows') {
-    const windowsVersions = ['10.0', '11.0'];
-    const winVersion = windowsVersions[Math.floor(random() * windowsVersions.length)] || '10.0';
-    return `Mozilla/5.0 (Windows NT ${winVersion}; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`;
-  }
-
-  if (platform === 'macOS') {
-    const macVersions = ['10_15_7', '11_6_0', '12_5_0', '13_0_0'];
-    const macVersion = macVersions[Math.floor(random() * macVersions.length)] || '10_15_7';
-    return `Mozilla/5.0 (Macintosh; Intel Mac OS X ${macVersion}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`;
-  }
-
-  // Linux
-  return `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion}.0.0.0 Safari/537.36`;
+  // Return empty - will use real browser userAgent
+  // Changing userAgent causes mismatch with HTTP headers = instant detection
+  return '';
 }
 
 /**
