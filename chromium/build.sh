@@ -143,11 +143,22 @@ apply_patches() {
 
     cd "${WORK_DIR}/chromium/src"
 
-    # List of patches to apply
+    # List of patches to apply (ORDER MATTERS!)
+    # The FingerprintSessionManager must be applied first as other patches depend on it
     PATCHES=(
-        "canvas-noise.patch"
-        "webgl-fingerprint.patch"
-        "audio-fingerprint.patch"
+        # Phase 1: Core integration layer
+        "000-fingerprint-session-manager.patch"  # MUST BE FIRST - provides unified config
+
+        # Phase 2: Unified patches that use FingerprintSessionManager
+        "021-canvas-unified.patch"     # Canvas with unified config
+        "022-navigator-unified.patch"  # Navigator properties with unified config
+        "023-webgl-unified.patch"      # WebGL with unified config
+        "024-audio-unified.patch"      # Audio with unified config
+        "025-screen-unified.patch"     # Screen with unified config
+
+        # Phase 3: Automation removal (doesn't need FingerprintSessionManager)
+        "001-remove-webdriver.patch"
+        "002-remove-automation-flags.patch"
         "cdp-removal.patch"
         "permissions-stealth.patch"
         "automation-removal.patch"

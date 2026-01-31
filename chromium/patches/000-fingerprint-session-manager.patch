@@ -1,0 +1,545 @@
+diff --git a/content/browser/BUILD.gn b/content/browser/BUILD.gn
+index 1234567..abcdefg 100644
+--- a/content/browser/BUILD.gn
++++ b/content/browser/BUILD.gn
+@@ -1200,6 +1200,9 @@ source_set("browser") {
+     "file_url_loader_factory.h",
+     "find_in_page/find_request_manager.cc",
+     "find_in_page/find_request_manager.h",
++    # Fingerprint spoofing integration
++    "fingerprint/fingerprint_session_manager.cc",
++    "fingerprint/fingerprint_session_manager.h",
+     "font_access/font_access_manager_impl.cc",
+     "font_access/font_access_manager_impl.h",
+     "font_unique_name_lookup/font_unique_name_lookup_service.cc",
+
+diff --git a/content/browser/fingerprint/fingerprint_session_manager.h b/content/browser/fingerprint/fingerprint_session_manager.h
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/content/browser/fingerprint/fingerprint_session_manager.h
+@@ -0,0 +1,168 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CONTENT_BROWSER_FINGERPRINT_FINGERPRINT_SESSION_MANAGER_H_
++#define CONTENT_BROWSER_FINGERPRINT_FINGERPRINT_SESSION_MANAGER_H_
++
++#include <string>
++#include <vector>
++#include <mutex>
++#include <random>
++
++#include "content/common/content_export.h"
++
++namespace content {
++
++// Fingerprint configuration structure
++// All fields have reasonable defaults for anti-detection
++struct CONTENT_EXPORT FingerprintConfig {
++  // Session identifier for consistent randomization
++  uint64_t session_seed = 0;
++
++  // Navigator properties
++  struct {
++    unsigned int hardware_concurrency = 8;
++    float device_memory = 8.0f;
++    std::string platform = "Win32";
++    std::string user_agent;
++    std::vector<std::string> languages = {"en-US", "en"};
++  } navigator;
++
++  // Canvas fingerprint protection
++  struct {
++    float noise_level = 0.001f;       // % of pixels to modify (0.001 = 0.1%)
++    int noise_amplitude = 2;           // Max change per color channel (±N)
++  } canvas;
++
++  // WebGL fingerprint spoofing
++  struct {
++    std::string vendor = "Intel Inc.";
++    std::string renderer = "Intel(R) UHD Graphics";
++    std::string version = "WebGL 1.0 (OpenGL ES 2.0 Chromium)";
++    float readpixels_noise = 0.001f;
++  } webgl;
++
++  // Audio fingerprint protection
++  struct {
++    float analyser_noise = 0.0001f;
++    float oscillator_noise = 0.00001f;
++    float compressor_noise = 0.001f;
++  } audio;
++
++  // Screen properties
++  struct {
++    int width = 1920;
++    int height = 1080;
++    int avail_width = 1920;
++    int avail_height = 1040;
++    unsigned int color_depth = 24;
++    float pixel_ratio = 1.0f;
++  } screen;
++
++  // Timezone
++  struct {
++    int offset_minutes = 0;
++    std::string timezone_id = "UTC";
++  } timezone;
++};
++
++// Singleton manager for fingerprint configuration
++// Thread-safe, initialized once at browser startup
++class CONTENT_EXPORT FingerprintSessionManager {
++ public:
++  // Get singleton instance
++  static FingerprintSessionManager& GetInstance();
++
++  // Initialization methods (call once at startup)
++  bool InitFromCommandLine();
++  bool InitFromEnvironment();
++  bool InitFromFile(const std::string& path);
++  bool InitFromJson(const std::string& json);
++
++  // Check if initialized
++  bool IsInitialized() const { return initialized_; }
++
++  // Get full configuration
++  const FingerprintConfig& GetConfig() const;
++
++  // Get session seed for consistent randomization
++  uint64_t GetSessionSeed() const;
++
++  // Get random number generator seeded by session
++  std::mt19937_64& GetGenerator();
++
++  // Navigator getters
++  unsigned int GetHardwareConcurrency() const;
++  float GetDeviceMemory() const;
++  const std::string& GetPlatform() const;
++  const std::string& GetUserAgent() const;
++  const std::vector<std::string>& GetLanguages() const;
++
++  // Canvas getters
++  float GetCanvasNoiseLevel() const;
++  int GetCanvasNoiseAmplitude() const;
++
++  // WebGL getters
++  const std::string& GetWebGLVendor() const;
++  const std::string& GetWebGLRenderer() const;
++  const std::string& GetWebGLVersion() const;
++  float GetWebGLReadPixelsNoise() const;
++
++  // Audio getters
++  float GetAudioAnalyserNoise() const;
++  float GetAudioOscillatorNoise() const;
++  float GetAudioCompressorNoise() const;
++
++  // Screen getters
++  int GetScreenWidth() const;
++  int GetScreenHeight() const;
++  int GetScreenAvailWidth() const;
++  int GetScreenAvailHeight() const;
++  unsigned int GetScreenColorDepth() const;
++  float GetScreenPixelRatio() const;
++
++  // Timezone getters
++  int GetTimezoneOffsetMinutes() const;
++  const std::string& GetTimezoneId() const;
++
++ private:
++  FingerprintSessionManager();
++  ~FingerprintSessionManager() = default;
++
++  // Non-copyable
++  FingerprintSessionManager(const FingerprintSessionManager&) = delete;
++  FingerprintSessionManager& operator=(const FingerprintSessionManager&) = delete;
++
++  // Internal helpers
++  void GenerateDefaultConfig();
++
++  mutable std::mutex mutex_;
++  FingerprintConfig config_;
++  std::mt19937_64 generator_;
++  bool initialized_ = false;
++};
++
++}  // namespace content
++
++#endif  // CONTENT_BROWSER_FINGERPRINT_FINGERPRINT_SESSION_MANAGER_H_
+
+diff --git a/content/browser/fingerprint/fingerprint_session_manager.cc b/content/browser/fingerprint/fingerprint_session_manager.cc
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/content/browser/fingerprint/fingerprint_session_manager.cc
+@@ -0,0 +1,316 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "content/browser/fingerprint/fingerprint_session_manager.h"
++
++#include <chrono>
++#include <fstream>
++#include <sstream>
++
++#include "base/command_line.h"
++#include "base/environment.h"
++#include "base/files/file_util.h"
++#include "base/json/json_reader.h"
++#include "base/logging.h"
++#include "base/values.h"
++
++namespace content {
++
++namespace {
++// Command line switches
++const char kFingerprintConfigSwitch[] = "fingerprint-config";
++const char kFingerprintSeedSwitch[] = "fingerprint-seed";
++
++// Environment variable for config path
++const char kFingerprintEnvVar[] = "UNDETECT_FINGERPRINT_CONFIG";
++}  // namespace
++
++// Static singleton accessor
++FingerprintSessionManager& FingerprintSessionManager::GetInstance() {
++  static FingerprintSessionManager instance;
++  return instance;
++}
++
++FingerprintSessionManager::FingerprintSessionManager() {
++  // Auto-initialize from available sources
++  // Priority: command line > environment > defaults
++  if (!InitFromCommandLine()) {
++    if (!InitFromEnvironment()) {
++      GenerateDefaultConfig();
++    }
++  }
++}
++
++bool FingerprintSessionManager::InitFromCommandLine() {
++  const base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
++  if (!cmd) {
++    return false;
++  }
++
++  // Check for config file path
++  if (cmd->HasSwitch(kFingerprintConfigSwitch)) {
++    std::string config_path = cmd->GetSwitchValueASCII(kFingerprintConfigSwitch);
++    if (InitFromFile(config_path)) {
++      LOG(INFO) << "FingerprintSession: Initialized from config file: " << config_path;
++      return true;
++    }
++  }
++
++  // Check for seed-only initialization
++  if (cmd->HasSwitch(kFingerprintSeedSwitch)) {
++    std::lock_guard<std::mutex> lock(mutex_);
++    std::string seed_str = cmd->GetSwitchValueASCII(kFingerprintSeedSwitch);
++    try {
++      config_.session_seed = std::stoull(seed_str);
++      generator_.seed(config_.session_seed);
++      initialized_ = true;
++      LOG(INFO) << "FingerprintSession: Initialized with seed: " << config_.session_seed;
++      return true;
++    } catch (...) {
++      LOG(ERROR) << "FingerprintSession: Invalid seed value: " << seed_str;
++    }
++  }
++
++  return false;
++}
++
++bool FingerprintSessionManager::InitFromEnvironment() {
++  std::unique_ptr<base::Environment> env = base::Environment::Create();
++  std::string config_path;
++
++  if (env->GetVar(kFingerprintEnvVar, &config_path)) {
++    if (InitFromFile(config_path)) {
++      LOG(INFO) << "FingerprintSession: Initialized from env var: " << config_path;
++      return true;
++    }
++  }
++
++  return false;
++}
++
++bool FingerprintSessionManager::InitFromFile(const std::string& path) {
++  std::string content;
++  base::FilePath file_path(path);
++
++  if (!base::ReadFileToString(file_path, &content)) {
++    LOG(ERROR) << "FingerprintSession: Failed to read config file: " << path;
++    return false;
++  }
++
++  return InitFromJson(content);
++}
++
++bool FingerprintSessionManager::InitFromJson(const std::string& json) {
++  std::lock_guard<std::mutex> lock(mutex_);
++
++  absl::optional<base::Value> root = base::JSONReader::Read(json);
++  if (!root || !root->is_dict()) {
++    LOG(ERROR) << "FingerprintSession: Invalid JSON config";
++    return false;
++  }
++
++  const base::Value::Dict& dict = root->GetDict();
++
++  // Session seed
++  if (const auto* seed = dict.FindDouble("sessionSeed")) {
++    config_.session_seed = static_cast<uint64_t>(*seed);
++  } else {
++    config_.session_seed =
++        std::chrono::system_clock::now().time_since_epoch().count();
++  }
++  generator_.seed(config_.session_seed);
++
++  // Navigator
++  if (const auto* nav = dict.FindDict("navigator")) {
++    if (auto val = nav->FindInt("hardwareConcurrency"))
++      config_.navigator.hardware_concurrency = static_cast<unsigned int>(*val);
++    if (auto val = nav->FindDouble("deviceMemory"))
++      config_.navigator.device_memory = static_cast<float>(*val);
++    if (const auto* val = nav->FindString("platform"))
++      config_.navigator.platform = *val;
++    if (const auto* val = nav->FindString("userAgent"))
++      config_.navigator.user_agent = *val;
++    if (const auto* langs = nav->FindList("languages")) {
++      config_.navigator.languages.clear();
++      for (const auto& lang : *langs) {
++        if (lang.is_string()) {
++          config_.navigator.languages.push_back(lang.GetString());
++        }
++      }
++    }
++  }
++
++  // Canvas
++  if (const auto* canvas = dict.FindDict("canvas")) {
++    if (auto val = canvas->FindDouble("noiseLevel"))
++      config_.canvas.noise_level = static_cast<float>(*val);
++    if (auto val = canvas->FindInt("noiseAmplitude"))
++      config_.canvas.noise_amplitude = static_cast<int>(*val);
++  }
++
++  // WebGL
++  if (const auto* webgl = dict.FindDict("webgl")) {
++    if (const auto* val = webgl->FindString("vendor"))
++      config_.webgl.vendor = *val;
++    if (const auto* val = webgl->FindString("renderer"))
++      config_.webgl.renderer = *val;
++    if (const auto* val = webgl->FindString("version"))
++      config_.webgl.version = *val;
++    if (auto val = webgl->FindDouble("readpixelsNoise"))
++      config_.webgl.readpixels_noise = static_cast<float>(*val);
++  }
++
++  // Audio
++  if (const auto* audio = dict.FindDict("audio")) {
++    if (auto val = audio->FindDouble("analyserNoise"))
++      config_.audio.analyser_noise = static_cast<float>(*val);
++    if (auto val = audio->FindDouble("oscillatorNoise"))
++      config_.audio.oscillator_noise = static_cast<float>(*val);
++    if (auto val = audio->FindDouble("compressorNoise"))
++      config_.audio.compressor_noise = static_cast<float>(*val);
++  }
++
++  // Screen
++  if (const auto* screen = dict.FindDict("screen")) {
++    if (auto val = screen->FindInt("width"))
++      config_.screen.width = *val;
++    if (auto val = screen->FindInt("height"))
++      config_.screen.height = *val;
++    if (auto val = screen->FindInt("availWidth"))
++      config_.screen.avail_width = *val;
++    if (auto val = screen->FindInt("availHeight"))
++      config_.screen.avail_height = *val;
++    if (auto val = screen->FindInt("colorDepth"))
++      config_.screen.color_depth = static_cast<unsigned int>(*val);
++    if (auto val = screen->FindDouble("pixelRatio"))
++      config_.screen.pixel_ratio = static_cast<float>(*val);
++  }
++
++  // Timezone
++  if (const auto* tz = dict.FindDict("timezone")) {
++    if (auto val = tz->FindInt("offsetMinutes"))
++      config_.timezone.offset_minutes = *val;
++    if (const auto* val = tz->FindString("timezoneId"))
++      config_.timezone.timezone_id = *val;
++  }
++
++  initialized_ = true;
++  LOG(INFO) << "FingerprintSession: Successfully initialized from JSON";
++  return true;
++}
++
++void FingerprintSessionManager::GenerateDefaultConfig() {
++  std::lock_guard<std::mutex> lock(mutex_);
++
++  // Generate random seed
++  config_.session_seed =
++      std::chrono::system_clock::now().time_since_epoch().count();
++  generator_.seed(config_.session_seed);
++
++  // Randomize hardware concurrency (common values)
++  std::uniform_int_distribution<int> cores_dist(0, 3);
++  const unsigned int common_cores[] = {4, 8, 12, 16};
++  config_.navigator.hardware_concurrency = common_cores[cores_dist(generator_)];
++
++  // Randomize device memory (common values)
++  std::uniform_int_distribution<int> mem_dist(0, 3);
++  const float common_memory[] = {4.0f, 8.0f, 16.0f, 32.0f};
++  config_.navigator.device_memory = common_memory[mem_dist(generator_)];
++
++  // Default WebGL values that are common
++  std::uniform_int_distribution<int> gpu_dist(0, 2);
++  const char* gpus[] = {
++      "Intel(R) UHD Graphics",
++      "Intel(R) Iris Plus Graphics",
++      "AMD Radeon(TM) Graphics"
++  };
++  config_.webgl.renderer = gpus[gpu_dist(generator_)];
++
++  initialized_ = true;
++  LOG(INFO) << "FingerprintSession: Generated default config with seed: "
++            << config_.session_seed;
++}
++
++// Getters implementation
++const FingerprintConfig& FingerprintSessionManager::GetConfig() const {
++  return config_;
++}
++
++uint64_t FingerprintSessionManager::GetSessionSeed() const {
++  return config_.session_seed;
++}
++
++std::mt19937_64& FingerprintSessionManager::GetGenerator() {
++  return generator_;
++}
++
++unsigned int FingerprintSessionManager::GetHardwareConcurrency() const {
++  return config_.navigator.hardware_concurrency;
++}
++
++float FingerprintSessionManager::GetDeviceMemory() const {
++  return config_.navigator.device_memory;
++}
++
++const std::string& FingerprintSessionManager::GetPlatform() const {
++  return config_.navigator.platform;
++}
++
++const std::string& FingerprintSessionManager::GetUserAgent() const {
++  return config_.navigator.user_agent;
++}
++
++const std::vector<std::string>& FingerprintSessionManager::GetLanguages() const {
++  return config_.navigator.languages;
++}
++
++float FingerprintSessionManager::GetCanvasNoiseLevel() const {
++  return config_.canvas.noise_level;
++}
++
++int FingerprintSessionManager::GetCanvasNoiseAmplitude() const {
++  return config_.canvas.noise_amplitude;
++}
++
++const std::string& FingerprintSessionManager::GetWebGLVendor() const {
++  return config_.webgl.vendor;
++}
++
++const std::string& FingerprintSessionManager::GetWebGLRenderer() const {
++  return config_.webgl.renderer;
++}
++
++const std::string& FingerprintSessionManager::GetWebGLVersion() const {
++  return config_.webgl.version;
++}
++
++float FingerprintSessionManager::GetWebGLReadPixelsNoise() const {
++  return config_.webgl.readpixels_noise;
++}
++
++float FingerprintSessionManager::GetAudioAnalyserNoise() const {
++  return config_.audio.analyser_noise;
++}
++
++float FingerprintSessionManager::GetAudioOscillatorNoise() const {
++  return config_.audio.oscillator_noise;
++}
++
++float FingerprintSessionManager::GetAudioCompressorNoise() const {
++  return config_.audio.compressor_noise;
++}
++
++int FingerprintSessionManager::GetScreenWidth() const {
++  return config_.screen.width;
++}
++
++int FingerprintSessionManager::GetScreenHeight() const {
++  return config_.screen.height;
++}
++
++int FingerprintSessionManager::GetScreenAvailWidth() const {
++  return config_.screen.avail_width;
++}
++
++int FingerprintSessionManager::GetScreenAvailHeight() const {
++  return config_.screen.avail_height;
++}
++
++unsigned int FingerprintSessionManager::GetScreenColorDepth() const {
++  return config_.screen.color_depth;
++}
++
++float FingerprintSessionManager::GetScreenPixelRatio() const {
++  return config_.screen.pixel_ratio;
++}
++
++int FingerprintSessionManager::GetTimezoneOffsetMinutes() const {
++  return config_.timezone.offset_minutes;
++}
++
++const std::string& FingerprintSessionManager::GetTimezoneId() const {
++  return config_.timezone.timezone_id;
++}
++
++}  // namespace content
+
+diff --git a/content/public/common/content_switches.cc b/content/public/common/content_switches.cc
+index 3333333..4444444 100644
+--- a/content/public/common/content_switches.cc
++++ b/content/public/common/content_switches.cc
+@@ -1150,4 +1150,12 @@ const char kVideoUnderflowThresholdMs[] = "video-underflow-threshold-ms";
+ // the command line flags.
+ const char kWithoutMojoRenderer[] = "without-mojo-renderer";
+
++// Fingerprint spoofing configuration
++// Path to JSON config file for fingerprint session
++const char kFingerprintConfig[] = "fingerprint-config";
++
++// Session seed for consistent fingerprint randomization
++const char kFingerprintSeed[] = "fingerprint-seed";
++
+ }  // namespace switches
+
+diff --git a/content/public/common/content_switches.h b/content/public/common/content_switches.h
+index 5555555..6666666 100644
+--- a/content/public/common/content_switches.h
++++ b/content/public/common/content_switches.h
+@@ -320,6 +320,10 @@ CONTENT_EXPORT extern const char kVideoImageTextureTarget[];
+ CONTENT_EXPORT extern const char kVideoUnderflowThresholdMs[];
+ CONTENT_EXPORT extern const char kWithoutMojoRenderer[];
+
++// Fingerprint spoofing
++CONTENT_EXPORT extern const char kFingerprintConfig[];
++CONTENT_EXPORT extern const char kFingerprintSeed[];
++
+ }  // namespace switches
+
+ #endif  // CONTENT_PUBLIC_COMMON_CONTENT_SWITCHES_H_
