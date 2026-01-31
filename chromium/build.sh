@@ -147,6 +147,7 @@ apply_patches() {
     PATCHES=(
         "canvas-noise.patch"
         "webgl-fingerprint.patch"
+        "audio-fingerprint.patch"
         "cdp-removal.patch"
         "permissions-stealth.patch"
         "automation-removal.patch"
