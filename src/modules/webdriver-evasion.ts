@@ -343,9 +343,10 @@ export class WebDriverEvasionModule {
             try {
               const iframeWindow = (element as HTMLIFrameElement).contentWindow;
               if (iframeWindow) {
-                // Apply the same evasions to iframe
+                // Apply the same evasions to iframe - MUST match main window (false)
                 Object.defineProperty(iframeWindow.navigator, 'webdriver', {
-                  get: () => undefined,
+                  get: () => false,
+                  configurable: true,
                 });
               }
             } catch (_e) {

@@ -26,47 +26,44 @@ export class AutomationDetectionProtection {
 
     await page.evaluateOnNewDocument(() => {
       // ========================================
-      // 1. Function.toString() Protection
+      // 1. Function.toString() Protection - NO PROXY!
       // ========================================
 
       // Many detection scripts check if native functions were modified
-      // by checking their .toString() output
+      // IMPORTANT: Do NOT use Proxy - it can be detected via typeof
       const originalFunctionToString = Function.prototype.toString;
 
-      const proxyHandler = {
-        apply: function (target: any, thisArg: any, argumentsList: any[]) {
-          const func = thisArg;
+      // WeakSet to track our spoofed functions
+      const spoofedFunctions = new WeakSet<Function>();
+      const spoofedFunctionNames = new WeakMap<Function, string>();
 
-          // Check if this function was proxied/modified
-          if (func && func.name && func.toString && func.toString !== originalFunctionToString) {
-            // Return native-like code for known overridden functions
-            const nativeFunctions: Record<string, string> = {
-              'getParameter': 'function getParameter() { [native code] }',
-              'getBoundingClientRect': 'function getBoundingClientRect() { [native code] }',
-              'getTimezoneOffset': 'function getTimezoneOffset() { [native code] }',
-              'now': 'function now() { [native code] }',
-              'random': 'function random() { [native code] }',
-              'getVoices': 'function getVoices() { [native code] }',
-              'enumerateDevices': 'function enumerateDevices() { [native code] }',
-              'getContext': 'function getContext() { [native code] }',
-              'toDataURL': 'function toDataURL() { [native code] }',
-              'toBlob': 'function toBlob() { [native code] }',
-              'getImageData': 'function getImageData() { [native code] }',
-              'addEventListener': 'function addEventListener() { [native code] }',
-              'removeEventListener': 'function removeEventListener() { [native code] }',
-              'dispatchEvent': 'function dispatchEvent() { [native code] }',
-            };
+      // Known native function names for spoofing
+      const nativeFunctionNames = new Set([
+        'getParameter', 'getBoundingClientRect', 'getTimezoneOffset',
+        'now', 'random', 'getVoices', 'enumerateDevices', 'getContext',
+        'toDataURL', 'toBlob', 'getImageData', 'addEventListener',
+        'removeEventListener', 'dispatchEvent', 'query', 'toString'
+      ]);
 
-            if (nativeFunctions[func.name]) {
-              return nativeFunctions[func.name];
-            }
-          }
+      // Replace toString with a regular function (NOT Proxy)
+      Function.prototype.toString = function toString(this: Function): string {
+        // If this function is in our spoofed set, return native code
+        if (spoofedFunctions.has(this)) {
+          const name = spoofedFunctionNames.get(this) || this.name || '';
+          return `function ${name}() { [native code] }`;
+        }
 
-          return originalFunctionToString.apply(thisArg, argumentsList);
-        },
+        // For known native function names, return native code format
+        if (this.name && nativeFunctionNames.has(this.name)) {
+          return `function ${this.name}() { [native code] }`;
+        }
+
+        return originalFunctionToString.call(this);
       };
 
-      Function.prototype.toString = new Proxy(originalFunctionToString, proxyHandler);
+      // Mark our toString as spoofed so it also returns [native code]
+      spoofedFunctions.add(Function.prototype.toString);
+      spoofedFunctionNames.set(Function.prototype.toString, 'toString');
 
       // ========================================
       // 2. Property Descriptor Protection

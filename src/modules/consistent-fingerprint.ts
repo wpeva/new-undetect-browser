@@ -600,23 +600,33 @@ export async function applyConsistentFingerprint(
     const screenH = fp.resolution.height;
     const availH = screenH - taskbarHeight;
 
-    // For maximized window: inner = avail - scrollbar (if page has scrollbar)
-    // We'll report the same for consistency
-    const innerW = screenW;
-    const innerH = availH;
+    // Browser chrome heights (typical values)
+    const browserToolbarHeight = 85; // Address bar + tabs + bookmarks
+    // scrollbarWidth already defined above
 
-    // outerWidth/outerHeight - browser window size
+    // For maximized window:
+    // outerWidth = screen.availWidth (full window)
+    // innerWidth = outerWidth - scrollbar (viewport without scrollbar)
+    // outerHeight = screen.availHeight (full window)
+    // innerHeight = outerHeight - browser chrome (viewport area)
+
+    const outerW = screenW;
+    const outerH = availH;
+    const innerW = screenW - scrollbarWidth; // Viewport is smaller than window
+    const innerH = availH - browserToolbarHeight; // Minus browser chrome
+
+    // outerWidth/outerHeight - browser window size (larger)
     Object.defineProperty(window, 'outerWidth', {
-      get: () => screenW,
+      get: () => outerW,
       configurable: true,
     });
 
     Object.defineProperty(window, 'outerHeight', {
-      get: () => screenH,
+      get: () => outerH,
       configurable: true,
     });
 
-    // innerWidth/innerHeight - viewport size
+    // innerWidth/innerHeight - viewport size (smaller)
     Object.defineProperty(window, 'innerWidth', {
       get: () => innerW,
       configurable: true,
@@ -1346,35 +1356,14 @@ export async function applyConsistentFingerprint(
     };
 
     // ============================================================
-    // MATH OPERATIONS NOISE (Anti-Fingerprinting)
+    // MATH OPERATIONS - DO NOT MODIFY!
     // ============================================================
-    // Add tiny noise to Math functions that are used for fingerprinting
-    const mathNoise = fp.canvas.noise * 0.0000001;
-
-    const originalMathSin = Math.sin;
-    Math.sin = function(x: number): number {
-      return originalMathSin(x) + mathNoise;
-    };
-
-    const originalMathCos = Math.cos;
-    Math.cos = function(x: number): number {
-      return originalMathCos(x) + mathNoise;
-    };
-
-    const originalMathTan = Math.tan;
-    Math.tan = function(x: number): number {
-      return originalMathTan(x) + mathNoise;
-    };
-
-    const originalMathLog = Math.log;
-    Math.log = function(x: number): number {
-      return originalMathLog(x) + mathNoise;
-    };
-
-    const originalMathExp = Math.exp;
-    Math.exp = function(x: number): number {
-      return originalMathExp(x) * (1 + mathNoise);
-    };
+    // WARNING: Overriding Math.sin/cos/tan/log/exp is DANGEROUS!
+    // - sin(0) must equal exactly 0, not 0.0000001
+    // - These functions are used throughout the browser
+    // - Detection scripts can easily check: Math.sin(0) === 0
+    // - Adding noise breaks mathematical properties
+    // REMOVED: All Math function overrides
 
     // ============================================================
     // CSS MEDIA QUERIES SPOOFING
@@ -1654,33 +1643,16 @@ export async function applyConsistentFingerprint(
       } as GeolocationPosition);
     };
 
-    // Canvas fingerprint with noise
-    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-    HTMLCanvasElement.prototype.toDataURL = function (type?: string) {
-      const context = this.getContext('2d');
-      if (context) {
-        const imageData = context.getImageData(0, 0, this.width, this.height);
-        const data = imageData.data;
-
-        // Add consistent noise based on seed
-        let seed = fp.canvas.seed.split('').reduce((a, b) => {
-          a = (a << 5) - a + b.charCodeAt(0);
-          return a & a;
-        }, 0);
-
-        for (let i = 0; i < data.length; i += 4) {
-          seed = (seed * 9301 + 49297) % 233280;
-          const noise = (seed / 233280.0 - 0.5) * fp.canvas.noise * 255;
-          data[i] = Math.min(255, Math.max(0, (data[i] ?? 0) + noise));
-          data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] ?? 0) + noise));
-          data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] ?? 0) + noise));
-        }
-
-        context.putImageData(imageData, 0, 0);
-      }
-
-      return originalToDataURL.apply(this, [type] as any);
-    };
+    // Canvas fingerprint - DO NOT add noise!
+    // WARNING: Adding noise via putImageData MODIFIES the canvas before toDataURL
+    // This is DETECTABLE because:
+    // 1. The canvas content changes between calls
+    // 2. Detection scripts can call toDataURL twice and compare results
+    // 3. Real browsers produce CONSISTENT output
+    //
+    // Instead, we just let the canvas work normally.
+    // The browser's natural rendering differences provide uniqueness.
+    // If you need different fingerprints, use different browser profiles/instances.
 
     // WebGL fingerprint
     const originalGetParameter = WebGLRenderingContext.prototype.getParameter;

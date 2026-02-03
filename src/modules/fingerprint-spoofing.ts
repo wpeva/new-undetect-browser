@@ -522,21 +522,10 @@ export class FingerprintSpoofingModule {
       }
 
       // Protect against CanvasRenderingContext2D.measureText
-      const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
-      CanvasRenderingContext2D.prototype.measureText = function (text: string) {
-        const metrics = originalMeasureText.call(this, text);
-        // Add imperceptible noise to metrics
-        const noise = 0.0001;
-
-        return new Proxy(metrics, {
-          get: function (target, prop) {
-            if (prop === 'width') {
-              return (target as any)[prop] + (Math.random() - 0.5) * noise;
-            }
-            return Reflect.get(target, prop);
-          },
-        });
-      };
+      // WARNING: DO NOT use Proxy - it can be detected!
+      // DO NOT add random noise - it causes inconsistency between calls
+      // Just return the original metrics - consistency is more important than uniqueness
+      // Font fingerprinting relies on EXACT measurements being the same every time
 
       // ========================================
       // 7. Battery API Protection
