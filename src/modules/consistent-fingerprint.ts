@@ -345,12 +345,31 @@ export async function applyConsistentFingerprint(
   fingerprint: ConsistentFingerprint
 ): Promise<void> {
   await page.evaluateOnNewDocument((fp) => {
-    // ============================================================
-    // NATIVE FUNCTION SPOOFING UTILITY
-    // Makes our overridden functions look like native browser functions
-    // ============================================================
-    const nativeToString = Function.prototype.toString;
-    const nativeFunctionStr = 'function () { [native code] }';
+    // Wrap everything in try-catch to prevent page breakage
+    try {
+      // ============================================================
+      // SAFE PROPERTY ACCESS HELPER
+      // ============================================================
+      const safeGet = (obj: any, path: string, defaultVal: any) => {
+        try {
+          const keys = path.split('.');
+          let result = obj;
+          for (const key of keys) {
+            if (result === null || result === undefined) return defaultVal;
+            result = result[key];
+          }
+          return result ?? defaultVal;
+        } catch {
+          return defaultVal;
+        }
+      };
+
+      // ============================================================
+      // NATIVE FUNCTION SPOOFING UTILITY
+      // Makes our overridden functions look like native browser functions
+      // ============================================================
+      const nativeToString = Function.prototype.toString;
+      const nativeFunctionStr = 'function () { [native code] }';
 
     // Map to store original function names for toString spoofing
     const spoofedFunctions = new WeakMap<Function, string>();
@@ -377,13 +396,18 @@ export async function applyConsistentFingerprint(
     // ============================================================
 
     // Remove webdriver flag - MOST IMPORTANT for bot detection
+    // CRITICAL: Must return false, not undefined! undefined triggers detection
     Object.defineProperty(navigator, 'webdriver', {
-      get: makeNative(() => undefined, 'get webdriver'),
+      get: makeNative(() => false, 'get webdriver'),
       configurable: true,
     });
 
-    // Delete webdriver completely
-    delete (navigator as any).webdriver;
+    // Also remove from prototype chain
+    try {
+      delete (Object.getPrototypeOf(navigator) as any).webdriver;
+    } catch (e) {
+      // Ignore if not deletable
+    }
 
     // IMPORTANT: Do NOT override userAgent - it causes mismatch with HTTP headers
     // The browser sends real userAgent in HTTP headers, changing it in JS = detection
@@ -1746,13 +1770,23 @@ export async function applyConsistentFingerprint(
       };
     }
 
-    console.log('[ConsistentFingerprint] Applied:', {
-      country: fp.geolocation.country,
-      timezone: fp.timezone,
-      locale: fp.locale,
-      resolution: `${fp.resolution.width}x${fp.resolution.height}`,
-      platform: fp.platform,
-    });
+    // Log fingerprint info (silently fail if properties missing)
+    try {
+      console.log('[ConsistentFingerprint] Applied:', {
+        country: safeGet(fp, 'geolocation.country', 'Unknown'),
+        timezone: safeGet(fp, 'timezone', 'UTC'),
+        locale: safeGet(fp, 'locale', 'en-US'),
+        resolution: `${safeGet(fp, 'resolution.width', 1920)}x${safeGet(fp, 'resolution.height', 1080)}`,
+        platform: safeGet(fp, 'platform', 'Win32'),
+      });
+    } catch (e) {
+      // Silently fail
+    }
+
+    } catch (e) {
+      // Silently fail to avoid breaking the page
+      // console.error('[ConsistentFingerprint] Error:', e);
+    }
   }, fingerprint);
 
   // Set timezone

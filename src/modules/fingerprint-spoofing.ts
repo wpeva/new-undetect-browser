@@ -20,9 +20,28 @@ export class FingerprintSpoofingModule {
     logger.debug('Injecting fingerprint spoofing scripts');
 
     await page.evaluateOnNewDocument((profile: FingerprintProfile) => {
-      // ========================================
-      // Per-Domain Consistency
-      // ========================================
+      // Wrap everything in try-catch to prevent script breakage
+      try {
+        // ========================================
+        // Safe property access helpers
+        // ========================================
+        const safeGet = (obj: any, path: string, defaultVal: any) => {
+          try {
+            const keys = path.split('.');
+            let result = obj;
+            for (const key of keys) {
+              if (result === null || result === undefined) return defaultVal;
+              result = result[key];
+            }
+            return result ?? defaultVal;
+          } catch {
+            return defaultVal;
+          }
+        };
+
+        // ========================================
+        // Per-Domain Consistency
+        // ========================================
 
       // Generate deterministic seed from domain
       const getDomainSeed = (): number => {
@@ -72,8 +91,8 @@ export class FingerprintSpoofingModule {
           // Use domain-specific RNG for consistent noise
           const canvasRng = new SeededRandom(domainSeed + canvas.width + canvas.height);
 
-          // Add subtle noise based on profile
-          const noiseLevel = profile.canvas.noiseLevel;
+          // Add subtle noise based on profile (with safe defaults)
+          const noiseLevel = safeGet(profile, 'canvas.noiseLevel', 0.01);
 
           for (let i = 0; i < imageData.data.length; i += 4) {
             if (canvasRng.next() < noiseLevel) {
@@ -115,11 +134,14 @@ export class FingerprintSpoofingModule {
       // 2. WebGL Fingerprint Protection (60+ Parameters)
       // ========================================
 
-      // Comprehensive WebGL parameter spoofing
+      // Comprehensive WebGL parameter spoofing (with safe defaults)
+      const webglVendor = safeGet(profile, 'webgl.vendor', 'Intel Inc.');
+      const webglRenderer = safeGet(profile, 'webgl.renderer', 'Intel Iris OpenGL Engine');
+
       const webglParameters: Record<number, any> = {
         // Vendor and Renderer
-        37445: profile.webgl.vendor, // UNMASKED_VENDOR_WEBGL
-        37446: profile.webgl.renderer, // UNMASKED_RENDERER_WEBGL
+        37445: webglVendor, // UNMASKED_VENDOR_WEBGL
+        37446: webglRenderer, // UNMASKED_RENDERER_WEBGL
 
         // Precision
         2849: 8, // SUBPIXEL_BITS
@@ -228,8 +250,8 @@ export class FingerprintSpoofingModule {
         if (name === 'WEBGL_debug_renderer_info' && extension) {
           const originalGetParameter = this.getParameter.bind(this);
           this.getParameter = function(parameter: number) {
-            if (parameter === 37445) return profile.webgl.vendor;
-            if (parameter === 37446) return profile.webgl.renderer;
+            if (parameter === 37445) return webglVendor;
+            if (parameter === 37446) return webglRenderer;
             return originalGetParameter(parameter);
           };
         }
@@ -245,8 +267,8 @@ export class FingerprintSpoofingModule {
           if (name === 'WEBGL_debug_renderer_info' && extension) {
             const originalGetParameter = this.getParameter.bind(this);
             this.getParameter = function(parameter: number) {
-              if (parameter === 37445) return profile.webgl.vendor;
-              if (parameter === 37446) return profile.webgl.renderer;
+              if (parameter === 37445) return webglVendor;
+              if (parameter === 37446) return webglRenderer;
               return originalGetParameter(parameter);
             };
           }
@@ -266,9 +288,9 @@ export class FingerprintSpoofingModule {
           const originalStart = oscillator.start;
 
           oscillator.start = function (...args: any[]) {
-            // Add micro-variation to frequency
+            // Add micro-variation to frequency (with safe default)
             if (this.frequency) {
-              const variation = profile.audio.frequencyVariation;
+              const variation = safeGet(profile, 'audio.frequencyVariation', 0.001);
               this.frequency.value += variation;
             }
             return originalStart.apply(this, args as any);
@@ -391,7 +413,7 @@ export class FingerprintSpoofingModule {
 
           oscillator.start = function (...args: any[]) {
             if (this.frequency) {
-              const variation = profile.audio.frequencyVariation;
+              const variation = safeGet(profile, 'audio.frequencyVariation', 0.001);
               this.frequency.value += variation;
             }
             return originalStart.apply(this, args as any);
@@ -402,45 +424,55 @@ export class FingerprintSpoofingModule {
       }
 
       // ========================================
-      // 4. Screen Properties
+      // 4. Screen Properties (with safe defaults)
       // ========================================
+      const screenWidth = safeGet(profile, 'screen.width', 1920);
+      const screenHeight = safeGet(profile, 'screen.height', 1080);
+      const screenAvailWidth = safeGet(profile, 'screen.availWidth', 1920);
+      const screenAvailHeight = safeGet(profile, 'screen.availHeight', 1040);
+      const screenColorDepth = safeGet(profile, 'screen.colorDepth', 24);
+      const screenPixelDepth = safeGet(profile, 'screen.pixelDepth', 24);
+
       Object.defineProperties(screen, {
         availWidth: {
-          get: () => profile.screen.availWidth,
+          get: () => screenAvailWidth,
           configurable: true,
         },
         availHeight: {
-          get: () => profile.screen.availHeight,
+          get: () => screenAvailHeight,
           configurable: true,
         },
         width: {
-          get: () => profile.screen.width,
+          get: () => screenWidth,
           configurable: true,
         },
         height: {
-          get: () => profile.screen.height,
+          get: () => screenHeight,
           configurable: true,
         },
         colorDepth: {
-          get: () => profile.screen.colorDepth,
+          get: () => screenColorDepth,
           configurable: true,
         },
         pixelDepth: {
-          get: () => profile.screen.pixelDepth,
+          get: () => screenPixelDepth,
           configurable: true,
         },
       });
 
       // ========================================
-      // 5. Hardware Properties
+      // 5. Hardware Properties (with safe defaults)
       // ========================================
+      const hardwareCores = safeGet(profile, 'hardware.cores', 4);
+      const hardwareMemory = safeGet(profile, 'hardware.memory', 8);
+
       Object.defineProperties(navigator, {
         hardwareConcurrency: {
-          get: () => profile.hardware.cores,
+          get: () => hardwareCores,
           configurable: true,
         },
         deviceMemory: {
-          get: () => profile.hardware.memory,
+          get: () => hardwareMemory,
           configurable: true,
         },
       });
@@ -590,6 +622,11 @@ export class FingerprintSpoofingModule {
         // Return as-is, but could add noise here if needed
         return rects;
       };
+
+      } catch (e) {
+        // Silently fail to avoid breaking the page
+        // console.error('Fingerprint spoofing error:', e);
+      }
     }, this.profile);
 
     logger.debug('Fingerprint spoofing scripts injected successfully');
