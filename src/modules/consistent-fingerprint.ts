@@ -1742,18 +1742,9 @@ export async function applyConsistentFingerprint(
       };
     }
 
-    // Log fingerprint info (silently fail if properties missing)
-    try {
-      console.log('[ConsistentFingerprint] Applied:', {
-        country: safeGet(fp, 'geolocation.country', 'Unknown'),
-        timezone: safeGet(fp, 'timezone', 'UTC'),
-        locale: safeGet(fp, 'locale', 'en-US'),
-        resolution: `${safeGet(fp, 'resolution.width', 1920)}x${safeGet(fp, 'resolution.height', 1080)}`,
-        platform: safeGet(fp, 'platform', 'Win32'),
-      });
-    } catch (e) {
-      // Silently fail
-    }
+    // IMPORTANT: NO LOGGING in page context!
+    // Detection scripts can monitor console for automation signatures
+    // "Молчание - не логируй, не выбрасывай ошибки при проверках"
 
     } catch (e) {
       // Silently fail to avoid breaking the page

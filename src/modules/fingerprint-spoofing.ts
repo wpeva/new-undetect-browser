@@ -131,112 +131,33 @@ export class FingerprintSpoofingModule {
       };
 
       // ========================================
-      // 2. WebGL Fingerprint Protection (60+ Parameters)
+      // 2. WebGL Fingerprint Protection - ONLY vendor/renderer
       // ========================================
+      // IMPORTANT: Only spoof vendor/renderer identifiers
+      // All other parameters should return REAL values from the actual GPU
+      // Hardcoding parameters causes inconsistencies that are easily detected
 
-      // Comprehensive WebGL parameter spoofing (with safe defaults)
       const webglVendor = safeGet(profile, 'webgl.vendor', 'Intel Inc.');
       const webglRenderer = safeGet(profile, 'webgl.renderer', 'Intel Iris OpenGL Engine');
 
-      const webglParameters: Record<number, any> = {
-        // Vendor and Renderer
-        37445: webglVendor, // UNMASKED_VENDOR_WEBGL
-        37446: webglRenderer, // UNMASKED_RENDERER_WEBGL
-
-        // Precision
-        2849: 8, // SUBPIXEL_BITS
-
-        // Viewport
-        3386: new Int32Array([16384, 16384]), // MAX_VIEWPORT_DIMS
-
-        // Texture parameters
-        3379: 16384, // MAX_TEXTURE_SIZE
-        34024: 16384, // MAX_CUBE_MAP_TEXTURE_SIZE / MAX_RENDERBUFFER_SIZE
-        34076: 16, // MAX_TEXTURE_IMAGE_UNITS
-        34930: 16, // MAX_TEXTURE_MAX_ANISOTROPY_EXT
-
-        // Color buffer
-        3410: 8, // RED_BITS
-        3411: 8, // GREEN_BITS
-        3412: 8, // BLUE_BITS
-        3413: 8, // ALPHA_BITS
-        3414: 24, // DEPTH_BITS
-        3415: 8, // STENCIL_BITS
-
-        // Aliasing
-        33901: new Float32Array([1, 8192]), // ALIASED_POINT_SIZE_RANGE
-        33902: new Float32Array([1, 1]), // ALIASED_LINE_WIDTH_RANGE
-
-        // Vertex attributes
-        34921: 16, // MAX_VERTEX_ATTRIBS
-        35658: 31, // MAX_VARYING_VECTORS
-        35659: 1024, // MAX_VERTEX_UNIFORM_VECTORS / MAX_VERTEX_UNIFORM_COMPONENTS
-        35660: 32, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
-        35661: 16, // MAX_VERTEX_TEXTURE_IMAGE_UNITS
-
-        // Fragment shader
-        35657: 16, // MAX_FRAGMENT_UNIFORM_BLOCKS
-        36338: 1024, // MAX_FRAGMENT_UNIFORM_VECTORS
-
-        // Varying vectors and components
-        35371: 31, // MAX_VARYING_VECTORS
-        35375: 124, // MAX_VARYING_COMPONENTS
-        35376: 32, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
-        35379: 1024, // MAX_FRAGMENT_UNIFORM_VECTORS
-        35380: 1024, // MAX_VERTEX_UNIFORM_VECTORS
-
-        // Framebuffer
-        36063: 8, // MAX_COLOR_ATTACHMENTS
-        36183: 8, // MAX_DRAW_BUFFERS
-
-        // Uniform parameters
-        36347: 4096, // MAX_VERTEX_UNIFORM_VECTORS / MAX_VERTEX_UNIFORM_COMPONENTS
-        36348: 16, // MAX_VERTEX_UNIFORM_BLOCKS
-        36349: 64, // MAX_VERTEX_OUTPUT_COMPONENTS
-        36350: 60, // MAX_FRAGMENT_INPUT_COMPONENTS
-
-        // WebGL2 specific
-        35071: 2048, // MAX_3D_TEXTURE_SIZE
-        35373: 2048, // MAX_ARRAY_TEXTURE_LAYERS
-        35968: 8, // MAX_SAMPLES
-        36006: 4, // MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS
-        36007: 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
-        36008: 4, // MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS
-        36203: 72, // MAX_UNIFORM_BUFFER_BINDINGS
-        36204: 65536, // MAX_UNIFORM_BLOCK_SIZE
-        36205: 84, // MAX_COMBINED_UNIFORM_BLOCKS
-        36208: 16, // MAX_VERTEX_UNIFORM_BLOCKS
-        36209: 16, // MAX_FRAGMENT_UNIFORM_BLOCKS
-
-        // Additional WebGL parameters
-        32773: 4294967295, // MAX_ELEMENT_INDEX
-        32823: 16384, // MAX_ELEMENTS_INDICES
-        32824: 16384, // MAX_ELEMENTS_VERTICES
-        32937: 64, // MAX_VERTEX_OUTPUT_COMPONENTS
-        32938: 60, // MAX_FRAGMENT_INPUT_COMPONENTS
-        32939: -8, // MIN_PROGRAM_TEXEL_OFFSET
-        32940: 7, // MAX_PROGRAM_TEXEL_OFFSET
-        37154: 65536, // MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS
-        37157: 65536, // MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS
-      };
+      // Only these two parameters are spoofed
+      const UNMASKED_VENDOR_WEBGL = 37445;
+      const UNMASKED_RENDERER_WEBGL = 37446;
 
       const getParameter = WebGLRenderingContext.prototype.getParameter;
       WebGLRenderingContext.prototype.getParameter = function (parameter) {
-        // Return spoofed value if we have one
-        if (webglParameters.hasOwnProperty(parameter)) {
-          return webglParameters[parameter];
-        }
+        // Only spoof vendor/renderer - all other params return real GPU values
+        if (parameter === UNMASKED_VENDOR_WEBGL) return webglVendor;
+        if (parameter === UNMASKED_RENDERER_WEBGL) return webglRenderer;
         return getParameter.call(this, parameter);
       };
 
-      // WebGL2
+      // WebGL2 - same approach, only vendor/renderer
       if (typeof WebGL2RenderingContext !== 'undefined') {
         const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
         WebGL2RenderingContext.prototype.getParameter = function (parameter) {
-          // Return spoofed value if we have one
-          if (webglParameters.hasOwnProperty(parameter)) {
-            return webglParameters[parameter];
-          }
+          if (parameter === UNMASKED_VENDOR_WEBGL) return webglVendor;
+          if (parameter === UNMASKED_RENDERER_WEBGL) return webglRenderer;
           return getParameter2.call(this, parameter);
         };
       }
