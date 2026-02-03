@@ -1,0 +1,170 @@
+diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
+index abcdef1..1234567 100644
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/canvas_rendering_context_2d.cc
+@@ -58,6 +58,9 @@
+ #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
+ #include "third_party/skia/include/core/SkSurface.h"
+
++// Fingerprint protection integration
++#include "content/browser/fingerprint/fingerprint_session_manager.h"
++#include <random>
+
+ namespace blink {
+
+@@ -250,6 +253,57 @@ void CanvasRenderingContext2D::DidDraw(const SkIRect& dirty_rect) {
+   BaseRenderingContext2D::DidDraw(dirty_rect);
+ }
+
++// =============================================================================
++// CANVAS FINGERPRINT PROTECTION
++// Uses FingerprintSessionManager for unified configuration
++// =============================================================================
++
++namespace {
++
++// Add noise to canvas pixel data
++// Parameters come from FingerprintSessionManager for consistency
++void AddCanvasFingerprintNoise(uint8_t* data, size_t data_size) {
++  auto& session = content::FingerprintSessionManager::GetInstance();
++
++  // Get configuration from session manager
++  float noise_level = session.GetCanvasNoiseLevel();
++  int noise_amplitude = session.GetCanvasNoiseAmplitude();
++  uint64_t seed = session.GetSessionSeed();
++
++  // No noise if disabled
++  if (noise_level <= 0 || noise_amplitude <= 0) {
++    return;
++  }
++
++  // Create seeded generator for consistent results
++  std::mt19937_64 gen(seed);
++  std::uniform_int_distribution<int> noise_dist(-noise_amplitude, noise_amplitude);
++
++  // Calculate number of pixels to modify
++  size_t pixel_count = data_size / 4;  // RGBA
++  size_t noise_count = static_cast<size_t>(pixel_count * noise_level);
++
++  // Apply noise to random pixels
++  for (size_t i = 0; i < noise_count; i++) {
++    // Select random pixel
++    size_t pixel_idx = gen() % pixel_count;
++    size_t byte_idx = pixel_idx * 4;
++
++    // Modify RGB channels only (preserve alpha)
++    for (int channel = 0; channel < 3; channel++) {
++      int original = data[byte_idx + channel];
++      int noise = noise_dist(gen);
++      int modified = original + noise;
++
++      // Clamp to valid range
++      if (modified < 0) modified = 0;
++      if (modified > 255) modified = 255;
++
++      data[byte_idx + channel] = static_cast<uint8_t>(modified);
++    }
++  }
++}
++
++}  // namespace
+
+ ImageData* CanvasRenderingContext2D::getImageData(
+     int sx,
+@@ -267,6 +321,10 @@ ImageData* CanvasRenderingContext2D::getImageData(
+   ImageData* image_data = BaseRenderingContext2D::getImageData(
+       sx, sy, sw, sh, exception_state);
+
++  // Apply fingerprint protection noise
++  if (image_data && image_data->data()) {
++    AddCanvasFingerprintNoise(image_data->data()->Data(), image_data->data()->length());
++  }
++
+   return image_data;
+ }
+
+diff --git a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+index bcdef12..2345678 100644
+--- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -67,6 +67,9 @@
+ #include "ui/gfx/geometry/size_f.h"
+ #include "v8/include/v8.h"
+
++// Fingerprint protection integration
++#include "content/browser/fingerprint/fingerprint_session_manager.h"
++#include <random>
+
+ namespace blink {
+
+@@ -650,6 +653,52 @@ String HTMLCanvasElement::ToDataURLInternal(
+     return String();
+   }
+
++  // ==========================================================================
++  // CANVAS FINGERPRINT PROTECTION FOR toDataURL
++  // Apply noise before encoding to prevent fingerprinting
++  // ==========================================================================
++  {
++    auto& session = content::FingerprintSessionManager::GetInstance();
++    float noise_level = session.GetCanvasNoiseLevel();
++    int noise_amplitude = session.GetCanvasNoiseAmplitude();
++
++    if (noise_level > 0 && noise_amplitude > 0 && image_bitmap) {
++      // Get pixels for modification
++      SkPixmap pixmap;
++      if (image_bitmap->PeekPixels(&pixmap)) {
++        uint8_t* data = static_cast<uint8_t*>(pixmap.writable_addr());
++        size_t data_size = pixmap.computeByteSize();
++
++        if (data && data_size > 0) {
++          uint64_t seed = session.GetSessionSeed();
++          std::mt19937_64 gen(seed);
++          std::uniform_int_distribution<int> dist(-noise_amplitude, noise_amplitude);
++
++          size_t pixel_count = data_size / 4;
++          size_t noise_count = static_cast<size_t>(pixel_count * noise_level);
++
++          for (size_t i = 0; i < noise_count; i++) {
++            size_t pixel_idx = gen() % pixel_count;
++            size_t byte_idx = pixel_idx * 4;
++
++            for (int c = 0; c < 3; c++) {
++              int val = data[byte_idx + c] + dist(gen);
++              if (val < 0) val = 0;
++              if (val > 255) val = 255;
++              data[byte_idx + c] = static_cast<uint8_t>(val);
++            }
++          }
++        }
++      }
++    }
++  }
++  // END CANVAS FINGERPRINT PROTECTION
++
+   return ImageDataURL(*image_bitmap, mime_type, quality);
+ }
+
+diff --git a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
+index cdef123..3456789 100644
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
+@@ -45,6 +45,9 @@
+ #include "third_party/blink/renderer/platform/graphics/memory_managed_paint_recorder.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+
++// Fingerprint protection
++#include "content/browser/fingerprint/fingerprint_session_manager.h"
++
+
+ namespace blink {
+
+@@ -2050,6 +2053,9 @@ TextMetrics* BaseRenderingContext2D::measureText(const String& text) {
+
+   TextMetrics* metrics = MakeGarbageCollected<TextMetrics>(font, direction, baseline, run_info);
+
++  // Add subtle noise to text metrics for fingerprint protection
++  // This is handled by the TextMetrics class using FingerprintSessionManager
++
+   return metrics;
+ }

@@ -1,0 +1,199 @@
+diff --git a/third_party/blink/renderer/core/frame/screen.cc b/third_party/blink/renderer/core/frame/screen.cc
+index aaaaaaa..bbbbbbb 100644
+--- a/third_party/blink/renderer/core/frame/screen.cc
++++ b/third_party/blink/renderer/core/frame/screen.cc
+@@ -35,6 +35,9 @@
+ #include "third_party/blink/renderer/core/probe/core_probes.h"
+ #include "ui/display/screen_info.h"
+
++// Fingerprint protection integration
++#include "content/browser/fingerprint/fingerprint_session_manager.h"
++
+
+ namespace blink {
+
+@@ -66,32 +69,76 @@ LocalFrame* Screen::GetFrame() const {
+
+ int Screen::height() const {
+   // ==========================================================================
+-  // SCREEN HEIGHT FINGERPRINT SPOOFING
++  // SCREEN HEIGHT FINGERPRINT PROTECTION
++  // Return spoofed height from FingerprintSessionManager
+   // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenHeight();
++  }
++
++  // Fallback to common value
+   return 1080;
+   // Original: return GetRect(GetFrame()).height();
+ }
+
+ int Screen::width() const {
+   // ==========================================================================
+-  // SCREEN WIDTH FINGERPRINT SPOOFING
++  // SCREEN WIDTH FINGERPRINT PROTECTION
+   // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenWidth();
++  }
++
+   return 1920;
+   // Original: return GetRect(GetFrame()).width();
+ }
+
+ unsigned Screen::colorDepth() const {
+   // ==========================================================================
+-  // COLOR DEPTH FINGERPRINT SPOOFING
+-  // Most displays use 24-bit color
++  // COLOR DEPTH FINGERPRINT PROTECTION
+   // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenColorDepth();
++  }
++
++  // Most displays use 24-bit color
+   return 24;
+   // Original: return GetScreenInfo(GetFrame()).depth;
+ }
+
+ unsigned Screen::pixelDepth() const {
++  // ==========================================================================
++  // PIXEL DEPTH FINGERPRINT PROTECTION
++  // Same as colorDepth in most cases
++  // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenColorDepth();
++  }
++
+   return 24;
+   // Original: return GetScreenInfo(GetFrame()).depth;
+ }
+
+ int Screen::availLeft() const {
++  // ==========================================================================
++  // AVAIL LEFT FINGERPRINT PROTECTION
++  // Usually 0 unless there's a dock/taskbar on the left
++  // ==========================================================================
+   return 0;
+   // Original: return GetAvailRect(GetFrame()).x();
+ }
+@@ -100,26 +147,48 @@ int Screen::availTop() const {
+   return 0;
+   // Original: return GetAvailRect(GetFrame()).y();
+ }
+
+ int Screen::availHeight() const {
+   // ==========================================================================
+-  // AVAIL HEIGHT FINGERPRINT SPOOFING
+-  // Usually screen height minus taskbar (40px on Windows)
++  // AVAIL HEIGHT FINGERPRINT PROTECTION
+   // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenAvailHeight();
++  }
++
++  // Usually screen height minus taskbar (40px on Windows)
+   return 1040;
+   // Original: return GetAvailRect(GetFrame()).height();
+ }
+
+ int Screen::availWidth() const {
+   // ==========================================================================
+-  // AVAIL WIDTH FINGERPRINT SPOOFING
++  // AVAIL WIDTH FINGERPRINT PROTECTION
+   // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenAvailWidth();
++  }
++
+   return 1920;
+   // Original: return GetAvailRect(GetFrame()).width();
+ }
+
+ bool Screen::isExtended() const {
+   // ==========================================================================
+-  // IS EXTENDED FINGERPRINT SPOOFING
+-  // Return false to hide multi-monitor setup
++  // IS EXTENDED FINGERPRINT PROTECTION
++  // Return false to hide multi-monitor setup (common fingerprinting vector)
+   // ==========================================================================
+   return false;
+   // Original: return GetScreenInfo(GetFrame()).is_extended;
+ }
+
++float Screen::devicePixelRatio() const {
++  // ==========================================================================
++  // DEVICE PIXEL RATIO FINGERPRINT PROTECTION
++  // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenPixelRatio();
++  }
++
++  return 1.0f;
++  // Original: return GetScreenInfo(GetFrame()).device_scale_factor;
++}
+
+diff --git a/third_party/blink/renderer/core/frame/window.cc b/third_party/blink/renderer/core/frame/window.cc
+index ccccccc..ddddddd 100644
+--- a/third_party/blink/renderer/core/frame/window.cc
++++ b/third_party/blink/renderer/core/frame/window.cc
+@@ -80,6 +80,9 @@
+ #include "v8/include/v8.h"
+ #include "third_party/blink/public/common/page/page_zoom.h"
+
++// Fingerprint protection integration
++#include "content/browser/fingerprint/fingerprint_session_manager.h"
++
+
+ namespace blink {
+
+@@ -450,6 +453,16 @@ double LocalDOMWindow::devicePixelRatio() const {
+   // ==========================================================================
+   // DEVICE PIXEL RATIO FINGERPRINT SPOOFING
+   // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return static_cast<double>(session.GetScreenPixelRatio());
++  }
++
++  // Fallback to common value
+   return 1.0;
+   // Original:
+   // if (!GetFrame())
+@@ -460,6 +473,28 @@ double LocalDOMWindow::devicePixelRatio() const {
+   // return page_zoom_factor * css_to_device_scale_factor;
+ }
+
++int LocalDOMWindow::outerWidth() const {
++  // ==========================================================================
++  // OUTER WIDTH FINGERPRINT PROTECTION
++  // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenWidth();
++  }
++  return 1920;
++}
++
++int LocalDOMWindow::outerHeight() const {
++  // ==========================================================================
++  // OUTER HEIGHT FINGERPRINT PROTECTION
++  // ==========================================================================
++  auto& session = content::FingerprintSessionManager::GetInstance();
++  if (session.IsInitialized()) {
++    return session.GetScreenHeight();
++  }
++  return 1080;
++}
++
+ void LocalDOMWindow::focus(v8::Isolate* isolate) {
+   if (!GetFrame())
+     return;
