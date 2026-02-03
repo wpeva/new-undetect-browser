@@ -234,7 +234,7 @@ export class AutomationDetectionProtection {
             src.includes('selenium') ||
             src.includes('webdriver')
           ) {
-            logger.warn('Blocked automation iframe injection');
+            // Don't append automation iframes
             return newChild; // Return but don't actually append
           }
         }
@@ -254,7 +254,7 @@ export class AutomationDetectionProtection {
             src.includes('selenium') ||
             src.includes('webdriver')
           ) {
-            logger.warn('Blocked automation iframe injection');
+            // Don't insert automation iframes
             return newChild;
           }
         }
@@ -587,7 +587,7 @@ export class AutomationDetectionProtection {
         return result;
       };
 
-      logger.debug('Automation detection protection injected successfully');
+      // Note: logger removed from here - it doesn't exist in page context
     });
 
     logger.info('Automation detection protection applied');

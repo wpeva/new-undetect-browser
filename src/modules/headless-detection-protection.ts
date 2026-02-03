@@ -515,7 +515,7 @@ export class HeadlessDetectionProtection {
         }
       }
 
-      logger.debug('Headless detection protection injected successfully');
+      // Note: logger removed - it doesn't exist in page context
     });
 
     logger.info('Headless detection protection applied');

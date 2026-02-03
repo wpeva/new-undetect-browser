@@ -14,12 +14,15 @@ export class WebDriverEvasionModule {
 
     await page.evaluateOnNewDocument(() => {
       // ========================================
-      // 1. Navigator.webdriver
+      // 1. Navigator.webdriver - MUST be false, not undefined!
       // ========================================
       Object.defineProperty(navigator, 'webdriver', {
-        get: () => undefined,
+        get: () => false,
         configurable: true,
       });
+
+      // Also delete the property from prototype chain
+      delete (Object.getPrototypeOf(navigator) as any).webdriver;
 
       // ========================================
       // 2. Chrome DevTools Protocol (CDP) variables
@@ -56,6 +59,7 @@ export class WebDriverEvasionModule {
 
       if (!(window.chrome as any).runtime) {
         (window.chrome as any).runtime = {
+          // Constants
           OnInstalledReason: {
             CHROME_UPDATE: 'chrome_update',
             INSTALL: 'install',
@@ -95,6 +99,37 @@ export class WebDriverEvasionModule {
             THROTTLED: 'throttled',
             UPDATE_AVAILABLE: 'update_available',
           },
+          // Critical methods that detection scripts check
+          connect: function(extensionId?: string, connectInfo?: any) {
+            // Return a fake port object
+            return {
+              name: connectInfo?.name || '',
+              disconnect: function() {},
+              onDisconnect: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
+              onMessage: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
+              postMessage: function() {},
+              sender: undefined,
+            };
+          },
+          sendMessage: function(extensionId?: any, message?: any, options?: any, callback?: any) {
+            // Handle different argument patterns
+            if (typeof callback === 'function') {
+              setTimeout(() => callback(undefined), 0);
+            } else if (typeof options === 'function') {
+              setTimeout(() => options(undefined), 0);
+            } else if (typeof message === 'function') {
+              setTimeout(() => message(undefined), 0);
+            }
+            return Promise.resolve(undefined);
+          },
+          getManifest: function() {
+            return undefined; // Normal for non-extension pages
+          },
+          getURL: function(path: string) {
+            return ''; // Return empty string for non-extension pages
+          },
+          id: undefined, // Extensions have an ID, normal pages don't
+          lastError: undefined,
         } as any;
       }
 
@@ -116,20 +151,72 @@ export class WebDriverEvasionModule {
       }
 
       // ========================================
-      // 4. Permissions API
+      // 4. Permissions API - Handle ALL permissions properly
       // ========================================
       const originalQuery = window.navigator.permissions.query;
-      window.navigator.permissions.query = ((parameters: any) =>
-        parameters.name === 'notifications'
-          ? Promise.resolve({
-              name: 'notifications' as PermissionName,
-              state: Notification.permission,
-              onchange: null,
-              addEventListener: () => {},
-              removeEventListener: () => {},
-              dispatchEvent: () => true,
-            } as PermissionStatus)
-          : originalQuery(parameters)) as any;
+      window.navigator.permissions.query = (async (parameters: any) => {
+        // Create realistic permission response
+        const createPermissionStatus = (name: string, state: PermissionState): PermissionStatus => {
+          const status = {
+            name: name as PermissionName,
+            state: state,
+            onchange: null,
+            addEventListener: function() {},
+            removeEventListener: function() {},
+            dispatchEvent: function() { return true; },
+          } as PermissionStatus;
+          return status;
+        };
+
+        // Handle different permission types realistically
+        switch (parameters.name) {
+          case 'notifications':
+            const notifState = typeof Notification !== 'undefined' ? Notification.permission : 'default';
+            return createPermissionStatus('notifications', notifState as PermissionState);
+
+          case 'geolocation':
+            return createPermissionStatus('geolocation', 'prompt');
+
+          case 'camera':
+          case 'microphone':
+            return createPermissionStatus(parameters.name, 'prompt');
+
+          case 'clipboard-read':
+          case 'clipboard-write':
+            return createPermissionStatus(parameters.name, 'prompt');
+
+          case 'midi':
+          case 'midi-sysex':
+            return createPermissionStatus(parameters.name, 'prompt');
+
+          case 'storage-access':
+          case 'persistent-storage':
+            return createPermissionStatus(parameters.name, 'prompt');
+
+          case 'accelerometer':
+          case 'gyroscope':
+          case 'magnetometer':
+          case 'ambient-light-sensor':
+            return createPermissionStatus(parameters.name, 'granted');
+
+          case 'push':
+            return createPermissionStatus('push', 'prompt');
+
+          case 'speaker-selection':
+            return createPermissionStatus(parameters.name, 'prompt');
+
+          case 'display-capture':
+            return createPermissionStatus(parameters.name, 'prompt');
+
+          default:
+            // For unknown permissions, try original query, fallback to prompt
+            try {
+              return await originalQuery.call(navigator.permissions, parameters);
+            } catch {
+              return createPermissionStatus(parameters.name, 'prompt');
+            }
+        }
+      }) as any;
 
       // ========================================
       // 5. Plugins
