@@ -133,11 +133,18 @@ export async function applyWebRTCSpoofing(
       function createModifiedIceEvent(
         originalEvent: RTCPeerConnectionIceEvent
       ): RTCPeerConnectionIceEvent {
+        // Handle null candidate (ICE gathering complete signal)
         if (!originalEvent.candidate) {
           return originalEvent;
         }
 
         const originalCandidate = originalEvent.candidate.candidate;
+
+        // Handle empty candidate string (also signals completion in some browsers)
+        if (!originalCandidate || originalCandidate.trim() === '') {
+          return originalEvent;
+        }
+
         const modifiedCandidate = replaceIPsInCandidate(originalCandidate);
 
         try {
@@ -152,6 +159,7 @@ export async function applyWebRTCSpoofing(
             candidate: newIceCandidate,
           });
         } catch {
+          // If creation fails, return original event unmodified
           return originalEvent;
         }
       }
