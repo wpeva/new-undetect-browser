@@ -561,30 +561,40 @@ export async function applyConsistentFingerprint(
       runningState: () => 'cannot_run',
     };
 
-    // chrome.csi - timing info
-    (window as any).chrome.csi = () => ({
-      onloadT: Date.now(),
-      startE: Date.now() - Math.floor(Math.random() * 1000),
-      pageT: Math.floor(Math.random() * 1000) + 500,
+    // chrome.csi - timing info (generate ONCE and cache for consistency)
+    const csiStartE = Date.now() - Math.floor(Math.random() * 500 + 200);
+    const csiPageT = Math.floor(Math.random() * 300 + 100);
+    const csiOnloadT = csiStartE + csiPageT;
+    const cachedCsi = {
+      onloadT: csiOnloadT,
+      startE: csiStartE,
+      pageT: csiPageT,
       tran: 15,
-    });
+    };
+    (window as any).chrome.csi = function csi() {
+      return cachedCsi;
+    };
 
-    // chrome.loadTimes - deprecated but still checked
-    (window as any).chrome.loadTimes = () => ({
-      commitLoadTime: Date.now() / 1000,
+    // chrome.loadTimes - deprecated but still checked (generate ONCE)
+    const loadTimesBase = Date.now() / 1000;
+    const cachedLoadTimes = {
+      commitLoadTime: loadTimesBase - 0.5,
       connectionInfo: 'h2',
-      finishDocumentLoadTime: Date.now() / 1000 + 0.1,
-      finishLoadTime: Date.now() / 1000 + 0.2,
+      finishDocumentLoadTime: loadTimesBase - 0.1,
+      finishLoadTime: loadTimesBase,
       firstPaintAfterLoadTime: 0,
-      firstPaintTime: Date.now() / 1000 + 0.05,
+      firstPaintTime: loadTimesBase - 0.3,
       navigationType: 'Other',
       npnNegotiatedProtocol: 'h2',
-      requestTime: Date.now() / 1000 - 0.5,
-      startLoadTime: Date.now() / 1000 - 0.3,
+      requestTime: loadTimesBase - 0.8,
+      startLoadTime: loadTimesBase - 0.7,
       wasAlternateProtocolAvailable: false,
       wasFetchedViaSpdy: true,
       wasNpnNegotiated: true,
-    });
+    };
+    (window as any).chrome.loadTimes = function loadTimes() {
+      return cachedLoadTimes;
+    };
 
     // ============================================================
     // WINDOW/VIEWPORT PROPERTIES - MUST BE CONSISTENT
@@ -1496,10 +1506,10 @@ export async function applyConsistentFingerprint(
     // This ensures userAgentData matches the actual browser version
     const realUserAgent = navigator.userAgent;
     const chromeVersionMatch = realUserAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
-    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '120';
+    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '135';
     const chromeFullVersion = chromeVersionMatch
       ? `${chromeVersionMatch[1]}.${chromeVersionMatch[2]}.${chromeVersionMatch[3]}.${chromeVersionMatch[4]}`
-      : '120.0.0.0';
+      : '135.0.7049.84';
 
     // Determine platform from real userAgent
     const isWindows = realUserAgent.includes('Windows');
@@ -1676,15 +1686,23 @@ export async function applyConsistentFingerprint(
       }),
     });
 
-    // Battery API
-    navigator.getBattery = () => Promise.resolve({
+    // Battery API - complete BatteryManager interface
+    const batteryManager = {
       charging: fp.battery.charging,
-      chargingTime: fp.battery.charging ? 3600 : Infinity,
-      dischargingTime: fp.battery.charging ? Infinity : 7200,
+      chargingTime: fp.battery.charging ? 0 : Infinity,
+      dischargingTime: fp.battery.charging ? Infinity : Math.floor(7200 + Math.random() * 3600),
       level: fp.battery.level,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    } as any);
+      // Event handlers
+      onchargingchange: null as ((this: any, ev: Event) => any) | null,
+      onchargingtimechange: null as ((this: any, ev: Event) => any) | null,
+      ondischargingtimechange: null as ((this: any, ev: Event) => any) | null,
+      onlevelchange: null as ((this: any, ev: Event) => any) | null,
+      // EventTarget methods
+      addEventListener: function() {},
+      removeEventListener: function() {},
+      dispatchEvent: function() { return true; },
+    };
+    navigator.getBattery = () => Promise.resolve(batteryManager as any);
 
     // Media Devices
     navigator.mediaDevices.enumerateDevices = function () {
@@ -1829,17 +1847,26 @@ function weightedChoice<T>(
 
 /**
  * Generate consistent user agent
- * IMPORTANT: We return empty string here - the actual userAgent will be
- * taken from the real browser to avoid HTTP header mismatch detection
+ * Returns Chrome 135 User-Agent to match HTTP headers set by setUserAgent()
  */
 function generateConsistentUserAgent(
-  _platform: string,
+  platform: string,
   _locale: string,
-  _random: () => number
+  random: () => number
 ): string {
-  // Return empty - will use real browser userAgent
-  // Changing userAgent causes mismatch with HTTP headers = instant detection
-  return '';
+  // Chrome 135 stable versions (January/February 2026)
+  const chromeVersions = ['135.0.7049.42', '135.0.7049.52', '135.0.7049.84'];
+  const chromeVersion = chromeVersions[Math.floor(random() * chromeVersions.length)] || chromeVersions[0];
+
+  const platformStrings: Record<string, string> = {
+    Windows: 'Windows NT 10.0; Win64; x64',
+    macOS: 'Macintosh; Intel Mac OS X 10_15_7',
+    Linux: 'X11; Linux x86_64',
+  };
+
+  const platformString = platformStrings[platform] || platformStrings.Windows;
+
+  return `Mozilla/5.0 (${platformString}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
 }
 
 /**

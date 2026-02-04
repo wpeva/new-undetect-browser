@@ -82,7 +82,8 @@ export function bezierPoint(
  * Generate realistic User-Agent
  */
 export function generateUserAgent(platform: 'windows' | 'mac' | 'linux' = 'windows'): string {
-  const chromeVersions = ['120.0.6099.129', '120.0.6099.130', '121.0.6167.85'];
+  // Chrome 135 stable versions (January/February 2026)
+  const chromeVersions = ['135.0.7049.42', '135.0.7049.52', '135.0.7049.84'];
   const version = randomChoice(chromeVersions);
 
   const platforms = {
