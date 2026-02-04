@@ -69,7 +69,9 @@ export class StealthEngine {
   private initialized: boolean = false;
 
   constructor(config: StealthConfig = {}) {
-    const level = config.level || 'advanced';
+    // Default to 'basic' to avoid conflicts with StealthPlugin
+    // StealthPlugin handles most evasions, we only add minimal extras
+    const level = config.level || 'basic';
 
     // Apply level-based defaults
     this.config = {
