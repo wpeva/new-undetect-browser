@@ -5,6 +5,7 @@ import { StealthEngine, StealthConfig } from './core/stealth-engine';
 import { ProfileManager, ProfileOptions } from './core/profile-manager';
 import { BrowserProfile, StorageConfig } from './storage/profile-storage';
 import { logger, LogLevel } from './utils/logger';
+import { applyEnhancedPrivacyProtection } from './modules/enhanced-privacy-protection';
 
 // Apply stealth plugin ONCE at module load
 puppeteer.use(StealthPlugin());
@@ -247,6 +248,9 @@ export class UndetectBrowserInstance {
 
     // Apply stealth protections
     await this.stealthEngine.applyProtections(page, this.profile.userAgent);
+
+    // Apply WebRTC spoofing (hides real IPs via enhanced privacy protection)
+    await applyEnhancedPrivacyProtection(page, {});
 
     // Add human-like methods to page
     this.addHumanLikeMethods(page);

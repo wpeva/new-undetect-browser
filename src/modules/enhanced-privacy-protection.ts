@@ -68,11 +68,10 @@ export async function applyEnhancedPrivacyProtection(
 ): Promise<void> {
   const { proxyIP, webrtc } = options;
 
-  // Apply WebRTC SPOOFING (not blocking!)
-  if (proxyIP) {
-    const webrtcConfig: WebRTCSpoofConfig = webrtc || createWebRTCConfigFromProxy(proxyIP);
-    await applyWebRTCSpoofing(page, webrtcConfig);
-  }
+  // ALWAYS apply WebRTC SPOOFING to hide real IPs
+  // Use proxy IP if provided, otherwise use default config (hides local IPs)
+  const webrtcConfig: WebRTCSpoofConfig = webrtc || createWebRTCConfigFromProxy(proxyIP);
+  await applyWebRTCSpoofing(page, webrtcConfig);
 }
 
 /**
