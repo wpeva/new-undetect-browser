@@ -82,8 +82,8 @@ export function bezierPoint(
  * Generate realistic User-Agent
  */
 export function generateUserAgent(platform: 'windows' | 'mac' | 'linux' = 'windows'): string {
-  // Chrome 135 stable versions (January/February 2026)
-  const chromeVersions = ['135.0.7049.42', '135.0.7049.52', '135.0.7049.84'];
+  // Chrome 131 stable versions (matches Puppeteer's bundled Chromium)
+  const chromeVersions = ['131.0.6778.85', '131.0.6778.108', '131.0.6778.139'];
   const version = randomChoice(chromeVersions);
 
   const platforms = {

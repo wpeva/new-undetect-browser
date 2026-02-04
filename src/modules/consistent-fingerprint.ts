@@ -1506,10 +1506,10 @@ export async function applyConsistentFingerprint(
     // This ensures userAgentData matches the actual browser version
     const realUserAgent = navigator.userAgent;
     const chromeVersionMatch = realUserAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
-    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '135';
+    const chromeVersion = chromeVersionMatch ? chromeVersionMatch[1] : '131';
     const chromeFullVersion = chromeVersionMatch
       ? `${chromeVersionMatch[1]}.${chromeVersionMatch[2]}.${chromeVersionMatch[3]}.${chromeVersionMatch[4]}`
-      : '135.0.7049.84';
+      : '131.0.6778.139';
 
     // Determine platform from real userAgent
     const isWindows = realUserAgent.includes('Windows');
@@ -1847,15 +1847,15 @@ function weightedChoice<T>(
 
 /**
  * Generate consistent user agent
- * Returns Chrome 135 User-Agent to match HTTP headers set by setUserAgent()
+ * Returns Chrome 131 User-Agent to match Puppeteer's bundled Chromium
  */
 function generateConsistentUserAgent(
   platform: string,
   _locale: string,
   random: () => number
 ): string {
-  // Chrome 135 stable versions (January/February 2026)
-  const chromeVersions = ['135.0.7049.42', '135.0.7049.52', '135.0.7049.84'];
+  // Chrome 131 stable versions (matches Puppeteer's bundled Chromium)
+  const chromeVersions = ['131.0.6778.85', '131.0.6778.108', '131.0.6778.139'];
   const chromeVersion = chromeVersions[Math.floor(random() * chromeVersions.length)] || chromeVersions[0];
 
   const platformStrings: Record<string, string> = {

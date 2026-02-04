@@ -1,8 +1,13 @@
-import puppeteer, { Browser, Page, PuppeteerLaunchOptions } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { Browser, Page, PuppeteerLaunchOptions } from 'puppeteer';
 import { StealthEngine, StealthConfig } from './core/stealth-engine';
 import { ProfileManager, ProfileOptions } from './core/profile-manager';
 import { BrowserProfile, StorageConfig } from './storage/profile-storage';
 import { logger, LogLevel } from './utils/logger';
+
+// Apply stealth plugin ONCE at module load
+puppeteer.use(StealthPlugin());
 
 export interface UndetectConfig {
   stealth?: StealthConfig;
