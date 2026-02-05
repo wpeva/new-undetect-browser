@@ -1511,58 +1511,59 @@ export async function applyConsistentFingerprint(
       ? `${chromeVersionMatch[1]}.${chromeVersionMatch[2]}.${chromeVersionMatch[3]}.${chromeVersionMatch[4]}`
       : '131.0.6778.139';
 
-    // Determine platform from real userAgent
-    const isWindows = realUserAgent.includes('Windows');
-    const isMac = realUserAgent.includes('Macintosh');
-    const realPlatform = isMac ? 'macOS' : (isWindows ? 'Windows' : 'Linux');
-    const isWin11 = realUserAgent.includes('Windows NT 11');
-    const platformVersion = isWin11 ? '15.0.0' : '10.0.0';
+    // Determine platform from fingerprint (not real userAgent!)
+    // This ensures consistency between userAgent and userAgentData
+    const fpPlatform = fp.platform === 'Win32' ? 'Windows' :
+                       fp.platform === 'MacIntel' ? 'macOS' : 'Linux';
+    const platformVersion = fpPlatform === 'Windows' ? '10.0.0' :
+                            fpPlatform === 'macOS' ? '14.0.0' : '6.5.0';
 
-    // Only override userAgentData if it doesn't exist (for consistency)
-    // If it exists, the browser provides correct values
-    if (!(navigator as any).userAgentData) {
-      const uaData = {
-        brands: [
-          { brand: 'Google Chrome', version: chromeVersion },
-          { brand: 'Chromium', version: chromeVersion },
-          { brand: 'Not_A Brand', version: '24' },
-        ],
-        mobile: false,
-        platform: realPlatform,
-        getHighEntropyValues: async (hints: string[]) => {
-          const result: any = {
-            brands: [
-              { brand: 'Google Chrome', version: chromeVersion },
-              { brand: 'Chromium', version: chromeVersion },
-              { brand: 'Not_A Brand', version: '24' },
-            ],
-            mobile: false,
-            platform: realPlatform,
-          };
-          if (hints.includes('platformVersion')) result.platformVersion = platformVersion;
-          if (hints.includes('architecture')) result.architecture = 'x86';
-          if (hints.includes('bitness')) result.bitness = '64';
-          if (hints.includes('model')) result.model = '';
-          if (hints.includes('uaFullVersion')) result.uaFullVersion = chromeFullVersion;
-          if (hints.includes('fullVersionList')) {
-            result.fullVersionList = [
-              { brand: 'Google Chrome', version: chromeFullVersion },
-              { brand: 'Chromium', version: chromeFullVersion },
-              { brand: 'Not_A Brand', version: '24.0.0.0' },
-            ];
-          }
-          return result;
-        },
-        toJSON: () => ({
+    // ALWAYS override userAgentData to match our fingerprint
+    // This is critical for consistency between userAgent and userAgentData
+    const uaData = {
+      brands: [
+        { brand: 'Google Chrome', version: chromeVersion },
+        { brand: 'Chromium', version: chromeVersion },
+        { brand: 'Not_A Brand', version: '24' },
+      ],
+      mobile: false,
+      platform: fpPlatform,
+      getHighEntropyValues: async (hints: string[]) => {
+        const result: any = {
           brands: [
             { brand: 'Google Chrome', version: chromeVersion },
             { brand: 'Chromium', version: chromeVersion },
             { brand: 'Not_A Brand', version: '24' },
           ],
           mobile: false,
-          platform: realPlatform,
-        }),
-      };
+          platform: fpPlatform,
+        };
+        if (hints.includes('platformVersion')) result.platformVersion = platformVersion;
+        if (hints.includes('architecture')) result.architecture = 'x86';
+        if (hints.includes('bitness')) result.bitness = '64';
+        if (hints.includes('model')) result.model = '';
+        if (hints.includes('uaFullVersion')) result.uaFullVersion = chromeFullVersion;
+        if (hints.includes('fullVersionList')) {
+          result.fullVersionList = [
+            { brand: 'Google Chrome', version: chromeFullVersion },
+            { brand: 'Chromium', version: chromeFullVersion },
+            { brand: 'Not_A Brand', version: '24.0.0.0' },
+          ];
+        }
+        return result;
+      },
+      toJSON: () => ({
+        brands: [
+          { brand: 'Google Chrome', version: chromeVersion },
+          { brand: 'Chromium', version: chromeVersion },
+          { brand: 'Not_A Brand', version: '24' },
+        ],
+        mobile: false,
+        platform: fpPlatform,
+      }),
+    };
+    // Force override even if userAgentData exists
+    {
 
       Object.defineProperty(navigator, 'userAgentData', {
         get: () => uaData,
@@ -1577,7 +1578,8 @@ export async function applyConsistentFingerprint(
     // Intercept Worker creation to inject our overrides
     const OriginalWorker = window.Worker;
     window.Worker = function(scriptURL: string | URL, options?: WorkerOptions): Worker {
-      // Create a blob that injects our timezone/locale settings
+      // Create a blob that injects our timezone/locale/WebGL settings
+      // CRITICAL: WebGL must be consistent between main thread and Workers!
       const injectScript = `
         // Inject timezone offset
         Date.prototype.getTimezoneOffset = function() { return ${targetOffset}; };
@@ -1609,6 +1611,32 @@ export async function applyConsistentFingerprint(
         };
         Intl.NumberFormat.prototype = origNF.prototype;
         Intl.NumberFormat.supportedLocalesOf = origNF.supportedLocalesOf;
+
+        // CRITICAL: WebGL spoofing in Worker for consistency
+        const fpWebGLVendor = '${fp.webgl.vendor}';
+        const fpWebGLRenderer = '${fp.webgl.renderer}';
+        const UNMASKED_VENDOR = 37445;
+        const UNMASKED_RENDERER = 37446;
+
+        // Override WebGLRenderingContext.getParameter
+        if (typeof WebGLRenderingContext !== 'undefined') {
+          const origGetParam = WebGLRenderingContext.prototype.getParameter;
+          WebGLRenderingContext.prototype.getParameter = function(param) {
+            if (param === UNMASKED_VENDOR) return fpWebGLVendor;
+            if (param === UNMASKED_RENDERER) return fpWebGLRenderer;
+            return origGetParam.call(this, param);
+          };
+        }
+
+        // Override WebGL2RenderingContext.getParameter
+        if (typeof WebGL2RenderingContext !== 'undefined') {
+          const origGetParam2 = WebGL2RenderingContext.prototype.getParameter;
+          WebGL2RenderingContext.prototype.getParameter = function(param) {
+            if (param === UNMASKED_VENDOR) return fpWebGLVendor;
+            if (param === UNMASKED_RENDERER) return fpWebGLRenderer;
+            return origGetParam2.call(this, param);
+          };
+        }
 
         // Import the original script
         importScripts('${scriptURL}');

@@ -100,34 +100,64 @@ export class WebDriverEvasionModule {
             UPDATE_AVAILABLE: 'update_available',
           },
           // Critical methods that detection scripts check
-          connect: function(extensionId?: string, connectInfo?: any) {
-            // Return a fake port object
-            return {
-              name: connectInfo?.name || '',
-              disconnect: function() {},
-              onDisconnect: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
-              onMessage: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
-              postMessage: function() {},
-              sender: undefined,
+          // Use Object.defineProperty to create functions without prototype
+          // This makes them appear like native functions
+          connect: (() => {
+            const fn = function connect(extensionId?: string, connectInfo?: any) {
+              // Throw TypeError if called with new (like native functions)
+              if (new.target) {
+                throw new TypeError('Illegal constructor');
+              }
+              // Return a fake port object
+              return {
+                name: connectInfo?.name || '',
+                disconnect: function() {},
+                onDisconnect: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
+                onMessage: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
+                postMessage: function() {},
+                sender: undefined,
+              };
             };
-          },
-          sendMessage: function(extensionId?: any, message?: any, options?: any, callback?: any) {
-            // Handle different argument patterns
-            if (typeof callback === 'function') {
-              setTimeout(() => callback(undefined), 0);
-            } else if (typeof options === 'function') {
-              setTimeout(() => options(undefined), 0);
-            } else if (typeof message === 'function') {
-              setTimeout(() => message(undefined), 0);
-            }
-            return Promise.resolve(undefined);
-          },
-          getManifest: function() {
-            return undefined; // Normal for non-extension pages
-          },
-          getURL: function(path: string) {
-            return ''; // Return empty string for non-extension pages
-          },
+            // Delete prototype to look like native function
+            delete (fn as any).prototype;
+            return fn;
+          })(),
+          sendMessage: (() => {
+            const fn = function sendMessage(extensionId?: any, message?: any, options?: any, callback?: any) {
+              // Throw TypeError if called with new (like native functions)
+              if (new.target) {
+                throw new TypeError('Illegal constructor');
+              }
+              // Handle different argument patterns
+              if (typeof callback === 'function') {
+                setTimeout(() => callback(undefined), 0);
+              } else if (typeof options === 'function') {
+                setTimeout(() => options(undefined), 0);
+              } else if (typeof message === 'function') {
+                setTimeout(() => message(undefined), 0);
+              }
+              return Promise.resolve(undefined);
+            };
+            // Delete prototype to look like native function
+            delete (fn as any).prototype;
+            return fn;
+          })(),
+          getManifest: (() => {
+            const fn = function getManifest() {
+              if (new.target) throw new TypeError('Illegal constructor');
+              return undefined; // Normal for non-extension pages
+            };
+            delete (fn as any).prototype;
+            return fn;
+          })(),
+          getURL: (() => {
+            const fn = function getURL(path: string) {
+              if (new.target) throw new TypeError('Illegal constructor');
+              return ''; // Return empty string for non-extension pages
+            };
+            delete (fn as any).prototype;
+            return fn;
+          })(),
           id: undefined, // Extensions have an ID, normal pages don't
           lastError: undefined,
         } as any;
