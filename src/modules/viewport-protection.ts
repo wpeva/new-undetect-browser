@@ -75,38 +75,34 @@ export class ViewportProtectionModule {
       // ========================================
       // 3. Visual Viewport API Protection
       // ========================================
+      // NOTE: Using Object.defineProperty instead of Proxy to avoid hasIframeProxy detection
       if (window.visualViewport) {
-        const originalVisualViewport = window.visualViewport;
-
-        Object.defineProperty(window, 'visualViewport', {
-          get: () => {
-            return new Proxy(originalVisualViewport, {
-              get: (target, prop) => {
-                if (prop === 'width') {
-                  return profile.width;
-                }
-                if (prop === 'height') {
-                  return profile.height;
-                }
-                if (prop === 'scale') {
-                  return 1; // Prevent zoom detection
-                }
-                if (prop === 'offsetLeft') {
-                  return 0;
-                }
-                if (prop === 'offsetTop') {
-                  return 0;
-                }
-                if (prop === 'pageLeft') {
-                  return window.scrollX || window.pageXOffset || 0;
-                }
-                if (prop === 'pageTop') {
-                  return window.scrollY || window.pageYOffset || 0;
-                }
-                return Reflect.get(target, prop);
-              },
-            });
-          },
+        Object.defineProperty(window.visualViewport, 'width', {
+          get: () => profile.width,
+          configurable: true,
+        });
+        Object.defineProperty(window.visualViewport, 'height', {
+          get: () => profile.height,
+          configurable: true,
+        });
+        Object.defineProperty(window.visualViewport, 'scale', {
+          get: () => 1,
+          configurable: true,
+        });
+        Object.defineProperty(window.visualViewport, 'offsetLeft', {
+          get: () => 0,
+          configurable: true,
+        });
+        Object.defineProperty(window.visualViewport, 'offsetTop', {
+          get: () => 0,
+          configurable: true,
+        });
+        Object.defineProperty(window.visualViewport, 'pageLeft', {
+          get: () => window.scrollX || window.pageXOffset || 0,
+          configurable: true,
+        });
+        Object.defineProperty(window.visualViewport, 'pageTop', {
+          get: () => window.scrollY || window.pageYOffset || 0,
           configurable: true,
         });
       }
@@ -267,38 +263,9 @@ export class ViewportProtectionModule {
       // ========================================
       // 10. ResizeObserver Consistency
       // ========================================
-      if (typeof ResizeObserver !== 'undefined') {
-        const OriginalResizeObserver = ResizeObserver;
-
-        (window as any).ResizeObserver = class extends OriginalResizeObserver {
-          constructor(callback: ResizeObserverCallback) {
-            super((entries, observer) => {
-              // Add slight noise to prevent fingerprinting via resize patterns
-              const modifiedEntries = entries.map((entry) => {
-                const noise = (Math.random() - 0.5) * 0.1; // ±0.05px noise
-                return new Proxy(entry, {
-                  get: (target, prop) => {
-                    if (prop === 'contentRect') {
-                      const rect = target.contentRect;
-                      return new Proxy(rect, {
-                        get: (rectTarget, rectProp) => {
-                          if (['width', 'height', 'x', 'y'].includes(rectProp as string)) {
-                            return (rectTarget as any)[rectProp] + noise;
-                          }
-                          return Reflect.get(rectTarget, rectProp);
-                        },
-                      });
-                    }
-                    return Reflect.get(target, prop);
-                  },
-                });
-              });
-
-              callback(modifiedEntries as any, observer);
-            });
-          }
-        };
-      }
+      // NOTE: Removed Proxy wrapper to avoid hasIframeProxy detection
+      // The original ResizeObserver works fine without modification
+      // Adding noise to resize events is not necessary and can be detected
 
       // ========================================
       // 11. Window.open Viewport Handling
@@ -322,34 +289,9 @@ export class ViewportProtectionModule {
       // ========================================
       // 12. getBoundingClientRect Viewport Awareness
       // ========================================
-      // Ensure element positions are consistent with viewport
-      const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
-
-      Element.prototype.getBoundingClientRect = function () {
-        const rect = originalGetBoundingClientRect.call(this);
-
-        // Clamp to viewport bounds
-        return new Proxy(rect, {
-          get: (target, prop) => {
-            const value = Reflect.get(target, prop);
-
-            if (prop === 'left' || prop === 'x') {
-              return Math.max(0, Math.min(value, profile.width));
-            }
-            if (prop === 'top' || prop === 'y') {
-              return Math.max(0, Math.min(value, profile.height));
-            }
-            if (prop === 'right') {
-              return Math.max(0, Math.min(value, profile.width));
-            }
-            if (prop === 'bottom') {
-              return Math.max(0, Math.min(value, profile.height));
-            }
-
-            return value;
-          },
-        });
-      };
+      // NOTE: Removed Proxy wrapper to avoid hasIframeProxy detection
+      // The original getBoundingClientRect works fine - clamping values can cause
+      // inconsistencies and detection. Real browsers don't clamp these values.
     }, this.profile);
 
     logger.debug('Viewport protection scripts injected successfully');

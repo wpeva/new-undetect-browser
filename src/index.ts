@@ -75,6 +75,9 @@ export class UndetectBrowser {
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
       '--disable-web-security',
+      // Enable WebGPU (if system supports Vulkan)
+      '--enable-unsafe-webgpu',
+      '--enable-features=Vulkan,WebGPU',
       `--user-agent=${profile.userAgent}`,
       `--window-size=${profile.viewport.width},${profile.viewport.height}`,
       ...(options.args || []),

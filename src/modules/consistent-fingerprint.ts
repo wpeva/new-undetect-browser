@@ -366,30 +366,17 @@ export async function applyConsistentFingerprint(
 
       // ============================================================
       // NATIVE FUNCTION SPOOFING UTILITY
-      // Makes our overridden functions look like native browser functions
       // ============================================================
-      const nativeToString = Function.prototype.toString;
-      const nativeFunctionStr = 'function () { [native code] }';
+      // NOTE: We intentionally do NOT override Function.prototype.toString
+      // Overriding it is detectable by hasToStringProxy check in CreepJS
+      // Instead, we just define our functions normally - detection scripts
+      // primarily check VALUES (like navigator.webdriver), not whether
+      // getter functions look "native"
 
-    // Map to store original function names for toString spoofing
-    const spoofedFunctions = new WeakMap<Function, string>();
-
-    // Helper to make a function appear native
-    function makeNative<T extends Function>(fn: T, name: string): T {
-      spoofedFunctions.set(fn, name);
-      return fn;
-    }
-
-    // Override Function.prototype.toString to return native code for our functions
-    Function.prototype.toString = function() {
-      if (spoofedFunctions.has(this)) {
-        const name = spoofedFunctions.get(this);
-        return `function ${name}() { [native code] }`;
+      // Simple pass-through helper (no longer spoofs toString)
+      function makeNative<T extends Function>(fn: T, _name: string): T {
+        return fn;
       }
-      return nativeToString.call(this);
-    };
-    // Make toString itself look native
-    spoofedFunctions.set(Function.prototype.toString, 'toString');
 
     // ============================================================
     // CRITICAL: Anti-Bot Detection - Must be first!
@@ -539,6 +526,8 @@ export async function applyConsistentFingerprint(
       (window as any).chrome = {};
     }
 
+    // chrome.runtime - Functions must NOT have prototype property (like native functions)
+    // This is checked by hasBadChromeRuntime detection in CreepJS
     (window as any).chrome.runtime = {
       PlatformOs: { MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux', OPENBSD: 'openbsd' },
       PlatformArch: { ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64', MIPS: 'mips', MIPS64: 'mips64' },
@@ -546,9 +535,51 @@ export async function applyConsistentFingerprint(
       RequestUpdateCheckStatus: { THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available' },
       OnInstalledReason: { INSTALL: 'install', UPDATE: 'update', CHROME_UPDATE: 'chrome_update', SHARED_MODULE_UPDATE: 'shared_module_update' },
       OnRestartRequiredReason: { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' },
-      connect: () => {},
-      sendMessage: () => {},
+      // Functions without prototype property (like native)
+      connect: (() => {
+        const fn = function connect(extensionId?: string, connectInfo?: any) {
+          if (new.target) throw new TypeError('Illegal constructor');
+          return {
+            name: connectInfo?.name || '',
+            disconnect: function() {},
+            onDisconnect: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
+            onMessage: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
+            postMessage: function() {},
+            sender: undefined,
+          };
+        };
+        delete (fn as any).prototype;
+        return fn;
+      })(),
+      sendMessage: (() => {
+        const fn = function sendMessage(extensionId?: any, message?: any, options?: any, callback?: any) {
+          if (new.target) throw new TypeError('Illegal constructor');
+          if (typeof callback === 'function') setTimeout(() => callback(undefined), 0);
+          else if (typeof options === 'function') setTimeout(() => options(undefined), 0);
+          else if (typeof message === 'function') setTimeout(() => message(undefined), 0);
+          return Promise.resolve(undefined);
+        };
+        delete (fn as any).prototype;
+        return fn;
+      })(),
+      getManifest: (() => {
+        const fn = function getManifest() {
+          if (new.target) throw new TypeError('Illegal constructor');
+          return undefined;
+        };
+        delete (fn as any).prototype;
+        return fn;
+      })(),
+      getURL: (() => {
+        const fn = function getURL(path: string) {
+          if (new.target) throw new TypeError('Illegal constructor');
+          return '';
+        };
+        delete (fn as any).prototype;
+        return fn;
+      })(),
       id: undefined,
+      lastError: undefined,
     };
 
     // chrome.app - exists in real Chrome
@@ -820,22 +851,54 @@ export async function applyConsistentFingerprint(
       }
       return originalDefineProperty.call(Object, obj, prop, descriptor);
     };
-    spoofedFunctions.set(Object.defineProperty, 'defineProperty');
 
-    // Hide automation in permissions - make it look native
+    // Hide automation in permissions - handle ALL common permission types
     const originalQuery = navigator.permissions.query;
     navigator.permissions.query = makeNative(function(parameters: any): Promise<PermissionStatus> {
-      if (parameters.name === 'notifications') {
-        return Promise.resolve({
-          state: Notification.permission as PermissionState,
-          name: 'notifications',
-          onchange: null,
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          dispatchEvent: () => true,
-        } as unknown as PermissionStatus);
+      // Create a fake PermissionStatus object
+      const createPermissionStatus = (name: string, state: PermissionState): PermissionStatus => ({
+        state,
+        name: name as PermissionName,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => true,
+      } as unknown as PermissionStatus);
+
+      // Handle common permission types that PixelScan might check
+      const permissionName = parameters.name;
+      switch (permissionName) {
+        case 'notifications': {
+          // Map notification permission: 'default' -> 'prompt'
+          let notifState: PermissionState = 'prompt';
+          if (typeof Notification !== 'undefined') {
+            notifState = Notification.permission === 'granted' ? 'granted' :
+                         Notification.permission === 'denied' ? 'denied' : 'prompt';
+          }
+          return Promise.resolve(createPermissionStatus(permissionName, notifState));
+        }
+        case 'geolocation':
+          return Promise.resolve(createPermissionStatus(permissionName, 'granted'));
+        case 'camera':
+        case 'microphone':
+        case 'midi':
+        case 'persistent-storage':
+        case 'push':
+        case 'clipboard-read':
+        case 'clipboard-write':
+        case 'screen-wake-lock':
+        case 'accelerometer':
+        case 'gyroscope':
+        case 'magnetometer':
+        case 'ambient-light-sensor':
+        case 'background-sync':
+        case 'display-capture':
+          return Promise.resolve(createPermissionStatus(permissionName, 'prompt'));
+        default:
+          // For unknown permissions, try original query but catch errors
+          return originalQuery.call(navigator.permissions, parameters).catch(() =>
+            createPermissionStatus(permissionName, 'prompt'));
       }
-      return originalQuery.call(navigator.permissions, parameters);
     }, 'query');
 
     // ============================================================
@@ -1511,58 +1574,59 @@ export async function applyConsistentFingerprint(
       ? `${chromeVersionMatch[1]}.${chromeVersionMatch[2]}.${chromeVersionMatch[3]}.${chromeVersionMatch[4]}`
       : '131.0.6778.139';
 
-    // Determine platform from real userAgent
-    const isWindows = realUserAgent.includes('Windows');
-    const isMac = realUserAgent.includes('Macintosh');
-    const realPlatform = isMac ? 'macOS' : (isWindows ? 'Windows' : 'Linux');
-    const isWin11 = realUserAgent.includes('Windows NT 11');
-    const platformVersion = isWin11 ? '15.0.0' : '10.0.0';
+    // Determine platform from fingerprint (not real userAgent!)
+    // This ensures consistency between userAgent and userAgentData
+    const fpPlatform = fp.platform === 'Win32' ? 'Windows' :
+                       fp.platform === 'MacIntel' ? 'macOS' : 'Linux';
+    const platformVersion = fpPlatform === 'Windows' ? '10.0.0' :
+                            fpPlatform === 'macOS' ? '14.0.0' : '6.5.0';
 
-    // Only override userAgentData if it doesn't exist (for consistency)
-    // If it exists, the browser provides correct values
-    if (!(navigator as any).userAgentData) {
-      const uaData = {
-        brands: [
-          { brand: 'Google Chrome', version: chromeVersion },
-          { brand: 'Chromium', version: chromeVersion },
-          { brand: 'Not_A Brand', version: '24' },
-        ],
-        mobile: false,
-        platform: realPlatform,
-        getHighEntropyValues: async (hints: string[]) => {
-          const result: any = {
-            brands: [
-              { brand: 'Google Chrome', version: chromeVersion },
-              { brand: 'Chromium', version: chromeVersion },
-              { brand: 'Not_A Brand', version: '24' },
-            ],
-            mobile: false,
-            platform: realPlatform,
-          };
-          if (hints.includes('platformVersion')) result.platformVersion = platformVersion;
-          if (hints.includes('architecture')) result.architecture = 'x86';
-          if (hints.includes('bitness')) result.bitness = '64';
-          if (hints.includes('model')) result.model = '';
-          if (hints.includes('uaFullVersion')) result.uaFullVersion = chromeFullVersion;
-          if (hints.includes('fullVersionList')) {
-            result.fullVersionList = [
-              { brand: 'Google Chrome', version: chromeFullVersion },
-              { brand: 'Chromium', version: chromeFullVersion },
-              { brand: 'Not_A Brand', version: '24.0.0.0' },
-            ];
-          }
-          return result;
-        },
-        toJSON: () => ({
+    // ALWAYS override userAgentData to match our fingerprint
+    // This is critical for consistency between userAgent and userAgentData
+    const uaData = {
+      brands: [
+        { brand: 'Google Chrome', version: chromeVersion },
+        { brand: 'Chromium', version: chromeVersion },
+        { brand: 'Not_A Brand', version: '24' },
+      ],
+      mobile: false,
+      platform: fpPlatform,
+      getHighEntropyValues: async (hints: string[]) => {
+        const result: any = {
           brands: [
             { brand: 'Google Chrome', version: chromeVersion },
             { brand: 'Chromium', version: chromeVersion },
             { brand: 'Not_A Brand', version: '24' },
           ],
           mobile: false,
-          platform: realPlatform,
-        }),
-      };
+          platform: fpPlatform,
+        };
+        if (hints.includes('platformVersion')) result.platformVersion = platformVersion;
+        if (hints.includes('architecture')) result.architecture = 'x86';
+        if (hints.includes('bitness')) result.bitness = '64';
+        if (hints.includes('model')) result.model = '';
+        if (hints.includes('uaFullVersion')) result.uaFullVersion = chromeFullVersion;
+        if (hints.includes('fullVersionList')) {
+          result.fullVersionList = [
+            { brand: 'Google Chrome', version: chromeFullVersion },
+            { brand: 'Chromium', version: chromeFullVersion },
+            { brand: 'Not_A Brand', version: '24.0.0.0' },
+          ];
+        }
+        return result;
+      },
+      toJSON: () => ({
+        brands: [
+          { brand: 'Google Chrome', version: chromeVersion },
+          { brand: 'Chromium', version: chromeVersion },
+          { brand: 'Not_A Brand', version: '24' },
+        ],
+        mobile: false,
+        platform: fpPlatform,
+      }),
+    };
+    // Force override even if userAgentData exists
+    {
 
       Object.defineProperty(navigator, 'userAgentData', {
         get: () => uaData,
@@ -1577,7 +1641,8 @@ export async function applyConsistentFingerprint(
     // Intercept Worker creation to inject our overrides
     const OriginalWorker = window.Worker;
     window.Worker = function(scriptURL: string | URL, options?: WorkerOptions): Worker {
-      // Create a blob that injects our timezone/locale settings
+      // Create a blob that injects our timezone/locale/WebGL settings
+      // CRITICAL: WebGL must be consistent between main thread and Workers!
       const injectScript = `
         // Inject timezone offset
         Date.prototype.getTimezoneOffset = function() { return ${targetOffset}; };
@@ -1610,6 +1675,32 @@ export async function applyConsistentFingerprint(
         Intl.NumberFormat.prototype = origNF.prototype;
         Intl.NumberFormat.supportedLocalesOf = origNF.supportedLocalesOf;
 
+        // CRITICAL: WebGL spoofing in Worker for consistency
+        const fpWebGLVendor = '${fp.webgl.vendor}';
+        const fpWebGLRenderer = '${fp.webgl.renderer}';
+        const UNMASKED_VENDOR = 37445;
+        const UNMASKED_RENDERER = 37446;
+
+        // Override WebGLRenderingContext.getParameter
+        if (typeof WebGLRenderingContext !== 'undefined') {
+          const origGetParam = WebGLRenderingContext.prototype.getParameter;
+          WebGLRenderingContext.prototype.getParameter = function(param) {
+            if (param === UNMASKED_VENDOR) return fpWebGLVendor;
+            if (param === UNMASKED_RENDERER) return fpWebGLRenderer;
+            return origGetParam.call(this, param);
+          };
+        }
+
+        // Override WebGL2RenderingContext.getParameter
+        if (typeof WebGL2RenderingContext !== 'undefined') {
+          const origGetParam2 = WebGL2RenderingContext.prototype.getParameter;
+          WebGL2RenderingContext.prototype.getParameter = function(param) {
+            if (param === UNMASKED_VENDOR) return fpWebGLVendor;
+            if (param === UNMASKED_RENDERER) return fpWebGLRenderer;
+            return origGetParam2.call(this, param);
+          };
+        }
+
         // Import the original script
         importScripts('${scriptURL}');
       `;
@@ -1633,12 +1724,8 @@ export async function applyConsistentFingerprint(
     } as any;
     (window.Worker as any).prototype = OriginalWorker.prototype;
 
-    // Override geolocation
-    navigator.geolocation.getCurrentPosition = function (
-      success,
-      _error,
-      _options
-    ) {
+    // Override geolocation - both getCurrentPosition AND watchPosition
+    const geolocationSuccess = (success: PositionCallback) => {
       success({
         coords: {
           latitude: fp.geolocation.latitude,
@@ -1651,6 +1738,31 @@ export async function applyConsistentFingerprint(
         },
         timestamp: Date.now(),
       } as GeolocationPosition);
+    };
+
+    navigator.geolocation.getCurrentPosition = function (
+      success,
+      _error,
+      _options
+    ) {
+      // Simulate async behavior like real geolocation
+      setTimeout(() => geolocationSuccess(success), 100);
+    };
+
+    // CRITICAL: Also override watchPosition - PixelScan might use this!
+    let watchId = 1;
+    navigator.geolocation.watchPosition = function (
+      success,
+      _error,
+      _options
+    ) {
+      // Simulate async behavior and return immediately
+      setTimeout(() => geolocationSuccess(success), 100);
+      return watchId++;
+    };
+
+    navigator.geolocation.clearWatch = function (_id: number) {
+      // No-op - just accept the call
     };
 
     // Canvas fingerprint - DO NOT add noise!

@@ -31,6 +31,10 @@ export function getEnhancedPrivacyArgs(proxyServer?: string): string[] {
     // Minimal privacy (these are normal for any browser)
     '--no-first-run',
     '--no-default-browser-check',
+
+    // Enable WebGPU (if system supports Vulkan)
+    '--enable-unsafe-webgpu',
+    '--enable-features=Vulkan,WebGPU',
   ];
 
   // Add proxy server if provided
