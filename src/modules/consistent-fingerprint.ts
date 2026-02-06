@@ -526,8 +526,10 @@ export async function applyConsistentFingerprint(
       (window as any).chrome = {};
     }
 
-    // chrome.runtime - Functions must NOT have prototype property (like native functions)
-    // This is checked by hasBadChromeRuntime detection in CreepJS
+    // chrome.runtime - Must use arrow functions because:
+    // 1. Arrow functions do NOT have 'prototype' property (like native functions)
+    // 2. Arrow functions throw TypeError when called with 'new' (like native functions)
+    // This passes hasBadChromeRuntime detection in CreepJS
     (window as any).chrome.runtime = {
       PlatformOs: { MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux', OPENBSD: 'openbsd' },
       PlatformArch: { ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64', MIPS: 'mips', MIPS64: 'mips64' },
@@ -535,49 +537,23 @@ export async function applyConsistentFingerprint(
       RequestUpdateCheckStatus: { THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available' },
       OnInstalledReason: { INSTALL: 'install', UPDATE: 'update', CHROME_UPDATE: 'chrome_update', SHARED_MODULE_UPDATE: 'shared_module_update' },
       OnRestartRequiredReason: { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' },
-      // Functions without prototype property (like native)
-      connect: (() => {
-        const fn = function connect(extensionId?: string, connectInfo?: any) {
-          if (new.target) throw new TypeError('Illegal constructor');
-          return {
-            name: connectInfo?.name || '',
-            disconnect: function() {},
-            onDisconnect: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
-            onMessage: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
-            postMessage: function() {},
-            sender: undefined,
-          };
-        };
-        delete (fn as any).prototype;
-        return fn;
-      })(),
-      sendMessage: (() => {
-        const fn = function sendMessage(extensionId?: any, message?: any, options?: any, callback?: any) {
-          if (new.target) throw new TypeError('Illegal constructor');
-          if (typeof callback === 'function') setTimeout(() => callback(undefined), 0);
-          else if (typeof options === 'function') setTimeout(() => options(undefined), 0);
-          else if (typeof message === 'function') setTimeout(() => message(undefined), 0);
-          return Promise.resolve(undefined);
-        };
-        delete (fn as any).prototype;
-        return fn;
-      })(),
-      getManifest: (() => {
-        const fn = function getManifest() {
-          if (new.target) throw new TypeError('Illegal constructor');
-          return undefined;
-        };
-        delete (fn as any).prototype;
-        return fn;
-      })(),
-      getURL: (() => {
-        const fn = function getURL(path: string) {
-          if (new.target) throw new TypeError('Illegal constructor');
-          return '';
-        };
-        delete (fn as any).prototype;
-        return fn;
-      })(),
+      // Arrow functions: no prototype, throws TypeError on 'new'
+      connect: (extensionId?: string, connectInfo?: any) => ({
+        name: connectInfo?.name || '',
+        disconnect: () => {},
+        onDisconnect: { addListener: () => {}, removeListener: () => {}, hasListener: () => false },
+        onMessage: { addListener: () => {}, removeListener: () => {}, hasListener: () => false },
+        postMessage: () => {},
+        sender: undefined,
+      }),
+      sendMessage: (extensionId?: any, message?: any, options?: any, callback?: any) => {
+        if (typeof callback === 'function') setTimeout(() => callback(undefined), 0);
+        else if (typeof options === 'function') setTimeout(() => options(undefined), 0);
+        else if (typeof message === 'function') setTimeout(() => message(undefined), 0);
+        return Promise.resolve(undefined);
+      },
+      getManifest: () => undefined,
+      getURL: (path: string) => '',
       id: undefined,
       lastError: undefined,
     };

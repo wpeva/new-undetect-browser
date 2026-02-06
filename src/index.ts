@@ -7,8 +7,33 @@ import { BrowserProfile, StorageConfig } from './storage/profile-storage';
 import { logger, LogLevel } from './utils/logger';
 import { applyEnhancedPrivacyProtection } from './modules/enhanced-privacy-protection';
 
-// Apply stealth plugin ONCE at module load
-puppeteer.use(StealthPlugin());
+// Configure StealthPlugin with ONLY safe evasions
+// Some evasions are detectable by CreepJS and cause issues:
+// - chrome.runtime: Uses detectable function.prototype pattern (we have our own)
+// - iframe.contentWindow: Causes hasIframeProxy detection
+// - webgl.vendor: Causes hasBadWebGL (WebGL mismatch between main/worker)
+// - navigator.plugins: Our implementation is more comprehensive
+const safeEvasions = new Set([
+  'chrome.app',
+  'chrome.csi',
+  'chrome.loadTimes',
+  // 'chrome.runtime', // DISABLED: We have our own arrow-function implementation
+  'defaultArgs',
+  // 'iframe.contentWindow', // DISABLED: Causes hasIframeProxy detection
+  'media.codecs',
+  'navigator.hardwareConcurrency',
+  'navigator.languages',
+  'navigator.permissions',
+  // 'navigator.plugins', // DISABLED: We have our own implementation
+  'navigator.webdriver',
+  'sourceurl',
+  'user-agent-override',
+  // 'webgl.vendor', // DISABLED: Causes hasBadWebGL (main/worker mismatch)
+  'window.outerdimensions'
+]);
+
+// Apply stealth plugin ONCE at module load with safe evasions only
+puppeteer.use(StealthPlugin({ enabledEvasions: safeEvasions }));
 
 export interface UndetectConfig {
   stealth?: StealthConfig;

@@ -38,20 +38,11 @@ export class WebDriverEvasionModule {
         delete (window as any)[prop];
       });
 
-      // Prevent new CDP variables from being added
-      const originalDefineProperty = Object.defineProperty;
-      Object.defineProperty = function (obj: any, prop: any, descriptor: any) {
-        if (
-          typeof prop === 'string' &&
-          /^(cdc_|__webdriver|__driver|__selenium)/.test(prop)
-        ) {
-          return obj;
-        }
-        return originalDefineProperty(obj, prop, descriptor);
-      } as any;
+      // NOTE: Object.defineProperty override REMOVED - it was detectable by CreepJS
+      // We just delete CDP props above, no need to prevent them from being re-added
 
       // ========================================
-      // 3. Chrome Runtime
+      // 3. Chrome Runtime - Use arrow functions (no prototype, TypeError on new)
       // ========================================
       if (!window.chrome) {
         (window as any).chrome = {};
@@ -99,66 +90,25 @@ export class WebDriverEvasionModule {
             THROTTLED: 'throttled',
             UPDATE_AVAILABLE: 'update_available',
           },
-          // Critical methods that detection scripts check
-          // Use Object.defineProperty to create functions without prototype
-          // This makes them appear like native functions
-          connect: (() => {
-            const fn = function connect(extensionId?: string, connectInfo?: any) {
-              // Throw TypeError if called with new (like native functions)
-              if (new.target) {
-                throw new TypeError('Illegal constructor');
-              }
-              // Return a fake port object
-              return {
-                name: connectInfo?.name || '',
-                disconnect: function() {},
-                onDisconnect: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
-                onMessage: { addListener: function() {}, removeListener: function() {}, hasListener: function() { return false; } },
-                postMessage: function() {},
-                sender: undefined,
-              };
-            };
-            // Delete prototype to look like native function
-            delete (fn as any).prototype;
-            return fn;
-          })(),
-          sendMessage: (() => {
-            const fn = function sendMessage(extensionId?: any, message?: any, options?: any, callback?: any) {
-              // Throw TypeError if called with new (like native functions)
-              if (new.target) {
-                throw new TypeError('Illegal constructor');
-              }
-              // Handle different argument patterns
-              if (typeof callback === 'function') {
-                setTimeout(() => callback(undefined), 0);
-              } else if (typeof options === 'function') {
-                setTimeout(() => options(undefined), 0);
-              } else if (typeof message === 'function') {
-                setTimeout(() => message(undefined), 0);
-              }
-              return Promise.resolve(undefined);
-            };
-            // Delete prototype to look like native function
-            delete (fn as any).prototype;
-            return fn;
-          })(),
-          getManifest: (() => {
-            const fn = function getManifest() {
-              if (new.target) throw new TypeError('Illegal constructor');
-              return undefined; // Normal for non-extension pages
-            };
-            delete (fn as any).prototype;
-            return fn;
-          })(),
-          getURL: (() => {
-            const fn = function getURL(path: string) {
-              if (new.target) throw new TypeError('Illegal constructor');
-              return ''; // Return empty string for non-extension pages
-            };
-            delete (fn as any).prototype;
-            return fn;
-          })(),
-          id: undefined, // Extensions have an ID, normal pages don't
+          // Arrow functions: NO prototype property, throws TypeError on 'new'
+          // This passes hasBadChromeRuntime detection in CreepJS
+          connect: (extensionId?: string, connectInfo?: any) => ({
+            name: connectInfo?.name || '',
+            disconnect: () => {},
+            onDisconnect: { addListener: () => {}, removeListener: () => {}, hasListener: () => false },
+            onMessage: { addListener: () => {}, removeListener: () => {}, hasListener: () => false },
+            postMessage: () => {},
+            sender: undefined,
+          }),
+          sendMessage: (extensionId?: any, message?: any, options?: any, callback?: any) => {
+            if (typeof callback === 'function') setTimeout(() => callback(undefined), 0);
+            else if (typeof options === 'function') setTimeout(() => options(undefined), 0);
+            else if (typeof message === 'function') setTimeout(() => message(undefined), 0);
+            return Promise.resolve(undefined);
+          },
+          getManifest: () => undefined,
+          getURL: (path: string) => '',
+          id: undefined,
           lastError: undefined,
         } as any;
       }
@@ -328,6 +278,51 @@ export class WebDriverEvasionModule {
         get: () => ['en-US', 'en'],
         configurable: true,
       });
+
+      // ========================================
+      // 6.1. UserAgentData - Critical for Windows version detection
+      // ========================================
+      // CreepJS uses platformVersion to detect Windows version
+      // Format must be 'X.Y.Z' (e.g., '10.0.0' for Windows 10)
+      // If format is wrong (e.g., '10.0'), it shows "Windows Unknown"
+      if ('userAgentData' in navigator) {
+        const originalUAData = (navigator as any).userAgentData;
+        const brands = originalUAData?.brands || [
+          { brand: 'Google Chrome', version: '131' },
+          { brand: 'Chromium', version: '131' },
+          { brand: 'Not_A Brand', version: '24' },
+        ];
+
+        const uaData = {
+          brands: brands,
+          mobile: false,
+          platform: 'Windows',
+          getHighEntropyValues: (hints: string[]) => {
+            return Promise.resolve({
+              brands: brands,
+              mobile: false,
+              platform: 'Windows',
+              platformVersion: '10.0.0', // MUST be X.Y.Z format for CreepJS
+              architecture: 'x86',
+              bitness: '64',
+              model: '',
+              uaFullVersion: '131.0.0.0',
+              fullVersionList: brands.map((b: any) => ({ brand: b.brand, version: b.version + '.0.0.0' })),
+              wow64: false,
+            });
+          },
+          toJSON: () => ({
+            brands: brands,
+            mobile: false,
+            platform: 'Windows',
+          }),
+        };
+
+        Object.defineProperty(navigator, 'userAgentData', {
+          get: () => uaData,
+          configurable: true,
+        });
+      }
 
       // ========================================
       // 7. WebGL Vendor - REMOVED
