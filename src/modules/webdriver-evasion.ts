@@ -330,20 +330,12 @@ export class WebDriverEvasionModule {
       });
 
       // ========================================
-      // 7. WebGL Vendor
+      // 7. WebGL Vendor - REMOVED
       // ========================================
-      const getParameter = WebGLRenderingContext.prototype.getParameter;
-      WebGLRenderingContext.prototype.getParameter = function (parameter) {
-        // UNMASKED_VENDOR_WEBGL
-        if (parameter === 37445) {
-          return 'Intel Inc.';
-        }
-        // UNMASKED_RENDERER_WEBGL
-        if (parameter === 37446) {
-          return 'Intel Iris OpenGL Engine';
-        }
-        return getParameter.call(this, parameter);
-      };
+      // NOTE: WebGL getParameter override has been REMOVED because it is
+      // easily detectable by CreepJS prototype tests. The override modifies
+      // the prototype chain which is visible to detection scripts.
+      // Real WebGL values are passed through instead.
 
       // ========================================
       // 8. Console debug

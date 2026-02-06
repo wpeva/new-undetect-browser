@@ -389,44 +389,17 @@ export class HeadlessDetectionProtection {
       }
 
       // ========================================
-      // 15. WebGL Debug Info
+      // 15. WebGL Debug Info - REMOVED
       // ========================================
-
-      // Ensure consistent WebGL debug info
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-
-      if (gl && 'getParameter' in gl) {
-        //  - getExtension returns specific extension types
-        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        if (debugInfo) {
-          //  - getParameter exists on WebGL contexts
-          const originalGetParameter = gl.getParameter.bind(gl);
-          //  - Overriding getParameter for WebGL spoofing
-          gl.getParameter = function (pname: number) {
-            //  - UNMASKED_VENDOR_WEBGL exists on debug extension
-            if (pname === debugInfo.UNMASKED_VENDOR_WEBGL) {
-              return 'Intel Inc.';
-            }
-            //  - UNMASKED_RENDERER_WEBGL exists on debug extension
-            if (pname === debugInfo.UNMASKED_RENDERER_WEBGL) {
-              return 'Intel Iris OpenGL Engine';
-            }
-            return originalGetParameter(pname);
-          };
-        }
-      }
+      // NOTE: WebGL getParameter override has been REMOVED because it is
+      // detectable by CreepJS prototype tests. Real WebGL values are used.
 
       // ========================================
-      // 16. Date/Time Consistency
+      // 16. Date/Time Consistency - REMOVED
       // ========================================
-
-      // Ensure Date.prototype.getTimezoneOffset is consistent
-      const originalGetTimezoneOffset = Date.prototype.getTimezoneOffset;
-      Date.prototype.getTimezoneOffset = function () {
-        // Return consistent timezone offset
-        return originalGetTimezoneOffset.call(this);
-      };
+      // NOTE: Date.prototype.getTimezoneOffset override has been REMOVED
+      // because prototype modifications are detectable. Timezone is handled
+      // properly by page.emulateTimezone() at the browser level.
 
       // ========================================
       // 17. Console Methods

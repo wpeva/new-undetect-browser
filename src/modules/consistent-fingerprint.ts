@@ -841,16 +841,9 @@ export async function applyConsistentFingerprint(
       }
     });
 
-    // Prevent new automation properties from being added
-    const originalDefineProperty = Object.defineProperty;
-    Object.defineProperty = function(obj: any, prop: PropertyKey, descriptor: PropertyDescriptor) {
-      const propStr = String(prop);
-      // Block automation-related properties from being defined
-      if (propStr.match(/^\$?cdc_/i) || propStr.match(/webdriver|selenium|puppeteer/i)) {
-        return obj; // Silently ignore
-      }
-      return originalDefineProperty.call(Object, obj, prop, descriptor);
-    };
+    // NOTE: Removed Object.defineProperty override - it was causing
+    // "failed object toString error" on ALL properties in prototype tests
+    // The cdc_ cleanup above is sufficient
 
     // Hide automation in permissions - handle ALL common permission types
     const originalQuery = navigator.permissions.query;
@@ -1048,113 +1041,14 @@ export async function applyConsistentFingerprint(
     (Intl as any).DateTimeFormat = SpoofedDateTimeFormat;
 
     // ============================================================
-    // COMPREHENSIVE TIMEZONE SPOOFING
+    // TIMEZONE SPOOFING - REMOVED
     // ============================================================
-    const timezoneOffsets: Record<string, number> = {
-      'America/New_York': 300, // UTC-5
-      'America/Chicago': 360, // UTC-6
-      'America/Denver': 420, // UTC-7
-      'America/Los_Angeles': 480, // UTC-8
-      'America/Toronto': 300, // UTC-5
-      'America/Sao_Paulo': 180, // UTC-3
-      'Europe/London': 0, // UTC+0
-      'Europe/Paris': -60, // UTC+1
-      'Europe/Berlin': -60, // UTC+1
-      'Europe/Madrid': -60, // UTC+1
-      'Europe/Rome': -60, // UTC+1
-      'Europe/Moscow': -180, // UTC+3
-      'Asia/Shanghai': -480, // UTC+8
-      'Asia/Tokyo': -540, // UTC+9
-      'Australia/Sydney': -600, // UTC+10
-    };
-
-    const timezoneNames: Record<string, string> = {
-      'America/New_York': 'Eastern Standard Time',
-      'America/Chicago': 'Central Standard Time',
-      'America/Denver': 'Mountain Standard Time',
-      'America/Los_Angeles': 'Pacific Standard Time',
-      'America/Toronto': 'Eastern Standard Time',
-      'America/Sao_Paulo': 'Brasilia Standard Time',
-      'Europe/London': 'Greenwich Mean Time',
-      'Europe/Paris': 'Central European Standard Time',
-      'Europe/Berlin': 'Central European Standard Time',
-      'Europe/Madrid': 'Central European Standard Time',
-      'Europe/Rome': 'Central European Standard Time',
-      'Europe/Moscow': 'Moscow Standard Time',
-      'Asia/Shanghai': 'China Standard Time',
-      'Asia/Tokyo': 'Japan Standard Time',
-      'Australia/Sydney': 'Australian Eastern Standard Time',
-    };
-
-    const timezoneAbbrs: Record<string, string> = {
-      'America/New_York': 'EST',
-      'America/Chicago': 'CST',
-      'America/Denver': 'MST',
-      'America/Los_Angeles': 'PST',
-      'America/Toronto': 'EST',
-      'America/Sao_Paulo': 'BRT',
-      'Europe/London': 'GMT',
-      'Europe/Paris': 'CET',
-      'Europe/Berlin': 'CET',
-      'Europe/Madrid': 'CET',
-      'Europe/Rome': 'CET',
-      'Europe/Moscow': 'MSK',
-      'Asia/Shanghai': 'CST',
-      'Asia/Tokyo': 'JST',
-      'Australia/Sydney': 'AEST',
-    };
-
-    const targetOffset = timezoneOffsets[fp.timezone] ?? 0;
-    const targetTzName = timezoneNames[fp.timezone] ?? fp.timezone;
-    const targetTzAbbr = timezoneAbbrs[fp.timezone] ?? 'UTC';
-
-    // Override getTimezoneOffset - make it look native
-    const origGetTimezoneOffset = Date.prototype.getTimezoneOffset;
-    Date.prototype.getTimezoneOffset = makeNative(function(this: Date) {
-      return targetOffset;
-    }, 'getTimezoneOffset');
-
-    // Override toString to show correct timezone
-    const origToString = Date.prototype.toString;
-    Date.prototype.toString = makeNative(function(this: Date) {
-      const str = origToString.call(this);
-      // Replace timezone part (e.g., GMT-0500 (Eastern Standard Time))
-      const gmtOffset = targetOffset <= 0
-        ? `+${String(Math.abs(targetOffset / 60)).padStart(2, '0')}00`
-        : `-${String(targetOffset / 60).padStart(2, '0')}00`;
-      return str.replace(/GMT[+-]\d{4} \([^)]+\)/, `GMT${gmtOffset} (${targetTzName})`);
-    }, 'toString');
-
-    // Override toTimeString
-    const origToTimeString = Date.prototype.toTimeString;
-    Date.prototype.toTimeString = makeNative(function(this: Date) {
-      const str = origToTimeString.call(this);
-      const gmtOffset = targetOffset <= 0
-        ? `+${String(Math.abs(targetOffset / 60)).padStart(2, '0')}00`
-        : `-${String(targetOffset / 60).padStart(2, '0')}00`;
-      return str.replace(/GMT[+-]\d{4} \([^)]+\)/, `GMT${gmtOffset} (${targetTzName})`);
-    }, 'toTimeString');
-
-    // Override toLocaleString to use correct timezone
-    const origToLocaleString = Date.prototype.toLocaleString;
-    Date.prototype.toLocaleString = makeNative(function(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
-      const opts = { ...options, timeZone: fp.timezone };
-      return origToLocaleString.call(this, locales || fp.locale, opts);
-    }, 'toLocaleString');
-
-    // Override toLocaleDateString
-    const origToLocaleDateString = Date.prototype.toLocaleDateString;
-    Date.prototype.toLocaleDateString = makeNative(function(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
-      const opts = { ...options, timeZone: fp.timezone };
-      return origToLocaleDateString.call(this, locales || fp.locale, opts);
-    }, 'toLocaleDateString');
-
-    // Override toLocaleTimeString
-    const origToLocaleTimeString = Date.prototype.toLocaleTimeString;
-    Date.prototype.toLocaleTimeString = makeNative(function(this: Date, locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
-      const opts = { ...options, timeZone: fp.timezone };
-      return origToLocaleTimeString.call(this, locales || fp.locale, opts);
-    }, 'toLocaleTimeString');
+    // NOTE: All Date.prototype overrides have been REMOVED because they are
+    // easily detectable by prototype tests (CreepJS).
+    //
+    // Timezone is handled properly by page.emulateTimezone() called at the
+    // end of applyConsistentFingerprint() - this is a Puppeteer/CDP feature
+    // that changes timezone at the browser level, which is undetectable.
 
     // ============================================================
     // COMPREHENSIVE LOCALE/LANGUAGE SPOOFING
@@ -1641,22 +1535,23 @@ export async function applyConsistentFingerprint(
     // Intercept Worker creation to inject our overrides
     const OriginalWorker = window.Worker;
     window.Worker = function(scriptURL: string | URL, options?: WorkerOptions): Worker {
-      // Create a blob that injects our timezone/locale/WebGL settings
-      // CRITICAL: WebGL must be consistent between main thread and Workers!
+      // Create a blob that injects locale settings (non-prototype modifications only)
+      // NOTE: All prototype overrides (Date, WebGL) have been REMOVED because they
+      // are detectable by CreepJS. Timezone is handled by page.emulateTimezone()
+      // which also applies to Workers. WebGL values are left as real hardware values.
       const injectScript = `
-        // Inject timezone offset
-        Date.prototype.getTimezoneOffset = function() { return ${targetOffset}; };
-
-        // Inject locale
+        // Inject locale settings (not prototype modifications)
         const fpLocale = '${fp.locale}';
         const fpTimezone = '${fp.timezone}';
         const fpLanguages = ${JSON.stringify(fp.languages)};
 
-        // Override navigator in worker
-        Object.defineProperty(self.navigator, 'language', { get: () => fpLanguages[0] });
-        Object.defineProperty(self.navigator, 'languages', { get: () => fpLanguages });
+        // Override navigator in worker (property, not prototype)
+        try {
+          Object.defineProperty(self.navigator, 'language', { get: () => fpLanguages[0], configurable: true });
+          Object.defineProperty(self.navigator, 'languages', { get: () => fpLanguages, configurable: true });
+        } catch (e) {}
 
-        // Override Intl in worker
+        // Override Intl constructors (function replacement, not prototype modification)
         const origDTF = Intl.DateTimeFormat;
         Intl.DateTimeFormat = function(...args) {
           if (!args[0]) args[0] = fpLocale;
@@ -1674,32 +1569,6 @@ export async function applyConsistentFingerprint(
         };
         Intl.NumberFormat.prototype = origNF.prototype;
         Intl.NumberFormat.supportedLocalesOf = origNF.supportedLocalesOf;
-
-        // CRITICAL: WebGL spoofing in Worker for consistency
-        const fpWebGLVendor = '${fp.webgl.vendor}';
-        const fpWebGLRenderer = '${fp.webgl.renderer}';
-        const UNMASKED_VENDOR = 37445;
-        const UNMASKED_RENDERER = 37446;
-
-        // Override WebGLRenderingContext.getParameter
-        if (typeof WebGLRenderingContext !== 'undefined') {
-          const origGetParam = WebGLRenderingContext.prototype.getParameter;
-          WebGLRenderingContext.prototype.getParameter = function(param) {
-            if (param === UNMASKED_VENDOR) return fpWebGLVendor;
-            if (param === UNMASKED_RENDERER) return fpWebGLRenderer;
-            return origGetParam.call(this, param);
-          };
-        }
-
-        // Override WebGL2RenderingContext.getParameter
-        if (typeof WebGL2RenderingContext !== 'undefined') {
-          const origGetParam2 = WebGL2RenderingContext.prototype.getParameter;
-          WebGL2RenderingContext.prototype.getParameter = function(param) {
-            if (param === UNMASKED_VENDOR) return fpWebGLVendor;
-            if (param === UNMASKED_RENDERER) return fpWebGLRenderer;
-            return origGetParam2.call(this, param);
-          };
-        }
 
         // Import the original script
         importScripts('${scriptURL}');
@@ -1776,17 +1645,10 @@ export async function applyConsistentFingerprint(
     // The browser's natural rendering differences provide uniqueness.
     // If you need different fingerprints, use different browser profiles/instances.
 
-    // WebGL fingerprint
-    const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
-    WebGLRenderingContext.prototype.getParameter = function (parameter: number) {
-      if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
-        return fp.webgl.vendor;
-      }
-      if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
-        return fp.webgl.renderer;
-      }
-      return originalGetParameter.apply(this, [parameter]);
-    };
+    // WebGL fingerprint - REMOVED
+    // NOTE: WebGL getParameter override has been REMOVED because it is detectable
+    // by CreepJS prototype tests. Real WebGL values are passed through.
+    // If you need different WebGL values, use a VM or different hardware.
 
     // Fonts
     Object.defineProperty(document, 'fonts', {
